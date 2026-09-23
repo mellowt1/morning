@@ -15,6 +15,7 @@
   --arsenal-rule: #E3CFCB;
   --bin: #8F6310;
   --bday: #A63D73;
+  --kitchen: #C2402A;
   --rain-on: #2F6690;
   --rain-off: #C9D6E0;
   color-scheme: light;
@@ -33,6 +34,7 @@
   --arsenal-rule: #45302F;
   --bin: #D8AE5E;
   --bday: #E79AC3;
+  --kitchen: #F08A73;
   --rain-on: #86B6DC;
   --rain-off: #2C3A47;
   color-scheme: dark;
@@ -142,6 +144,9 @@ a:hover { opacity: .8; }
 .bin { display: flex; align-items: center; gap: 10px; font-size: 15px; }
 .bin-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--bin); flex-shrink: 0; }
 .bin b { font-weight: 600; color: var(--bin); }
+.tonight .bin-dot { background: var(--kitchen); }
+.tonight b { color: var(--ink); }
+.tonight .mix { font-weight: 600; color: var(--kitchen); }
 .bdays { display: flex; flex-direction: column; gap: 8px; }
 .bdays:empty { display: none; }
 .bday { display: flex; align-items: center; gap: 10px; font-size: 15px; }

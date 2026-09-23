@@ -159,6 +159,18 @@
     return { when: (diff < 7 ? DAYS[weekday(next.date)] : shortDate(next.date)) + ':', what: names };
   }
 
+  /* The kitchen's line: "Tonight: Pizza night" and, on mix day, "Mix the dough today" in tomato.
+   * The Worker reads the kitchen with its own code; this page never sees it. */
+  function tonightHtml(k, now) {
+    if (!ok(k) || (!k.tonight && !k.mixToday)) return '';
+    const mix = k.mixToday ? '<span class="mix">Mix the dough today</span>' : '';
+    if (!k.tonight) {
+      const on = k.pizzaOn && /^\d{4}-\d{2}-\d{2}$/.test(k.pizzaOn) ? DAYS[weekday(k.pizzaOn)] : '';
+      return mix + (on ? ` for ${esc(on)}'s pizza night` : '');
+    }
+    return `<b>Tonight:</b> ${esc(k.tonight.title)}${mix ? '. ' + mix : ''}`;
+  }
+
   function renderExtras(data, now) {
     const bin = binLine(data && data.bins, now);
     $('bin').hidden = !bin;
@@ -177,7 +189,10 @@
     $('countdowns').innerHTML = html;
     const bdays = birthdayLines(data && data.birthdays, now);
     $('bdays').innerHTML = bdays;
-    $('extras').hidden = !bin && !html && !bdays;
+    const tonight = tonightHtml(data && data.kitchen, now);
+    $('tonight').hidden = !tonight;
+    $('tonightText').innerHTML = tonight;
+    $('extras').hidden = !bin && !html && !bdays && !tonight;
   }
 
   /* "Nick's birthday in 5 days, turns 40"; today in the birthday colour. */

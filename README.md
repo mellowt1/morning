@@ -33,6 +33,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
 | Countdowns and fixed events | Worker secret `FIXED_EVENTS` | every open |
 | Birthdays | Worker secret `BIRTHDAYS`, the next 14 days | every open |
+| Tonight | the Kitchen app: today's dinner, plus "Mix the dough today" in tomato 3 days before a pizza night (1 day for gluten free). Read inside the Worker with the kitchen's own code, which never reaches this page. Hidden when nothing is planned | every open |
 | Bin day | Den Haag's huisvuilkalender for `BIN_ADDRESS` | 12 hours; left out if it can't be read |
 | Arsenal | ESPN's open JSON, all competitions (unofficial). ESPN refuses Cloudflare, so when the Worker's block fails the page asks ESPN itself (`app/arsenal.js`, same parsing as the Worker) | 1 hour, kept on the phone; "can't load" if ESPN is out of reach |
 | NOS | the top three headlines from the NOS news feed, each opens in a new tab | 30 minutes |
@@ -62,6 +63,7 @@ npm run serve                  # page on http://localhost:8080/morning/?c=<dev c
 npm run shots                  # phone and laptop, light and dark, into verify-shots/
 npm run check-arsenal          # the page's own ESPN fallback, with the Worker mocked
 npm run extras-shots           # Start with, wins, birthdays, NOS, with the Worker mocked
+npm run tonight-shots          # the Tonight line from the kitchen, with the Worker mocked
 npm run icons                  # redraws app/icons/ from the sunrise mark
 ```
 
