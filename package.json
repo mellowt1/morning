@@ -7,7 +7,8 @@
     "icons": "node scripts/make-icons.mjs",
     "serve": "node scripts/serve.mjs",
     "shots": "node scripts/shots.mjs",
-    "check-arsenal": "node scripts/check-arsenal.mjs"
+    "check-arsenal": "node scripts/check-arsenal.mjs",
+    "extras-shots": "node scripts/extras-shots.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
