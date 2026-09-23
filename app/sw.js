@@ -8,6 +8,7 @@ const FILES = [
   './index.html',
   './app.css',
   './app.js',
+  './arsenal.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',

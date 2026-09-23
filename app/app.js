@@ -48,6 +48,7 @@
   const KEY = 'morning.last.' + code;
   let last = store.get(KEY); // { at, data }
   let failed = false;
+  let arsenalDirect = null; // the Arsenal block fetched by the browser, when the Worker's failed
 
   /* ---------- Time in The Hague ---------- */
   const fmtCache = {};
@@ -286,7 +287,8 @@
     renderExtras(data, now);
     renderTodos(data && data.todos);
     renderCalendar(data, now);
-    renderArsenal(data && data.arsenal, now);
+    const a = data && data.arsenal;
+    renderArsenal(a && !ok(a) && arsenalDirect ? arsenalDirect : a, now);
     renderAsOf(now);
   }
 
@@ -314,6 +316,15 @@
       loading = false;
     }
     render();
+    directArsenal();
+  }
+
+  /* ESPN refuses the Worker's requests but answers browsers, so when the Worker's
+   * Arsenal block is an error the page asks ESPN itself (app/arsenal.js). */
+  function directArsenal() {
+    const a = last && last.data && last.data.arsenal;
+    if (!a || ok(a) || !self.MorningArsenal) return;
+    self.MorningArsenal.load().then((b) => { arsenalDirect = b; render(); }).catch(() => {});
   }
 
   render();

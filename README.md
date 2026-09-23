@@ -32,7 +32,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
 | Countdowns and fixed events | Worker secret `FIXED_EVENTS` | every open |
 | Bin day | Den Haag's huisvuilkalender for `BIN_ADDRESS` | 12 hours; left out if it can't be read |
-| Arsenal | ESPN's open JSON, all competitions (unofficial) | 1 hour; "can't load" if ESPN changes it |
+| Arsenal | ESPN's open JSON, all competitions (unofficial). ESPN refuses Cloudflare, so when the Worker's block fails the page asks ESPN itself (`app/arsenal.js`, same parsing as the Worker) | 1 hour, kept on the phone; "can't load" if ESPN is out of reach |
 
 Rides are at 08:00 and 17:30 on weekdays. After 17:30 and at the weekend the block shows the next weekday's rides ("Tomorrow's rides", "Monday's rides"). Each block fails on its own; the rest of the page still shows.
 
@@ -57,6 +57,7 @@ npm install
 cd ..\todo\worker; npx wrangler dev --persist-to C:\wd   # Worker on :8787, dev values only
 npm run serve                  # page on http://localhost:8080/morning/?c=<dev code>
 npm run shots                  # phone and laptop, light and dark, into verify-shots/
+npm run check-arsenal          # the page's own ESPN fallback, with the Worker mocked
 npm run icons                  # redraws app/icons/ from the sunrise mark
 ```
 
