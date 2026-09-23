@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Morning</title>
+<meta name="description" content="Paul's morning screen.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Morning">
+<meta name="theme-color" content="#F1F0EC">
+<meta name="color-scheme" content="light">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div id="nocode" class="nocode" hidden>
+  <p class="nocode-title">Good morning.</p>
+  <p>This screen opens from your private link, the same one as the to-do app.</p>
+</div>
+
+<div id="app" class="page" hidden>
+  <header class="head">
+    <div class="head-phone">
+      <div class="head-top"><span class="js-day"></span><span>The Hague <span data-clock="here"></span></span></div>
+      <div class="head-main">
+        <h1 class="date js-date"></h1>
+        <div class="mini-clocks">
+          <div>Miami<br><span class="mini-time" data-clock="miami"></span></div>
+          <div>Ecuador<br><span class="mini-time" data-clock="ecuador"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="head-wide" aria-hidden="true">
+      <div class="head-date">
+        <span class="head-day js-day"></span>
+        <div class="date date-wide js-date"></div>
+      </div>
+      <div class="clocks">
+        <div class="clock"><span class="clock-label">The Hague</span><span class="clock-time" data-clock="here"></span></div>
+        <div class="clock"><span class="clock-label">Miami</span><span class="clock-time muted" data-clock="miami"></span></div>
+        <div class="clock"><span class="clock-label">Ecuador</span><span class="clock-time muted" data-clock="ecuador"></span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="cols">
+    <div class="col col-a">
+      <section class="bike" aria-label="Bike weather">
+        <div class="label label-bike">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="17" r="3.5"></circle><circle cx="18.5" cy="17" r="3.5"></circle><path d="M5.5 17 9 9h6l3.5 8M9 9 7.5 6H5.5M15 9l-2.5 8"></path></svg>
+          <span id="bikeLabel">Today's rides</span>
+        </div>
+        <p id="verdict" class="verdict">Loading</p>
+        <div id="rides" class="rides"></div>
+        <div id="strip" class="strip" hidden>
+          <div class="strip-head"><span id="rainLine" class="strip-line"></span><span class="muted">next 2 hours</span></div>
+          <div id="bars" class="bars"></div>
+          <div id="barTimes" class="bar-times"></div>
+        </div>
+      </section>
+
+      <section id="extras" class="extras" aria-label="Bin day and countdowns" hidden>
+        <div id="bin" class="bin" hidden><span class="bin-dot"></span><span><b id="binWhen"></b> <span id="binWhat"></span></span></div>
+        <div id="countdowns" class="countdowns"></div>
+      </section>
+    </div>
+
+    <div class="col col-b">
+      <section class="todos" aria-label="Today's to-dos">
+        <div class="todos-head">
+          <span class="label label-todo">Today</span>
+          <a id="todoLink" class="todo-link" href="../todo/">Open to-do app</a>
+        </div>
+        <ul id="todoList" class="todo-list"></ul>
+      </section>
+    </div>
+
+    <div class="col col-c">
+      <section class="cal" aria-label="Coming up">
+        <span class="label label-cal">Coming up</span>
+        <div id="days" class="days"></div>
+        <span id="calNote" class="note"></span>
+      </section>
+
+      <section id="arsenal" class="arsenal" aria-label="Arsenal">
+        <span class="label label-arsenal">Arsenal</span>
+        <div id="arsenalBody"></div>
+      </section>
+    </div>
+  </div>
+
+  <footer id="asOf" class="as-of"></footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
