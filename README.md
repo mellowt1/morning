@@ -1,6 +1,6 @@
 # Morning
 
-One page for the first coffee: the date, the clocks in The Hague, Miami and Ecuador, the bike weather for the next rides, bin day and countdowns, today's to-dos, the week's calendar and Arsenal. On the phone it is one column, on the laptop it reads like a debrief in three. It turns dark between sunset and sunrise in The Hague.
+One page for the first coffee: the date, the clocks in The Hague, Miami and Ecuador, the one task to start with, the bike weather for the next rides, bin day, birthdays and countdowns, today's to-dos and yesterday's wins, the week's calendar, Arsenal and three NOS headlines. On the phone it is one column, on the laptop it reads like a debrief in three. It turns dark between sunset and sunrise in The Hague.
 
 **No personal data lives in this repo.** The page ships empty and loads everything from the `paul-hub` Worker using the code in the link, so the repo can be public.
 
@@ -28,17 +28,20 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Block | Source | Fresh |
 |---|---|---|
 | Rides, rain in the next 2 hours, sunrise and sunset | Open-Meteo, The Hague, no key | 15 minutes |
-| To-dos | the to-do list, Today, open items | every open |
+| Start with, to-dos | the to-do list, Today, open items; the first one is shown large as "Start with" | every open |
+| Yesterday's wins | the to-do list, items finished yesterday, up to five names | every open |
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
 | Countdowns and fixed events | Worker secret `FIXED_EVENTS` | every open |
+| Birthdays | Worker secret `BIRTHDAYS`, the next 14 days | every open |
 | Bin day | Den Haag's huisvuilkalender for `BIN_ADDRESS` | 12 hours; left out if it can't be read |
 | Arsenal | ESPN's open JSON, all competitions (unofficial). ESPN refuses Cloudflare, so when the Worker's block fails the page asks ESPN itself (`app/arsenal.js`, same parsing as the Worker) | 1 hour, kept on the phone; "can't load" if ESPN is out of reach |
+| NOS | the top three headlines from the NOS news feed, each opens in a new tab | 30 minutes |
 
 Rides are at 08:00 and 17:30 on weekdays. After 17:30 and at the weekend the block shows the next weekday's rides ("Tomorrow's rides", "Monday's rides"). Each block fails on its own; the rest of the page still shows.
 
 ## Secrets
 
-All in the Worker, none here: `TODO_CODE` (the code in the link), `CALENDAR_PUSH_TOKEN` (Odysseus), `FIXED_EVENTS` (archery nights and countdowns, one line of JSON) and `BIN_ADDRESS` (postcode and house number). The private values sit in the gitignored `secrets.local.txt` files. Upload them with `npx wrangler secret bulk` from a temp JSON file, as the todo README shows; piping into `wrangler secret put` stores an empty secret on Windows.
+All in the Worker, none here: `TODO_CODE` (the code in the link), `CALENDAR_PUSH_TOKEN` (Odysseus), `FIXED_EVENTS` (archery nights and countdowns, one line of JSON), `BIN_ADDRESS` (postcode and house number) and `BIRTHDAYS` (one line of JSON, `[{"name":"Nick","date":"10-12"}]`, or `"1986-10-12"` to show the age they turn). The private values sit in the gitignored `secrets.local.txt` files. Upload them with `npx wrangler secret bulk` from a temp JSON file, as the todo README shows; piping into `wrangler secret put` stores an empty secret on Windows.
 
 ## Going live (once)
 
@@ -58,6 +61,7 @@ cd ..\todo\worker; npx wrangler dev --persist-to C:\wd   # Worker on :8787, dev 
 npm run serve                  # page on http://localhost:8080/morning/?c=<dev code>
 npm run shots                  # phone and laptop, light and dark, into verify-shots/
 npm run check-arsenal          # the page's own ESPN fallback, with the Worker mocked
+npm run extras-shots           # Start with, wins, birthdays, NOS, with the Worker mocked
 npm run icons                  # redraws app/icons/ from the sunrise mark
 ```
 
