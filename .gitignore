@@ -1,0 +1,12 @@
+# Secrets. Never committed.
+secrets.local.txt
+*.local.*
+.secrets.tmp.json
+.dev.vars
+
+# Dependencies and local output
+node_modules/
+verify-shots/
+
+.DS_Store
+Thumbs.db
