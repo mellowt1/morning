@@ -175,17 +175,64 @@
       return `<div class="cd"><span class="cd-num">${days}</span><span>${days === 1 ? 'day' : 'days'} to ${esc(c.what)}</span></div>`;
     }).join('');
     $('countdowns').innerHTML = html;
-    $('extras').hidden = !bin && !html;
+    const bdays = birthdayLines(data && data.birthdays, now);
+    $('bdays').innerHTML = bdays;
+    $('extras').hidden = !bin && !html && !bdays;
+  }
+
+  /* "Nick's birthday in 5 days, turns 40"; today in the birthday colour. */
+  function birthdayLines(b, now) {
+    if (!ok(b) || !Array.isArray(b.birthdays)) return '';
+    const today = ymd(now);
+    return b.birthdays.map((x) => {
+      const days = Math.round((Date.parse(x.date) - Date.parse(today)) / 86400000);
+      if (days < 0 || days > 14) return '';
+      const whose = esc(x.name) + (/s$/i.test(x.name) ? "'" : "'s") + ' birthday';
+      const age = x.age ? (days === 0 ? ', turning ' : ', turns ') + x.age : '';
+      const text = days === 0 ? `<b>Today:</b> ${whose}${age}` : `${whose} ${days === 1 ? 'tomorrow' : 'in ' + days + ' days'}${age}`;
+      return `<div class="bday"><span class="bday-dot"></span><span>${text}</span></div>`;
+    }).join('');
   }
 
   /* ---------- To-dos ---------- */
+  const CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
   function renderTodos(t) {
     $('todoLink').href = '../todo/?c=' + encodeURIComponent(code);
     const list = $('todoList');
+    const first = ok(t) && t.items.length ? t.items[0].text : '';
+    // Start with: the first open Today task, large. The list below starts from the second.
+    for (const id of ['startPhone', 'startWide']) {
+      $(id).hidden = !first;
+      $(id).querySelector('.start-text').textContent = first;
+    }
+    renderWins(ok(t) ? t.yesterday : null);
     if (!t) { list.innerHTML = '<li class="empty">Loading</li>'; return; }
     if (!ok(t)) { list.innerHTML = `<li class="empty">To-dos can't load right now.</li>`; return; }
     if (!t.items.length) { list.innerHTML = '<li class="empty">Nothing for today.</li>'; return; }
-    list.innerHTML = t.items.map((i) => `<li><span class="circle"></span><span>${esc(i.text)}</span></li>`).join('');
+    if (t.items.length === 1) { list.innerHTML = '<li class="empty">Nothing else for today.</li>'; return; }
+    list.innerHTML = t.items.slice(1).map((i) => `<li><span class="circle"></span><span>${esc(i.text)}</span></li>`).join('');
+  }
+
+  /* Yesterday's wins: "Yesterday you finished 4" and up to five names. Hidden at zero. */
+  function renderWins(y) {
+    const box = $('wins');
+    if (!y || !(y.count > 0)) { box.hidden = true; return; }
+    box.hidden = false;
+    box.querySelector('.wins-head').innerHTML = 'Yesterday you finished <b>' + esc(y.count) + '</b>';
+    box.querySelector('.wins-list').innerHTML = (y.items || []).map((x) => `<li>${CHECK}<span>${esc(x)}</span></li>`).join('');
+  }
+
+  /* NOS: three headlines, each opening in a new tab. */
+  function renderNews(n) {
+    const box = $('news');
+    if (!n) { box.hidden = true; return; }
+    box.hidden = false;
+    const list = $('newsList');
+    if (!ok(n) || !Array.isArray(n.items) || !n.items.length) { list.innerHTML = `<li class="empty">News can't load right now.</li>`; return; }
+    list.innerHTML = n.items.map((i) => (/^https:///.test(i.link)
+      ? `<li><a href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a></li>`
+      : `<li>${esc(i.title)}</li>`)).join('');
   }
 
   /* ---------- Calendar: Odysseus plus the fixed events, grouped by day ---------- */
@@ -289,6 +336,7 @@
     renderCalendar(data, now);
     const a = data && data.arsenal;
     renderArsenal(a && !ok(a) && arsenalDirect ? arsenalDirect : a, now);
+    renderNews(data && data.news);
     renderAsOf(now);
   }
 

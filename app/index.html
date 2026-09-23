@@ -53,6 +53,11 @@
     </div>
   </header>
 
+  <section id="startPhone" class="start start-phone" aria-label="Start with" hidden>
+    <span class="label label-todo">Start with</span>
+    <p class="start-text"></p>
+  </section>
+
   <div class="cols">
     <div class="col col-a">
       <section class="bike" aria-label="Bike weather">
@@ -71,17 +76,27 @@
 
       <section id="extras" class="extras" aria-label="Bin day and countdowns" hidden>
         <div id="bin" class="bin" hidden><span class="bin-dot"></span><span><b id="binWhen"></b> <span id="binWhat"></span></span></div>
+        <div id="bdays" class="bdays"></div>
         <div id="countdowns" class="countdowns"></div>
       </section>
     </div>
 
     <div class="col col-b">
+      <section id="startWide" class="start start-wide" aria-hidden="true" hidden>
+        <span class="label label-todo">Start with</span>
+        <p class="start-text"></p>
+      </section>
+
       <section class="todos" aria-label="Today's to-dos">
         <div class="todos-head">
           <span class="label label-todo">Today</span>
           <a id="todoLink" class="todo-link" href="../todo/">Open to-do app</a>
         </div>
         <ul id="todoList" class="todo-list"></ul>
+        <div id="wins" class="wins" hidden>
+          <p class="wins-head"></p>
+          <ul class="wins-list"></ul>
+        </div>
       </section>
     </div>
 
@@ -95,6 +110,11 @@
       <section id="arsenal" class="arsenal" aria-label="Arsenal">
         <span class="label label-arsenal">Arsenal</span>
         <div id="arsenalBody"></div>
+      </section>
+
+      <section id="news" class="news" aria-label="NOS headlines" hidden>
+        <span class="label label-news">NOS</span>
+        <ul id="newsList" class="news-list"></ul>
       </section>
     </div>
   </div>
