@@ -1,0 +1,15 @@
+{
+  "name": "morning",
+  "private": true,
+  "type": "module",
+  "description": "Paul's Morning Screen: a static PWA that reads the paul-hub Worker.",
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs",
+    "serve": "node scripts/serve.mjs",
+    "shots": "node scripts/shots.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "playwright": "^1.63.0"
+  }
+}
