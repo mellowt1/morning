@@ -62,6 +62,46 @@ texts.push((await shot('laptop-dark', { width: 1280, height: 820 }, night)).text
 texts.push((await shot('tablet-light', { width: 900, height: 1100 }, morning)).text);
 texts.push((await shot('phone-offline', { width: 390, height: 844 }, morning, { offline: true })).text);
 texts.push((await shot('phone-nocode', { width: 390, height: 844 }, morning, { url: 'http://localhost:8080/morning/' })).text);
+// First visit online with the service worker on, then a reload with no network at all:
+// the page and its fonts must come from the offline cache.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  // Real clock here: Playwright's fixed clock stalls font loading and the service worker.
+  await page.goto(APP + '&sw=1');
+  await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+  await page.waitForFunction(async () => {
+    for (const k of await caches.keys()) {
+      const reqs = await (await caches.open(k)).keys();
+      if (reqs.some((r) => r.url.startsWith('https://fonts.gstatic.com/')) && reqs.some((r) => r.url.startsWith('https://fonts.googleapis.com/'))) return true;
+    }
+    return false;
+  }, null, { timeout: 15000 });
+  // The service worker caches the font files one by one: wait until the count stops growing.
+  const count = () => page.evaluate(async () => {
+    let n = 0;
+    for (const k of await caches.keys()) n += (await (await caches.open(k)).keys()).filter((r) => r.url.startsWith('https://fonts.gstatic.com/')).length;
+    return n;
+  });
+  for (let prev = -1, n = await count(); n !== prev; prev = n, await page.waitForTimeout(1000), n = await count());
+  await ctx.setOffline(true);
+  await page.reload();
+  await page.waitForFunction(() => /No connection/.test(document.getElementById('asOf').textContent));
+  // Fonts with display=swap load after the first paint; give them a moment.
+  await page.waitForFunction(() => [...document.fonts].some((f) => f.family === 'Instrument Serif' && f.status === 'loaded'), null, { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.fonts.ready);
+  const fonts = await page.evaluate(() => ({
+    serif: document.fonts.check('52px "Instrument Serif"'),
+    sans: document.fonts.check('16px "IBM Plex Sans"'),
+    loaded: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family + ' ' + f.weight),
+    dateHeight: document.querySelector('.head-phone .date').getBoundingClientRect().height,
+  }));
+  await page.screenshot({ path: path('phone-offline-fonts'), fullPage: false });
+  console.log('offline fonts', JSON.stringify(fonts));
+  if (!fonts.serif || !fonts.loaded.some((f) => f.includes('Instrument Serif'))) console.log('OFFLINE FONTS MISSING');
+  await ctx.close();
+}
+
 await browser.close();
 
 // No dash used as punctuation in visible text: no em or en dash, no spaced hyphen.

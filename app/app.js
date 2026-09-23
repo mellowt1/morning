@@ -327,5 +327,13 @@
 
   if ('serviceWorker' in navigator && (!isLocal || params.get('sw') === '1')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // On the first visit the page is not yet controlled, so the service worker never saw
+    // the Google Fonts requests. Hand it the URLs the page actually loaded to keep offline.
+    Promise.all([navigator.serviceWorker.ready, document.fonts ? document.fonts.ready : null]).then(([reg]) => {
+      const urls = performance.getEntriesByType('resource').map((e) => e.name)
+        .filter((u) => /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(u));
+      const sw = reg.active || navigator.serviceWorker.controller;
+      if (sw && urls.length) sw.postMessage({ type: 'cache-fonts', urls });
+    }).catch(() => {});
   }
 })();
