@@ -1,11 +1,11 @@
 {
   "name": "Morning",
   "short_name": "Morning",
-  "description": "Paul's morning screen: rides, to-dos, what's coming, Arsenal.",
+  "description": "Paul’s morning screen: start with, today, projects, the week, Arsenal.",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#F1F0EC",
-  "theme_color": "#F1F0EC",
+  "background_color": "#EEEDE9",
+  "theme_color": "#EEEDE9",
   "icons": [
     { "src": "icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

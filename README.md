@@ -1,6 +1,6 @@
 # Morning
 
-One page for the first coffee: the date, the clocks in The Hague, Miami and Ecuador, the one task to start with, what is pending on each project, bin day, birthdays and countdowns, today's to-dos and yesterday's wins, the week's calendar, Arsenal and three NOS headlines. On the phone it is one column, on the laptop it reads like a debrief in three. It turns dark between sunset and sunrise in The Hague.
+One page for the daily review, in numbered cards: 01 the one task to start with, 02 the rest of today (tasks, dinner, bin day, birthdays, countdowns, yesterday's wins), 03 what is pending on each project, 04 the week's calendar, then Arsenal. The date reads 24.09; the clocks for The Hague, Miami and Ecuador sit in the header on the laptop and in the footer on the phone. One column on the phone, two on a tablet, three on the laptop. It turns dark between sunset and sunrise in The Hague. The look is "Swiss Cards" (Geist, white cards on #EEEDE9, green #3F7D5C), approved on the Morning Hub Redesign canvas on 24 September 2026. NOS headlines are still in the Worker's answer but no longer shown.
 
 **No personal data lives in this repo.** The page ships empty and loads everything from the `paul-hub` Worker using the code in the link, so the repo can be public.
 

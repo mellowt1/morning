@@ -4,6 +4,9 @@
  * The last good answer is kept in localStorage, so the page opens without signal and
  * says "As of 07:52". It refreshes when it becomes visible again and every ten minutes
  * while open. All times are shown in The Hague's time, whatever the device says.
+ *
+ * Layout: numbered cards. 01 Start with, 02 Today (tasks, dinner, bins, birthdays,
+ * countdowns, yesterday), 03 Projects, 04 Week, then Arsenal.
  */
 (() => {
   'use strict';
@@ -64,23 +67,25 @@
   };
   const stamp = (ms) => ymd(ms) + 'T' + hm(ms); // 'YYYY-MM-DDTHH:MM', comparable with Open-Meteo's times
   const addDays = (date, n) => new Date(Date.parse(date + 'T12:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const daysFrom = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const weekday = (date) => new Date(date + 'T12:00:00Z').getUTCDay();
-  const dayMonth = (date) => `${+date.slice(8, 10)} ${MONTHS[+date.slice(5, 7) - 1]}`;
+  const dotDate = (date) => `${date.slice(8, 10)}.${date.slice(5, 7)}`; // '24.09'
   const shortDate = (date) => `${SHORT[weekday(date)]} ${+date.slice(8, 10)} ${MONTHS[+date.slice(5, 7) - 1].slice(0, 3)}`;
   const timeOf = (iso) => hm(Date.parse(iso));
   const dateOf = (iso) => ymd(Date.parse(iso));
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ok = (b) => b && typeof b === 'object' && !b.error;
+  const row = (left, side, cls = '') => `<li class="row${cls ? ' ' + cls : ''}"><span>${left}</span>${side ? `<span class="side">${side}</span>` : ''}</li>`;
 
   /* ---------- Header and clocks ---------- */
   function renderHead(now) {
     const today = ymd(now);
     for (const el of document.querySelectorAll('.js-day')) el.textContent = DAYS[weekday(today)];
-    for (const el of document.querySelectorAll('.js-date')) el.textContent = dayMonth(today);
+    for (const el of document.querySelectorAll('.js-date')) el.textContent = dotDate(today);
     for (const el of document.querySelectorAll('[data-clock]')) el.textContent = hm(now, ZONES[el.dataset.clock]);
   }
 
@@ -98,149 +103,135 @@
     const theme = dark ? 'dark' : 'light';
     if (document.documentElement.dataset.theme !== theme) {
       document.documentElement.dataset.theme = theme;
-      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#14171B' : '#F1F0EC');
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#111214' : '#EEEDE9');
       document.querySelector('meta[name="color-scheme"]').setAttribute('content', theme);
     }
   }
 
-  /* ---------- Projects: read only, kept up to date from Claude Code ---------- */
-  const STATUS = { active: 'Building', waiting: 'Waiting on you', live: 'Live', next: 'Up next', parked: 'Parked' };
+  /* ---------- 01 Start with ---------- */
+  function renderStart(t) {
+    const first = ok(t) && t.items.length ? t.items[0].text : '';
+    $('start').hidden = !first;
+    $('start').querySelector('.start-text').textContent = first;
+  }
+
+  /* ---------- 02 Today: the rest of Today, then the day's small facts ---------- */
+
+  /* Next bin collection: { when, what }. A collection this morning is old news by midday. */
+  function binLine(bins, now) {
+    if (!ok(bins) || !Array.isArray(bins.collections)) return null;
+    const today = ymd(now);
+    const hour = +hm(now).slice(0, 2);
+    const next = bins.collections.find((c) => c.date > today || (c.date === today && hour < 12));
+    if (!next || !next.types.length) return null;
+    const names = next.types.length > 1 ? next.types.slice(0, -1).join(', ') + ' and ' + next.types[next.types.length - 1] : next.types[0];
+    const diff = daysFrom(today, next.date);
+    if (diff === 0) return { when: 'Today', what: names + ' out', soon: true };
+    if (diff === 1) return { when: hour >= 17 ? 'Tonight' : 'Tomorrow', what: names + ' out', soon: true };
+    return { when: diff < 7 ? SHORT[weekday(next.date)] : shortDate(next.date), what: names };
+  }
+
+  /* The kitchen's line. The Worker reads the kitchen with its own code; this page never sees it. */
+  function dinnerRow(k) {
+    if (!ok(k) || (!k.tonight && !k.mixToday)) return '';
+    const mix = k.mixToday ? '<span class="accent-text">Mix the dough today</span>' : '';
+    if (!k.tonight) {
+      const on = k.pizzaOn && /^\d{4}-\d{2}-\d{2}$/.test(k.pizzaOn) ? DAYS[weekday(k.pizzaOn)] : '';
+      return row('Dough', mix + (on ? ` for ${esc(on)}` : ''));
+    }
+    return row('Dinner', esc(k.tonight.title) + (mix ? '<br>' + mix : ''));
+  }
+
+  function birthdayRows(b, now) {
+    if (!ok(b) || !Array.isArray(b.birthdays)) return '';
+    const today = ymd(now);
+    return b.birthdays.map((x) => {
+      const days = daysFrom(today, x.date);
+      if (days < 0 || days > 14) return '';
+      const age = x.age ? (days === 0 ? ', turning ' : ', turns ') + x.age : '';
+      const when = days === 0 ? '<span class="accent-text">Today</span>' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days';
+      return row(esc(x.name) + (/s$/i.test(x.name) ? "'" : "'s") + ' birthday' + esc(age), when);
+    }).join('');
+  }
+
+  function countdownRows(f, now) {
+    const cds = ok(f) && Array.isArray(f.countdowns) ? f.countdowns : [];
+    const today = ymd(now);
+    return cds.map((c) => {
+      const days = daysFrom(today, c.date);
+      if (days < 0) return '';
+      return row(esc(c.what), days === 0 ? '<span class="accent-text">Today</span>' : days + (days === 1 ? ' day' : ' days'));
+    }).join('');
+  }
+
+  /* Yesterday's wins, folded: "Yesterday · 4 done", open for the names. */
+  function winsRow(y) {
+    if (!y || !(y.count > 0)) return '';
+    return `<li><details class="fold"><summary><span>Yesterday</span><span class="tag">${esc(y.count)} done</span></summary>
+      <ul class="fold-list">${(y.items || []).map((x) => `<li class="fold-muted">${esc(x)}</li>`).join('')}</ul></details></li>`;
+  }
+
+  function renderToday(data, now) {
+    $('todoLink').href = '../todo/?c=' + encodeURIComponent(code);
+    const t = data && data.todos;
+    const list = $('todayList');
+    const openWins = list.querySelector('details[open]') !== null;
+    let html = '';
+    if (!t) html += row('Loading', '', 'empty');
+    else if (!ok(t)) html += row("To-dos can't load right now.", '', 'empty');
+    else if (!t.items.length) html += row('Nothing for today.', '', 'empty');
+    else html += t.items.slice(1).map((i) => `<li class="row task"><span class="circle"></span><span>${esc(i.text)}</span></li>`).join('');
+    if (data) {
+      html += dinnerRow(data.kitchen);
+      const bin = binLine(data.bins, now);
+      if (bin) html += row('Bins', (bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when)) + ' · ' + esc(bin.what));
+      html += birthdayRows(data.birthdays, now);
+      html += countdownRows(data.fixed, now);
+      html += winsRow(ok(t) ? t.yesterday : null);
+    }
+    list.innerHTML = html || row('Nothing else for today.', '', 'empty');
+    if (openWins) { const d = list.querySelector('details'); if (d) d.open = true; }
+  }
+
+  /* ---------- 03 Projects: read only, kept up to date from Claude Code ---------- */
+  const STATUS = { active: 'Building', next: 'Next', live: 'Live', parked: 'Parked' };
 
   function renderProjects(p, now) {
     const box = $('projects');
     if (!p) { box.hidden = true; return; }
     box.hidden = false;
     const list = $('projList');
-    const parkedBox = $('parked');
     if (!ok(p)) {
-      list.innerHTML = `<li class="empty">Projects can't load right now.</li>`;
-      parkedBox.hidden = true;
+      list.innerHTML = `<div class="row empty"><span>Projects can't load right now.</span></div>`;
       $('projUpdated').textContent = '';
       return;
     }
+    const openParked = list.querySelector('details[open]') !== null;
     const at = Date.parse(p.updated);
     $('projUpdated').textContent = Number.isFinite(at) ? 'Updated ' + (ymd(at) === ymd(now) ? 'today' : shortDate(ymd(at))) : '';
     const projects = Array.isArray(p.projects) ? p.projects : [];
-    list.innerHTML = projects.length
-      ? projects.map((x) => `<li class="proj is-${esc(x.status)}">
-          <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="proj-status">${esc(STATUS[x.status] || x.status)}</span></div>
-          ${x.next ? `<span class="proj-next">${esc(x.next)}</span>` : ''}
-        </li>`).join('')
-      : '<li class="empty">No projects listed.</li>';
+    const of = (s) => projects.filter((x) => x.status === s);
+    const next = (x) => (x.next ? `<span class="proj-next">${esc(x.next)}</span>` : '');
+    let html = of('waiting').map((x) => `<div class="proj proj-turn">
+        <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="pill">Your turn</span></div>${next(x)}</div>`).join('');
+    html += [...of('active'), ...of('next')].map((x) => `<div class="proj">
+        <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="tag">${STATUS[x.status]}</span></div>${next(x)}</div>`).join('');
+    const live = of('live');
+    if (live.length) html += `<div class="proj proj-live"><span>${esc(live.map((x) => x.name).join(', '))}</span><span class="tag">Live</span></div>`;
+    const parkedProjects = of('parked');
     const parked = Array.isArray(p.parked) ? p.parked : [];
-    parkedBox.hidden = !parked.length;
-    $('parkedLabel').textContent = `Parked (${parked.length})`;
-    $('parkedList').innerHTML = parked.map((x) => `<li>${x.from ? `<span class="parked-from">${esc(x.from)}</span>` : ''}<span>${esc(x.text)}</span></li>`).join('');
-  }
-
-  /* ---------- Bin day and countdowns ---------- */
-  function binLine(bins, now) {
-    if (!ok(bins) || !Array.isArray(bins.collections)) return null;
-    const today = ymd(now);
-    const hour = +hm(now).slice(0, 2);
-    // A collection this morning is old news by midday.
-    const next = bins.collections.find((c) => c.date > today || (c.date === today && hour < 12));
-    if (!next || !next.types.length) return null;
-    const names = next.types.length > 1 ? next.types.slice(0, -1).join(', ') + ' and ' + next.types[next.types.length - 1] : next.types[0];
-    const out = names + (next.types.length > 1 ? ' bins out' : ' bin out');
-    const diff = Math.round((Date.parse(next.date) - Date.parse(today)) / 86400000);
-    if (diff === 0) return { when: 'Today:', what: out };
-    if (diff === 1) return { when: hour >= 17 ? 'Tonight:' : 'Tomorrow:', what: out };
-    return { when: (diff < 7 ? DAYS[weekday(next.date)] : shortDate(next.date)) + ':', what: names };
-  }
-
-  /* The kitchen's line: "Tonight: Pizza night" and, on mix day, "Mix the dough today" in tomato.
-   * The Worker reads the kitchen with its own code; this page never sees it. */
-  function tonightHtml(k, now) {
-    if (!ok(k) || (!k.tonight && !k.mixToday)) return '';
-    const mix = k.mixToday ? '<span class="mix">Mix the dough today</span>' : '';
-    if (!k.tonight) {
-      const on = k.pizzaOn && /^\d{4}-\d{2}-\d{2}$/.test(k.pizzaOn) ? DAYS[weekday(k.pizzaOn)] : '';
-      return mix + (on ? ` for ${esc(on)}'s pizza night` : '');
+    if (parkedProjects.length || parked.length) {
+      const label = [parkedProjects.map((x) => x.name).join(', '), parked.length ? parked.length + ' parked' : '']
+        .filter(Boolean).join(parkedProjects.length && parked.length ? ' + ' : '');
+      const items = parkedProjects.map((x) => `<li><span class="fold-from">${esc(x.name)}</span><span>${esc(x.next || 'Parked')}</span></li>`)
+        .concat(parked.map((x) => `<li>${x.from ? `<span class="fold-from">${esc(x.from)}</span>` : ''}<span>${esc(x.text)}</span></li>`));
+      html += `<details class="fold"><summary><span>${esc(label)}</span><span class="tag">Parked</span></summary><ul class="fold-list">${items.join('')}</ul></details>`;
     }
-    return `<b>Tonight:</b> ${esc(k.tonight.title)}${mix ? '. ' + mix : ''}`;
+    list.innerHTML = html || `<div class="row empty"><span>No projects listed.</span></div>`;
+    if (openParked) { const d = list.querySelector('details'); if (d) d.open = true; }
   }
 
-  function renderExtras(data, now) {
-    const bin = binLine(data && data.bins, now);
-    $('bin').hidden = !bin;
-    if (bin) {
-      $('binWhen').textContent = bin.when;
-      $('binWhat').textContent = bin.what;
-    }
-    const today = ymd(now);
-    const cds = ok(data && data.fixed) && Array.isArray(data.fixed.countdowns) ? data.fixed.countdowns : [];
-    const html = cds.map((c) => {
-      const days = Math.round((Date.parse(c.date) - Date.parse(today)) / 86400000);
-      if (days < 0) return '';
-      if (days === 0) return `<div class="cd"><span class="cd-num">Today</span><span>${esc(c.what)}</span></div>`;
-      return `<div class="cd"><span class="cd-num">${days}</span><span>${days === 1 ? 'day' : 'days'} to ${esc(c.what)}</span></div>`;
-    }).join('');
-    $('countdowns').innerHTML = html;
-    const bdays = birthdayLines(data && data.birthdays, now);
-    $('bdays').innerHTML = bdays;
-    const tonight = tonightHtml(data && data.kitchen, now);
-    $('tonight').hidden = !tonight;
-    $('tonightText').innerHTML = tonight;
-    $('extras').hidden = !bin && !html && !bdays && !tonight;
-  }
-
-  /* "Nick's birthday in 5 days, turns 40"; today in the birthday colour. */
-  function birthdayLines(b, now) {
-    if (!ok(b) || !Array.isArray(b.birthdays)) return '';
-    const today = ymd(now);
-    return b.birthdays.map((x) => {
-      const days = Math.round((Date.parse(x.date) - Date.parse(today)) / 86400000);
-      if (days < 0 || days > 14) return '';
-      const whose = esc(x.name) + (/s$/i.test(x.name) ? "'" : "'s") + ' birthday';
-      const age = x.age ? (days === 0 ? ', turning ' : ', turns ') + x.age : '';
-      const text = days === 0 ? `<b>Today:</b> ${whose}${age}` : `${whose} ${days === 1 ? 'tomorrow' : 'in ' + days + ' days'}${age}`;
-      return `<div class="bday"><span class="bday-dot"></span><span>${text}</span></div>`;
-    }).join('');
-  }
-
-  /* ---------- To-dos ---------- */
-  const CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-
-  function renderTodos(t) {
-    $('todoLink').href = '../todo/?c=' + encodeURIComponent(code);
-    const list = $('todoList');
-    const first = ok(t) && t.items.length ? t.items[0].text : '';
-    // Start with: the first open Today task, large. The list below starts from the second.
-    for (const id of ['startPhone', 'startWide']) {
-      $(id).hidden = !first;
-      $(id).querySelector('.start-text').textContent = first;
-    }
-    renderWins(ok(t) ? t.yesterday : null);
-    if (!t) { list.innerHTML = '<li class="empty">Loading</li>'; return; }
-    if (!ok(t)) { list.innerHTML = `<li class="empty">To-dos can't load right now.</li>`; return; }
-    if (!t.items.length) { list.innerHTML = '<li class="empty">Nothing for today.</li>'; return; }
-    if (t.items.length === 1) { list.innerHTML = '<li class="empty">Nothing else for today.</li>'; return; }
-    list.innerHTML = t.items.slice(1).map((i) => `<li><span class="circle"></span><span>${esc(i.text)}</span></li>`).join('');
-  }
-
-  /* Yesterday's wins: "Yesterday you finished 4" and up to five names. Hidden at zero. */
-  function renderWins(y) {
-    const box = $('wins');
-    if (!y || !(y.count > 0)) { box.hidden = true; return; }
-    box.hidden = false;
-    box.querySelector('.wins-head').innerHTML = 'Yesterday you finished <b>' + esc(y.count) + '</b>';
-    box.querySelector('.wins-list').innerHTML = (y.items || []).map((x) => `<li>${CHECK}<span>${esc(x)}</span></li>`).join('');
-  }
-
-  /* NOS: three headlines, each opening in a new tab. */
-  function renderNews(n) {
-    const box = $('news');
-    if (!n) { box.hidden = true; return; }
-    box.hidden = false;
-    const list = $('newsList');
-    if (!ok(n) || !Array.isArray(n.items) || !n.items.length) { list.innerHTML = `<li class="empty">News can't load right now.</li>`; return; }
-    list.innerHTML = n.items.map((i) => (/^https:///.test(i.link)
-      ? `<li><a href="${esc(i.link)}" target="_blank" rel="noopener noreferrer">${esc(i.title)}</a></li>`
-      : `<li>${esc(i.title)}</li>`)).join('');
-  }
-
-  /* ---------- Calendar: Odysseus plus the fixed events, grouped by day ---------- */
+  /* ---------- 04 Week: Odysseus plus the fixed events, one row per event ---------- */
   function calendarDays(data, now) {
     const today = ymd(now);
     const lastDay = addDays(today, 6);
@@ -264,8 +255,8 @@
         if (!(en > now.valueOf() || (en === s && s >= now.valueOf()))) continue;
         const d = dateOf(e.start) < today ? today : dateOf(e.start);
         // An event without an end is sent with end equal to start: show the start only.
-        const until = fixed && en > s ? ' until ' + timeOf(e.end) : '';
-        add(d, { sort: s < now ? '00:00' : timeOf(e.start), time: timeOf(e.start), title: title + until, location: e.location });
+        const until = fixed && en > s ? '–' + timeOf(e.end) : '';
+        add(d, { sort: s < now ? '00:00' : timeOf(e.start), time: timeOf(e.start) + until, title, location: e.location });
       }
     }
     return [...days.entries()]
@@ -276,21 +267,25 @@
   function renderCalendar(data, now) {
     const box = $('days');
     const note = $('calNote');
-    if (!data) { box.innerHTML = '<div class="days-empty">Loading</div>'; note.textContent = ''; return; }
+    if (!data) { box.innerHTML = '<div class="row empty"><span>Loading</span></div>'; note.textContent = ''; return; }
     const days = calendarDays(data, now);
     box.innerHTML = days.length
-      ? days.map((d) => `<div class="day"><span class="day-name">${esc(d.label)}</span><div class="day-events">${d.list.map((e) =>
-        `<div class="event"><span class="event-time">${esc(e.time)}</span><span class="event-title">${esc(e.title)}${e.location ? `<span class="place">, ${esc(e.location)}</span>` : ''}</span></div>`).join('')}</div></div>`).join('')
-      : '<div class="days-empty">Nothing in the next 7 days.</div>';
+      ? days.map((d) => d.list.map((e, i) => `<div class="ev${i ? ' same' : ''}">
+          <span class="ev-day">${i ? '' : esc(d.label)}</span>
+          <span class="ev-title">${esc(e.title)}${e.location ? `<span class="place">, ${esc(e.location)}</span>` : ''}</span>
+          <span class="ev-time">${esc(e.time)}</span></div>`).join('')).join('')
+      : '<div class="row empty"><span>Nothing in the next 7 days.</span></div>';
     const c = data.calendar;
     if (!ok(c)) {
       note.textContent = "Odysseus calendar can't load right now.";
     } else if (!c.sent) {
       note.textContent = 'Waiting for the first calendar from Odysseus.';
-    } else {
+    } else if (c.stale) {
       const sent = Date.parse(c.sent);
       const when = (ymd(sent) === ymd(now) ? '' : SHORT[weekday(ymd(sent))] + ' ') + hm(sent);
-      note.textContent = c.stale ? `Calendar as of ${when}. Odysseus has not sent an update since.` : `From Odysseus, updated ${when}`;
+      note.textContent = `Calendar as of ${when}. Odysseus has not sent an update since.`;
+    } else {
+      note.textContent = '';
     }
   }
 
@@ -299,26 +294,28 @@
     const body = $('arsenalBody');
     if (!a) { body.innerHTML = '<span class="fx-error">Loading</span>'; return; }
     if (!ok(a)) { body.innerHTML = `<span class="fx-error">Arsenal can't load right now</span>`; return; }
-    let html = '';
     const n = a.next;
+    const l = a.last;
+    let main = '';
+    let when = '';
+    let live = false;
     if (n) {
       const k = Date.parse(n.kickoff);
       const kd = ymd(k);
       const inWeek = kd <= addDays(ymd(now), 6);
-      const when = n.live || (k <= now && now - k < 150 * 60000) ? 'Live now' : (kd === ymd(now) ? 'Today' : inWeek ? SHORT[weekday(kd)] : shortDate(kd)) + ' ' + hm(k);
-      const match = n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`;
-      html += `<div class="fx"><span class="fx-next">Next: ${esc(match)}</span><span class="fx-when">${esc(when)}</span></div>
-        <span class="fx-sub">${esc([n.competition, n.home ? 'home' : 'away'].filter(Boolean).join(', '))}</span>`;
+      live = n.live || (k <= now && now - k < 150 * 60000);
+      when = live ? 'Live now' : (kd === ymd(now) ? 'Today' : inWeek ? SHORT[weekday(kd)] : shortDate(kd)) + ' ' + hm(k);
+      main = `<span class="fx-next">${esc(n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`)}</span>`;
     } else {
-      html += '<span class="fx-sub">No next match listed yet.</span>';
+      main = '<span class="fx-next">Arsenal</span>';
     }
-    const l = a.last;
     if (l) {
-      const score = l.home ? `Arsenal ${l.us}, ${l.opponent} ${l.them}` : `${l.opponent} ${l.them}, Arsenal ${l.us}`;
       const result = l.result + (l.pens !== null && l.pens !== undefined ? ' on penalties' : '');
-      html += `<div class="fx fx-last"><span class="fx-score">Last: ${esc(score)}</span><span class="fx-result">${esc(result)}</span></div>`;
+      main += `<span class="fx-sub">Last: ${esc(result)} ${esc(l.us)}–${esc(l.them)} ${l.home ? 'v' : 'at'} ${esc(l.opponent)}</span>`;
+    } else if (!n) {
+      main += '<span class="fx-sub">No next match listed yet.</span>';
     }
-    body.innerHTML = html;
+    body.innerHTML = `<div class="fx-main">${main}</div>${when ? `<span class="fx-when${live ? ' live' : ''}">${esc(when)}</span>` : ''}`;
   }
 
   /* ---------- Footer ---------- */
@@ -327,7 +324,7 @@
     if (!last) { el.textContent = failed ? 'No connection yet. Try again when you have signal.' : 'Loading'; return; }
     const at = last.at;
     const when = (ymd(at) === ymd(now) ? '' : SHORT[weekday(ymd(at))] + ' ') + hm(at);
-    el.textContent = failed ? `As of ${when}. No connection, showing the last copy.` : `As of ${when}. Opens without signal.`;
+    el.textContent = failed ? `As of ${when}. No connection, showing the last copy.` : `As of ${when}`;
   }
 
   function render() {
@@ -335,13 +332,12 @@
     const data = last && last.data;
     renderHead(now);
     applyTheme(now, data);
+    renderStart(data && data.todos);
+    renderToday(data, now);
     renderProjects(data && data.projects, now);
-    renderExtras(data, now);
-    renderTodos(data && data.todos);
     renderCalendar(data, now);
     const a = data && data.arsenal;
     renderArsenal(a && !ok(a) && arsenalDirect ? arsenalDirect : a, now);
-    renderNews(data && data.news);
     renderAsOf(now);
   }
 

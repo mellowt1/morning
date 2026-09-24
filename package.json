@@ -8,9 +8,7 @@
     "serve": "node scripts/serve.mjs",
     "shots": "node scripts/shots.mjs",
     "check-arsenal": "node scripts/check-arsenal.mjs",
-    "extras-shots": "node scripts/extras-shots.mjs",
-    "tonight-shots": "node scripts/tonight-shots.mjs",
-    "projects-shots": "node scripts/projects-shots.mjs"
+    "cards-shots": "node scripts/cards-shots.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",

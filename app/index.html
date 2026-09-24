@@ -11,14 +11,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Morning">
-<meta name="theme-color" content="#F1F0EC">
+<meta name="theme-color" content="#EEEDE9">
 <meta name="color-scheme" content="light">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -30,95 +30,60 @@
 
 <div id="app" class="page" hidden>
   <header class="head">
-    <div class="head-phone">
-      <div class="head-top"><span class="js-day"></span><span>The Hague <span data-clock="here"></span></span></div>
-      <div class="head-main">
-        <h1 class="date js-date"></h1>
-        <div class="mini-clocks">
-          <div>Miami<br><span class="mini-time" data-clock="miami"></span></div>
-          <div>Ecuador<br><span class="mini-time" data-clock="ecuador"></span></div>
-        </div>
-      </div>
+    <div class="head-date">
+      <span class="head-day js-day"></span>
+      <h1 class="date js-date"></h1>
     </div>
-    <div class="head-wide" aria-hidden="true">
-      <div class="head-date">
-        <span class="head-day js-day"></span>
-        <div class="date date-wide js-date"></div>
-      </div>
-      <div class="clocks">
-        <div class="clock"><span class="clock-label">The Hague</span><span class="clock-time" data-clock="here"></span></div>
-        <div class="clock"><span class="clock-label">Miami</span><span class="clock-time muted" data-clock="miami"></span></div>
-        <div class="clock"><span class="clock-label">Ecuador</span><span class="clock-time muted" data-clock="ecuador"></span></div>
-      </div>
+    <div class="clocks">
+      <div class="clock clock-far"><span class="clock-label">Miami</span><span class="clock-time" data-clock="miami"></span></div>
+      <div class="clock clock-far"><span class="clock-label">Ecuador</span><span class="clock-time" data-clock="ecuador"></span></div>
+      <span class="clock-here" data-clock="here"></span>
     </div>
   </header>
 
-  <section id="startPhone" class="start start-phone" aria-label="Start with" hidden>
-    <span class="label label-todo">Start with</span>
-    <p class="start-text"></p>
-  </section>
-
   <div class="cols">
     <div class="col col-a">
-      <section id="extras" class="extras" aria-label="Bin day, tonight's dinner and countdowns" hidden>
-        <div id="bin" class="bin" hidden><span class="bin-dot"></span><span><b id="binWhen"></b> <span id="binWhat"></span></span></div>
-        <div id="tonight" class="bin tonight" hidden><span class="bin-dot"></span><span id="tonightText"></span></div>
-        <div id="bdays" class="bdays"></div>
-        <div id="countdowns" class="countdowns"></div>
+      <section id="start" class="card card-start" aria-label="Start with" hidden>
+        <span class="num">01 Start with</span>
+        <p class="start-text"></p>
       </section>
 
-      <section id="projects" class="projects" aria-label="Projects" hidden>
-        <div class="projects-head">
-          <span class="label label-proj">Projects</span>
-          <span id="projUpdated" class="note"></span>
+      <section class="card" aria-label="Today">
+        <div class="card-head">
+          <span class="num">02 Today</span>
+          <a id="todoLink" class="card-link" href="../todo/">Open to-do app</a>
         </div>
-        <ul id="projList" class="proj-list"></ul>
-        <details id="parked" class="parked" hidden>
-          <summary><span id="parkedLabel">Parked</span></summary>
-          <ul id="parkedList" class="parked-list"></ul>
-        </details>
+        <ul id="todayList" class="rows"></ul>
       </section>
     </div>
 
     <div class="col col-b">
-      <section id="startWide" class="start start-wide" aria-hidden="true" hidden>
-        <span class="label label-todo">Start with</span>
-        <p class="start-text"></p>
-      </section>
-
-      <section class="todos" aria-label="Today's to-dos">
-        <div class="todos-head">
-          <span class="label label-todo">Today</span>
-          <a id="todoLink" class="todo-link" href="../todo/">Open to-do app</a>
+      <section id="projects" class="card" aria-label="Projects" hidden>
+        <div class="card-head">
+          <span class="num">03 Projects</span>
+          <span id="projUpdated" class="card-note"></span>
         </div>
-        <ul id="todoList" class="todo-list"></ul>
-        <div id="wins" class="wins" hidden>
-          <p class="wins-head"></p>
-          <ul class="wins-list"></ul>
-        </div>
+        <div id="projList" class="rows"></div>
       </section>
     </div>
 
     <div class="col col-c">
-      <section class="cal" aria-label="Coming up">
-        <span class="label label-cal">Coming up</span>
-        <div id="days" class="days"></div>
-        <span id="calNote" class="note"></span>
+      <section class="card" aria-label="This week">
+        <span class="num">04 Week</span>
+        <div id="days" class="rows"></div>
+        <span id="calNote" class="card-note card-foot"></span>
       </section>
 
-      <section id="arsenal" class="arsenal" aria-label="Arsenal">
-        <span class="label label-arsenal">Arsenal</span>
-        <div id="arsenalBody"></div>
-      </section>
-
-      <section id="news" class="news" aria-label="NOS headlines" hidden>
-        <span class="label label-news">NOS</span>
-        <ul id="newsList" class="news-list"></ul>
+      <section id="arsenal" class="card card-row" aria-label="Arsenal">
+        <div id="arsenalBody" class="fx"></div>
       </section>
     </div>
   </div>
 
-  <footer id="asOf" class="as-of"></footer>
+  <footer class="foot">
+    <span class="foot-clocks">Miami <span data-clock="miami"></span> · Ecuador <span data-clock="ecuador"></span></span>
+    <span id="asOf" class="as-of"></span>
+  </footer>
 </div>
 
 <script src="arsenal.js"></script>
