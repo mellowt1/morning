@@ -118,10 +118,10 @@ a:hover { opacity: .8; }
 .proj-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .proj-name { font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
 .proj-status { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.proj-waiting .proj-status { font-weight: 600; color: var(--proj); }
-.proj-active .proj-status { color: var(--ink); }
+.is-waiting .proj-status { font-weight: 600; color: var(--proj); }
+.is-active .proj-status { color: var(--ink); }
 .proj-next { font-size: 14px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
-.proj-parked { opacity: .6; }
+.proj.is-parked { opacity: .6; }
 .proj-list li.empty { font-size: 15px; color: var(--muted); padding: 9px 0; }
 .parked { font-size: 14px; }
 .parked summary { cursor: pointer; color: var(--proj); font-weight: 500; padding: 8px 0; }

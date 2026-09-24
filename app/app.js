@@ -122,7 +122,7 @@
     $('projUpdated').textContent = Number.isFinite(at) ? 'Updated ' + (ymd(at) === ymd(now) ? 'today' : shortDate(ymd(at))) : '';
     const projects = Array.isArray(p.projects) ? p.projects : [];
     list.innerHTML = projects.length
-      ? projects.map((x) => `<li class="proj proj-${esc(x.status)}">
+      ? projects.map((x) => `<li class="proj is-${esc(x.status)}">
           <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="proj-status">${esc(STATUS[x.status] || x.status)}</span></div>
           ${x.next ? `<span class="proj-next">${esc(x.next)}</span>` : ''}
         </li>`).join('')
