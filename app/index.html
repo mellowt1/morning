@@ -60,25 +60,23 @@
 
   <div class="cols">
     <div class="col col-a">
-      <section class="bike" aria-label="Bike weather">
-        <div class="label label-bike">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="17" r="3.5"></circle><circle cx="18.5" cy="17" r="3.5"></circle><path d="M5.5 17 9 9h6l3.5 8M9 9 7.5 6H5.5M15 9l-2.5 8"></path></svg>
-          <span id="bikeLabel">Today's rides</span>
-        </div>
-        <p id="verdict" class="verdict">Loading</p>
-        <div id="rides" class="rides"></div>
-        <div id="strip" class="strip" hidden>
-          <div class="strip-head"><span id="rainLine" class="strip-line"></span><span class="muted">next 2 hours</span></div>
-          <div id="bars" class="bars"></div>
-          <div id="barTimes" class="bar-times"></div>
-        </div>
-      </section>
-
       <section id="extras" class="extras" aria-label="Bin day, tonight's dinner and countdowns" hidden>
         <div id="bin" class="bin" hidden><span class="bin-dot"></span><span><b id="binWhen"></b> <span id="binWhat"></span></span></div>
         <div id="tonight" class="bin tonight" hidden><span class="bin-dot"></span><span id="tonightText"></span></div>
         <div id="bdays" class="bdays"></div>
         <div id="countdowns" class="countdowns"></div>
+      </section>
+
+      <section id="projects" class="projects" aria-label="Projects" hidden>
+        <div class="projects-head">
+          <span class="label label-proj">Projects</span>
+          <span id="projUpdated" class="note"></span>
+        </div>
+        <ul id="projList" class="proj-list"></ul>
+        <details id="parked" class="parked" hidden>
+          <summary><span id="parkedLabel">Parked</span></summary>
+          <ul id="parkedList" class="parked-list"></ul>
+        </details>
       </section>
     </div>
 

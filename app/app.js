@@ -103,44 +103,34 @@
     }
   }
 
-  /* ---------- Bike weather ---------- */
-  function renderBike(w, now) {
-    const today = ymd(now);
-    const rides = $('rides');
-    const strip = $('strip');
-    if (!ok(w)) {
-      $('bikeLabel').textContent = "Today's rides";
-      $('verdict').textContent = w ? "Weather can't load right now." : 'Loading';
-      rides.innerHTML = '';
-      strip.hidden = true;
+  /* ---------- Projects: read only, kept up to date from Claude Code ---------- */
+  const STATUS = { active: 'Building', waiting: 'Waiting on you', live: 'Live', next: 'Up next', parked: 'Parked' };
+
+  function renderProjects(p, now) {
+    const box = $('projects');
+    if (!p) { box.hidden = true; return; }
+    box.hidden = false;
+    const list = $('projList');
+    const parkedBox = $('parked');
+    if (!ok(p)) {
+      list.innerHTML = `<li class="empty">Projects can't load right now.</li>`;
+      parkedBox.hidden = true;
+      $('projUpdated').textContent = '';
       return;
     }
-    const day = w.day;
-    $('bikeLabel').textContent = day === today ? "Today's rides" : day === addDays(today, 1) ? "Tomorrow's rides" : DAYS[weekday(day)] + "'s rides";
-    $('verdict').textContent = w.verdict || '';
-    rides.innerHTML = (w.rides || []).map((r) => {
-      const rain = 'Rain ' + r.rainProb + '%' + (r.rainMm >= 0.1 ? ', ' + r.rainMm.toFixed(1) + ' mm' : '');
-      const wind = `${r.compass} ${r.wind} km/h, ${r.relative ? r.relative : 'gusts ' + r.gusts}`;
-      // A ride that ended more than a few minutes ago is dimmed.
-      const [h, m] = String(r.time).split(':').map(Number);
-      const endMin = h * 60 + m + 30;
-      const rideEnd = `${day}T${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
-      const past = day === today && stamp(now) > rideEnd ? ' past' : '';
-      return `<div class="ride${past}">
-        <div class="ride-top"><span class="ride-time">${esc(r.time)}</span><span class="ride-label">${esc(r.label)}</span></div>
-        <span class="temp">${esc(r.temp)}°</span>
-        <span class="ride-rain">${esc(rain)}</span>
-        <span class="ride-wind">${esc(wind)}</span>
-      </div>`;
-    }).join('');
-
-    const slots = (w.rain && w.rain.slots) || [];
-    if (!slots.length || !w.rain.line) { strip.hidden = true; return; }
-    strip.hidden = false;
-    $('rainLine').textContent = w.rain.line;
-    const level = (mm) => (mm < 0.1 ? 0 : mm < 0.5 ? 1 : mm < 1.5 ? 2 : 3);
-    $('bars').innerHTML = slots.map((s) => `<div class="bar${level(s.mm) ? ' l' + level(s.mm) : ''}" title="${esc(s.time)}: ${esc(s.mm)} mm"></div>`).join('');
-    $('barTimes').innerHTML = slots.map((s, i) => `<span>${i % 2 === 0 ? esc(s.time) : ''}</span>`).join('');
+    const at = Date.parse(p.updated);
+    $('projUpdated').textContent = Number.isFinite(at) ? 'Updated ' + (ymd(at) === ymd(now) ? 'today' : shortDate(ymd(at))) : '';
+    const projects = Array.isArray(p.projects) ? p.projects : [];
+    list.innerHTML = projects.length
+      ? projects.map((x) => `<li class="proj proj-${esc(x.status)}">
+          <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="proj-status">${esc(STATUS[x.status] || x.status)}</span></div>
+          ${x.next ? `<span class="proj-next">${esc(x.next)}</span>` : ''}
+        </li>`).join('')
+      : '<li class="empty">No projects listed.</li>';
+    const parked = Array.isArray(p.parked) ? p.parked : [];
+    parkedBox.hidden = !parked.length;
+    $('parkedLabel').textContent = `Parked (${parked.length})`;
+    $('parkedList').innerHTML = parked.map((x) => `<li>${x.from ? `<span class="parked-from">${esc(x.from)}</span>` : ''}<span>${esc(x.text)}</span></li>`).join('');
   }
 
   /* ---------- Bin day and countdowns ---------- */
@@ -345,7 +335,7 @@
     const data = last && last.data;
     renderHead(now);
     applyTheme(now, data);
-    renderBike(data && data.weather, now);
+    renderProjects(data && data.projects, now);
     renderExtras(data, now);
     renderTodos(data && data.todos);
     renderCalendar(data, now);

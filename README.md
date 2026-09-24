@@ -1,6 +1,6 @@
 # Morning
 
-One page for the first coffee: the date, the clocks in The Hague, Miami and Ecuador, the one task to start with, the bike weather for the next rides, bin day, birthdays and countdowns, today's to-dos and yesterday's wins, the week's calendar, Arsenal and three NOS headlines. On the phone it is one column, on the laptop it reads like a debrief in three. It turns dark between sunset and sunrise in The Hague.
+One page for the first coffee: the date, the clocks in The Hague, Miami and Ecuador, the one task to start with, what is pending on each project, bin day, birthdays and countdowns, today's to-dos and yesterday's wins, the week's calendar, Arsenal and three NOS headlines. On the phone it is one column, on the laptop it reads like a debrief in three. It turns dark between sunset and sunrise in The Hague.
 
 **No personal data lives in this repo.** The page ships empty and loads everything from the `paul-hub` Worker using the code in the link, so the repo can be public.
 
@@ -27,7 +27,8 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 
 | Block | Source | Fresh |
 |---|---|---|
-| Rides, rain in the next 2 hours, sunrise and sunset | Open-Meteo, The Hague, no key | 15 minutes |
+| Projects | one line per project (status and next step) plus a folded Parked list. Read only: Claude Code sets it with `POST /api/admin/morning/projects`. Hidden until the first push | every open |
+| Sunrise and sunset (for the dark theme only) | Open-Meteo, The Hague, no key | 15 minutes |
 | Start with, to-dos | the to-do list, Today, open items; the first one is shown large as "Start with" | every open |
 | Yesterday's wins | the to-do list, items finished yesterday, up to five names | every open |
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
@@ -38,7 +39,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Arsenal | ESPN's open JSON, all competitions (unofficial). ESPN refuses Cloudflare, so when the Worker's block fails the page asks ESPN itself (`app/arsenal.js`, same parsing as the Worker) | 1 hour, kept on the phone; "can't load" if ESPN is out of reach |
 | NOS | the top three headlines from the NOS news feed, each opens in a new tab | 30 minutes |
 
-Rides are at 08:00 and 17:30 on weekdays. After 17:30 and at the weekend the block shows the next weekday's rides ("Tomorrow's rides", "Monday's rides"). Each block fails on its own; the rest of the page still shows.
+The bike weather block was taken off the page on 24 September 2026 (work is two minutes away); the Worker still answers `weather`, which the page uses for sunrise and sunset. Each block fails on its own; the rest of the page still shows.
 
 ## Secrets
 
