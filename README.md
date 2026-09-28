@@ -1,6 +1,8 @@
 # Morning
 
-One page for the daily review, in numbered cards: 01 the one task to start with, 02 the rest of today (tasks, dinner, bin day, birthdays, countdowns, yesterday's wins), 03 what is pending on each project, 04 the week's calendar, then Arsenal. The date reads 24.09; the clocks for The Hague, Miami and Ecuador sit in the header on the laptop and in the footer on the phone. One column on the phone, two on a tablet and on the PC (now on the left, later on the right, capped at 1320 px). Today and Projects read as overviews: fact tiles and a To do list; projects grouped by status with Live as chips. It turns dark between sunset and sunrise in The Hague. The look is "Swiss Cards" (Geist, white cards on #EEEDE9, green #3F7D5C), approved on the Morning Hub Redesign canvas on 24 September 2026. NOS headlines are still in the Worker's answer but no longer shown.
+One page for the daily review. At the top a greeting ("Good morning · Monday"), the date as 28.09 with a gold sun for its full stop, and one sentence about the day (what is on now or next, and sunrise or sunset when it is close). Then numbered cards: 01 the one task to start with (tap it to open the to-do app), 02 Today as an overview (tiles for dinner, bins, birthdays, countdowns and yesterday's wins, then today's events and the to-dos), 03 projects grouped by status, 04 Coming up from tomorrow, then Arsenal with the club crest. The Hague's clock sits in the header with Miami and Ecuador beside it (under it on the phone), each naming its day when it is not ours. One column on the phone, two on a tablet and on the PC (now on the left, later on the right, capped at 1320 px). It turns dark between sunset and sunrise in The Hague, worked out on the device (`app/sun.js`), before the first paint. The look is "Swiss Cards" (Geist, white cards on #EEEDE9, green #3F7D5C), approved on 24 September 2026; the motion is "Alive" with "Light", approved on 27 September 2026.
+
+**What moves, and only this:** the clock's changed digit rolls on the minute. The full stop climbs with the real sun and, while the sun is up, breathes warm light around the date (a phrase of three breaths, 15.9 s); in twilight it is a still ember; at night nothing glows. The next event today sends one ring from its dot every 8.1 s. The day's first open plays a one-second entrance, once per device per day. Rows that are new since the page was last hidden (or in the last 30 minutes on a screen left open) get a green tick; more than six marks none. With Reduce Motion on, all of it holds still.
 
 **No personal data lives in this repo.** The page ships empty and loads everything from the `paul-hub` Worker using the code in the link, so the repo can be public.
 
@@ -28,7 +30,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Block | Source | Fresh |
 |---|---|---|
 | Projects | one line per project (status and next step) plus a folded Parked list. Read only: Claude Code sets it with `POST /api/admin/morning/projects`. Hidden until the first push | every open |
-| Sunrise and sunset (for the dark theme only) | Open-Meteo, The Hague, no key | 15 minutes |
+| Sunrise and sunset | worked out on the device (`app/sun.js`); no request | always |
 | Start with, to-dos | the to-do list, Today, open items; the first one is shown large as "Start with" | every open |
 | Yesterday's wins | the to-do list, items finished yesterday, up to five names | every open |
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
@@ -39,7 +41,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Arsenal | ESPN's open JSON, all competitions (unofficial). ESPN refuses Cloudflare, so when the Worker's block fails the page asks ESPN itself (`app/arsenal.js`, same parsing as the Worker) | 1 hour, kept on the phone; "can't load" if ESPN is out of reach |
 | NOS | the top three headlines from the NOS news feed, each opens in a new tab | 30 minutes |
 
-The bike weather block was taken off the page on 24 September 2026 (work is two minutes away); the Worker still answers `weather`, which the page uses for sunrise and sunset. Each block fails on its own; the rest of the page still shows.
+The bike weather block was taken off the page on 24 September 2026 (work is two minutes away); the Worker still answers `weather`, but the page no longer reads it. Each block fails on its own; the rest of the page still shows.
 
 ## Secrets
 

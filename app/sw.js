@@ -9,6 +9,7 @@ const FILES = [
   './app.css',
   './app.js',
   './arsenal.js',
+  './sun.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',

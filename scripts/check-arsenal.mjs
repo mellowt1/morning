@@ -41,7 +41,7 @@ async function run({ arsenal, blockEspn = false, ctx }) {
 // 1. Worker says Arsenal can't load: the page fetches ESPN and shows the real fixture.
 const a = await run({ arsenal: { error: "Arsenal can't load right now" } });
 console.log('direct:', a.text.replace(/\n+/g, ' | '), '| ESPN requests', a.espn.length);
-assert.match(a.text, /Next: /);
+assert.match(a.text, / v /); // "Arsenal v Leeds": the next fixture
 assert.match(a.text, /Last: /);
 assert.ok(a.espn.some((u) => u.startsWith('https://site.web.api.espn.com/')));
 await a.page.screenshot({ path: fileURLToPath(new URL('arsenal-direct.png', OUT)), fullPage: true });
@@ -51,7 +51,7 @@ await a.page.close();
 const b = await run({ arsenal: { error: "Arsenal can't load right now" }, ctx: a.ctx });
 console.log('cached:', b.espn.length, 'ESPN requests');
 assert.equal(b.espn.length, 0);
-assert.match(b.text, /Next: /);
+assert.match(b.text, / v /);
 await a.ctx.close();
 
 // 3. ESPN unreachable from the browser too: the calm error text.

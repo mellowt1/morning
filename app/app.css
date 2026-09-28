@@ -14,6 +14,8 @@
   --accent-text: #3F7D5C;
   --on-accent: #FFFFFF;
   --arsenal: #B3262C;
+  --sun: #D8AE5E;
+  --start-press: #377152;
   color-scheme: light;
 }
 
@@ -28,6 +30,8 @@
   --accent-text: #7DBF98;
   --on-accent: #FFFFFF;
   --arsenal: #F2878A;
+  --sun: #D8AE5E;
+  --start-press: #377152;
   color-scheme: dark;
 }
 
@@ -66,16 +70,19 @@ a:hover { opacity: .8; }
   gap: 12px;
 }
 
-.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 12px 10px 16px; }
-.head-date { display: flex; flex-direction: column; gap: 4px; }
-.head-day { font-size: 13px; font-weight: 500; color: var(--muted); }
-.date { margin: 0; font-size: 64px; font-weight: 700; line-height: .9; letter-spacing: -.04em; }
-.clocks { display: flex; gap: 32px; align-items: flex-end; }
-.clock-far { display: none; }
-.clock { flex-direction: column; gap: 2px; text-align: right; }
-.clock-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.clock-time { font-size: 20px; font-weight: 500; color: var(--muted); }
-.clock-here { font-size: 28px; font-weight: 500; line-height: .9; letter-spacing: -.02em; }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 12px 10px 4px; isolation: isolate; }
+.head-date { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.eyebrow { font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.date { position: relative; margin: 0; font-size: 64px; font-weight: 700; line-height: .9; letter-spacing: -.04em; white-space: nowrap; }
+.clocks { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.clock { display: flex; flex-direction: row; gap: 5px; text-align: right; }
+.clock-label { font-size: 12px; font-weight: 500; color: var(--muted); }
+.clock-time { font-size: 12px; font-weight: 500; color: var(--muted); }
+.clock-here { order: -1; margin-bottom: 5px; font-size: 28px; font-weight: 500; line-height: .9; letter-spacing: -.02em; }
+
+/* The day in one sentence */
+.say { margin: 0; padding: 0 10px 6px; font-size: 17px; line-height: 1.35; text-wrap: pretty; }
+.say:empty { display: none; }
 
 .cols { display: flex; flex-direction: column; gap: 12px; }
 .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -89,9 +96,12 @@ a:hover { opacity: .8; }
 .card-note:empty { display: none; }
 .card-foot { padding: 4px 0 12px; }
 
-.card-start { gap: 10px; padding: 22px; background: var(--accent); color: var(--on-accent); }
-.card-start .num { color: var(--on-accent); opacity: .85; padding: 0; }
-.start-text { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.1; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.card-start { gap: 10px; padding: 22px; background: var(--accent); color: var(--on-accent); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .24s cubic-bezier(.2, .7, .2, 1), background-color .24s ease; }
+a.card-start:hover { opacity: 1; background: var(--start-press); }
+a.card-start:active { transform: scale(.985); background: var(--start-press); transition-duration: .09s; }
+.card-start .num { display: flex; justify-content: space-between; color: var(--on-accent); opacity: .85; padding: 0; }
+.start-go { font-weight: 500; letter-spacing: .04em; }
+.start-text { display: block; margin: 0; font-size: 26px; font-weight: 600; line-height: 1.1; letter-spacing: -.02em; overflow-wrap: anywhere; }
 
 .card-row { padding: 18px 22px; }
 
@@ -153,7 +163,7 @@ details.fold-parked .fold-list li > span:not(.fold-from) { color: var(--ink); }
 .pill { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--on-accent); background: var(--accent); padding: 4px 9px; border-radius: 99px; flex-shrink: 0; }
 
 /* ---------- Week ---------- */
-.ev { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; column-gap: 8px; padding: 12px 0; font-size: 15px; line-height: 1.35; }
+.ev { position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; column-gap: 8px; padding: 12px 0; font-size: 15px; line-height: 1.35; }
 .ev-day { font-weight: 600; }
 .ev-title { overflow-wrap: anywhere; }
 .ev-time { color: var(--muted); text-align: right; white-space: nowrap; }
@@ -173,20 +183,232 @@ details.fold-parked .fold-list li > span:not(.fold-from) { color: var(--ink); }
 .fx-when.live { color: var(--arsenal); font-weight: 600; }
 .fx-error { font-size: 15px; color: var(--muted); }
 
+/* ---------- Today's events (in 02 Today) ---------- */
+.row.evt { position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; column-gap: 10px; align-items: baseline; }
+.evt-main { min-width: 0; overflow-wrap: anywhere; }
+.evt-time { font-weight: 600; margin-right: 4px; }
+.row.evt .side { white-space: nowrap; }
+.dotc { width: 14px; height: 14px; display: grid; place-items: center; transform: translateY(2px); }
+.nd { position: relative; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.nd.next, .nd.on { background: var(--accent-text); border-color: var(--accent-text); }
+
+/* Yesterday's wins: filled circles, the same shape as today's open ones */
+.wins { display: inline-flex; align-items: center; gap: 4px; padding-top: 3px; }
+.wins i { display: block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent-text); }
+.wins b { margin-left: 3px; font-size: 12px; font-weight: 500; color: var(--muted); }
+
+/* ---------- Since you last looked: a green tick in the card's left margin ---------- */
+.proj, .proj-turn { position: relative; }
+.is-new::before {
+  content: ''; position: absolute; left: -13px; top: 50%;
+  width: 3px; height: 16px; margin-top: -8px; border-radius: 2px;
+  background: var(--accent-text);
+  animation: tick-in .42s cubic-bezier(.2, .7, .2, 1) both;
+}
+.chip.is-new::before { content: none; }
+.chip.is-new { box-shadow: inset 0 0 0 1.5px var(--accent-text); }
+.pill.pop { animation: pop .48s cubic-bezier(.3, 1.5, .5, 1) both; }
+
+/* ---------- The clock: only the changed digits roll ---------- */
+.roll { display: inline-grid; }
+.roll > span { grid-area: 1 / 1; }
+.r-old { animation: roll-out .44s cubic-bezier(.3, .7, .2, 1) forwards; }
+.r-new { animation: roll-in .44s cubic-bezier(.3, .7, .2, 1) both; }
+
+/* ---------- The sun: the date's full stop ----------
+   On the baseline while the sun is down; by day it lifts with the sun's height, up to
+   .3em at solar noon (--sy, set by app.js on the stop and on the date). */
+.sun-stop {
+  position: relative; display: inline-block;
+  width: .17em; height: .17em; margin: 0 .05em 0 .06em;
+  border-radius: 50%; background: var(--sun); vertical-align: baseline;
+  translate: 0 var(--sy, 0em);
+  transition: translate 1.2s cubic-bezier(.3, .7, .2, 1), opacity .8s ease;
+}
+.sun-stop.twi { opacity: .8; }
+.sun-stop.down { opacity: .55; }
+.nt, .nt *, .nt::before, .nt::after, .nt *::before, .nt *::after { transition: none !important; }
+
+/* ===== The Light motion (mv-light, picked 27 Sept 2026) =====
+   The sun breathes in a phrase of three (full, shallow, middle), 5.3 s each, 15.9 s in all:
+   a .9 s swell, a 2.7 s settle, a 1.7 s rest. Three layers swell together:
+     pool    .date::before      warm light on the paper behind the date: it brightens, never tints
+     warmth  .sun-stop::before  a gold film on the ink nearest the stop, only during a swell
+     core    .sun-stop::after   a soft corona on the disc itself
+   Twilight (sun 0 to -6 degrees, the page already dark): the pool becomes a still ember
+   under the date. Below -6 degrees nothing glows. The next event today sends one thin ring
+   off its dot every 8.1 s. Transform and opacity only; every gradient is painted once. */
+
+/* The pool: 4.8em x 2.8em, centred on the stop's resting centre (--sx, --st from app.js). */
+.date::before {
+  content: '';
+  position: absolute; z-index: -1; pointer-events: none;
+  left: calc(var(--sx, 1.328em) - 2.4em); top: calc(var(--st, .71em) - 1.4em);
+  width: 4.8em; height: 2.8em;
+  background: radial-gradient(closest-side,
+    rgba(255, 248, 232, 1) 0%,
+    rgba(255, 248, 232, .95) 12%,
+    rgba(255, 248, 232, .84) 25%,
+    rgba(255, 248, 232, .67) 38%,
+    rgba(255, 248, 232, .48) 50%,
+    rgba(255, 248, 232, .3) 62%,
+    rgba(255, 248, 232, .16) 73%,
+    rgba(255, 248, 232, .07) 83%,
+    rgba(255, 248, 232, .02) 92%,
+    rgba(255, 248, 232, 0) 100%);
+  opacity: 0;
+  transform: scale(.86);
+  translate: 0 var(--sy, 0em);
+  transition: opacity 3s ease, translate 1.2s cubic-bezier(.3, .7, .2, 1);
+}
+/* Promoted only while the pool breathes: at night it is invisible and holds no layer. */
+.date:has(.sun-stop.up)::before {
+  opacity: .6;
+  animation: mvl-pool 15.9s linear infinite;
+  will-change: transform, opacity;
+}
+/* Twilight: the ember. Flat, just under the baseline, gold on the dark ground, still. */
+.date:has(.sun-stop.twi)::before {
+  opacity: 1;
+  transform: none;
+  translate: 0 0;
+  background: radial-gradient(2.3em .5em at 50% 57%,
+    rgba(216, 174, 94, .2) 0%,
+    rgba(216, 174, 94, .14) 30%,
+    rgba(216, 174, 94, .065) 62%,
+    rgba(216, 174, 94, .02) 84%,
+    rgba(216, 174, 94, 0) 100%);
+}
+/* The theme follows the sun, so a dark page with the sun up should not occur; if it ever
+   does, the pool is gold at low strength, never a white blob. */
+:root[data-theme="dark"] .date:has(.sun-stop.up)::before {
+  background: radial-gradient(closest-side,
+    rgba(216, 174, 94, .2) 0%, rgba(216, 174, 94, .12) 40%,
+    rgba(216, 174, 94, .04) 75%, rgba(216, 174, 94, 0) 100%);
+}
+
+/* Warmth on the ink: 1.3em across, centred on the stop, painted over the digits. */
+.sun-stop::before {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 1.3em; height: 1.3em; margin: -.65em 0 0 -.65em;
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side,
+    rgba(216, 174, 94, .3) 0%,
+    rgba(216, 174, 94, .22) 34%,
+    rgba(216, 174, 94, .09) 68%,
+    rgba(216, 174, 94, 0) 100%);
+  opacity: 0;
+}
+.sun-stop.up::before { animation: mvl-warm 15.9s linear infinite; will-change: opacity; }
+
+/* The core: a soft corona that swells with the breath and settles back under the disc. */
+.sun-stop::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side,
+    rgba(216, 174, 94, .9) 0%, rgba(216, 174, 94, .5) 50%, rgba(216, 174, 94, 0) 100%);
+  opacity: 0;
+}
+.sun-stop.up::after { animation: mvl-core 15.9s linear infinite; }
+
+/* The next event today: one thin ring leaves the dot every 8.1 s, then rests. Drawn at its
+   widest (26 px) and scaled down, so the 1.5 px stroke never thickens. */
+.nd.next::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  box-sizing: border-box; border-radius: 50%;
+  border: 1.5px solid var(--accent-text);
+  opacity: 0;
+  transform: scale(.35);
+  animation: mvl-ping 8.1s linear 2.6s infinite;
+}
+
+@keyframes mvl-pool {
+  0%      { opacity: .25; transform: scale(.86); animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  5.66%   { opacity: 1;   transform: scale(1);   animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  22.64%  { opacity: .25; transform: scale(.86); }
+  33.333% { opacity: .25; transform: scale(.86); animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  38.99%  { opacity: .6;  transform: scale(.93); animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  55.97%  { opacity: .25; transform: scale(.86); }
+  66.667% { opacity: .25; transform: scale(.86); animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  72.33%  { opacity: .82; transform: scale(.97); animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  89.31%  { opacity: .25; transform: scale(.86); }
+  100%    { opacity: .25; transform: scale(.86); }
+}
+@keyframes mvl-warm {
+  0%      { opacity: 0;   animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  5.66%   { opacity: 1;   animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  20.5%   { opacity: 0; }
+  33.333% { opacity: 0;   animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  38.99%  { opacity: .45; animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  53.8%   { opacity: 0; }
+  66.667% { opacity: 0;   animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  72.33%  { opacity: .75; animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  87.2%   { opacity: 0; }
+  100%    { opacity: 0; }
+}
+@keyframes mvl-core {
+  0%      { opacity: 0;   transform: scale(1);   animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  5.66%   { opacity: .55; transform: scale(2.4); animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  22.64%  { opacity: 0;   transform: scale(1.5); }
+  22.65%  { opacity: 0;   transform: scale(1); }
+  33.333% { opacity: 0;   transform: scale(1);   animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  38.99%  { opacity: .3;  transform: scale(2);   animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  55.97%  { opacity: 0;   transform: scale(1.4); }
+  55.98%  { opacity: 0;   transform: scale(1); }
+  66.667% { opacity: 0;   transform: scale(1);   animation-timing-function: cubic-bezier(.22, .65, .3, 1); }
+  72.33%  { opacity: .45; transform: scale(2.2); animation-timing-function: cubic-bezier(.45, 0, .5, 1); }
+  89.31%  { opacity: 0;   transform: scale(1.5); }
+  89.32%, 100% { opacity: 0; transform: scale(1); }
+}
+/* 8.1 s: the ring leaves over 1.7 s, fading as it spreads, then 6.4 s of rest. */
+@keyframes mvl-ping {
+  0%    { transform: scale(.35); opacity: .85; animation-timing-function: cubic-bezier(.25, .7, .35, 1); }
+  7.5%  { transform: scale(.76); opacity: .55; animation-timing-function: cubic-bezier(.3, .45, .45, 1); }
+  21%   { transform: scale(1);   opacity: 0; }
+  100%  { transform: scale(1);   opacity: 0; }
+}
+
+/* ---------- First light: the day's first open, once, then it holds ---------- */
+.first .date { animation: settle .6s cubic-bezier(.2, .7, .2, 1) both; }
+.first .eyebrow, .first .clocks { animation: fade .45s ease-out .1s both; }
+.first .say { animation: fade .45s ease-out .38s both; }
+.first .card, .first .foot { animation: fade .42s ease-out both; animation-delay: calc(.45s + var(--i, 5) * 60ms); }
+
+@keyframes roll-out { to { transform: translateY(-.5em); opacity: 0; } }
+@keyframes roll-in { from { transform: translateY(.5em); opacity: 0; } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes settle { from { opacity: 0; transform: translateY(6px) scale(.985); } }
+@keyframes tick-in { from { transform: scaleY(0); opacity: 0; } }
+@keyframes pop { 0% { transform: scale(.6); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Light without breath: while the sun is up the paper round the date holds a still warm
+     light; no warmth on the ink, no corona, no ring, no rolls. The ember is still anyway. */
+  .date::before, .sun-stop, .sun-stop::before, .sun-stop::after, .nd.next::after,
+  .r-new, .is-new::before, .pill.pop, .card-start { animation: none !important; transition: none !important; }
+  .r-old { display: none; }
+  .date:has(.sun-stop.up)::before { opacity: .6; transform: scale(.93); will-change: auto; }
+  .sun-stop.up::before, .sun-stop.up::after, .nd.next::after { opacity: 0; }
+}
+
 /* ---------- Footer ---------- */
-.foot { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px 0; font-size: 12px; color: var(--muted); }
+.foot { display: flex; justify-content: flex-end; gap: 12px; padding: 8px 10px 0; font-size: 12px; color: var(--muted); }
 .as-of { text-align: right; }
 
 /* ---------- Tablet: two columns ---------- */
 @media (min-width: 720px) {
   .page { max-width: none; padding: 40px 40px 32px; gap: 24px; }
   .head { padding: 0 6px; }
-  .head-date { flex-direction: row-reverse; justify-content: flex-end; align-items: flex-end; gap: 20px; }
-  .head-day { font-size: 15px; padding-bottom: 6px; }
+  .head-date { gap: 12px; }
+  .eyebrow { font-size: 16px; }
   .date { font-size: 80px; line-height: .85; letter-spacing: -.045em; }
-  .clock-far { display: flex; }
-  .clock-here { font-size: 44px; letter-spacing: -.03em; }
-  .foot-clocks { display: none; }
+  .clocks { flex-direction: row; gap: 32px; }
+  .clock { flex-direction: column; gap: 2px; }
+  .clock-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .clock-time { font-size: 20px; }
+  .clock-here { order: 0; margin: 0; font-size: 44px; letter-spacing: -.03em; }
+  .say { padding: 0 6px; font-size: 19px; }
   .foot { justify-content: flex-start; padding: 0 6px; }
   .as-of { text-align: left; }
 
@@ -209,6 +431,7 @@ details.fold-parked .fold-list li > span:not(.fold-from) { color: var(--ink); }
 @media (min-width: 1100px) {
   .page { max-width: 1320px; padding: 44px 48px 32px; gap: 28px; }
   .date { font-size: 88px; }
+  .say { font-size: 20px; margin-top: -8px; }
   .cols { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "a b" "a c"; gap: 20px; align-items: stretch; }
   .col { gap: 20px; }
   .col-a > .card:last-child, .col-c > .card:first-child { flex: 1 0 auto; }
