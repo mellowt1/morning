@@ -112,7 +112,7 @@
   function renderStart(t) {
     const first = ok(t) && t.items.length ? t.items[0].text : '';
     $('start').hidden = !first;
-    $('start').querySelector('.start-text').textContent = first;
+    $('start').querySelector('.start-text').textContent = cap(first);
   }
 
   /* ---------- 02 Today: the rest of Today, then the day's small facts ---------- */
@@ -131,66 +131,89 @@
     return { when: diff < 7 ? SHORT[weekday(next.date)] : shortDate(next.date), what: names };
   }
 
-  /* The kitchen's line. The Worker reads the kitchen with its own code; this page never sees it. */
-  function dinnerRow(k) {
+  /* To-dos are shown as typed, except for a capital first letter. */
+  const cap = (s) => String(s).replace(/^\s*\p{Ll}/u, (c) => c.toUpperCase());
+
+  /* One fact tile: a small label, the value, and an optional line under it. */
+  const tile = (label, value, sub = '', title = '') =>
+    `<div class="tile"${title ? ` title="${esc(title)}"` : ''}><span class="tile-label">${esc(label)}</span>` +
+    `<span class="tile-value">${value}</span>${sub ? `<span class="tile-sub">${sub}</span>` : ''}</div>`;
+
+  const subHead = (label, count) =>
+    `<div class="sub-head"><span>${esc(label)}</span>${count !== undefined ? `<span class="sub-count">${esc(count)}</span>` : ''}</div>`;
+
+  /* Rebuild a block only when its HTML changed, so hover and open folds survive the 15 s tick. */
+  function setHTML(el, html) {
+    if (el.dataset.html === html) return false;
+    el.dataset.html = html;
+    el.innerHTML = html;
+    return true;
+  }
+
+  /* The kitchen's tile. The Worker reads the kitchen with its own code; this page never sees it. */
+  function dinnerTile(k) {
     if (!ok(k) || (!k.tonight && !k.mixToday)) return '';
     const mix = k.mixToday ? '<span class="accent-text">Mix the dough today</span>' : '';
     if (!k.tonight) {
       const on = k.pizzaOn && /^\d{4}-\d{2}-\d{2}$/.test(k.pizzaOn) ? DAYS[weekday(k.pizzaOn)] : '';
-      return row('Dough', mix + (on ? ` for ${esc(on)}` : ''));
+      return tile('Dough', mix, on ? 'For ' + esc(on) : '');
     }
-    return row('Dinner', esc(k.tonight.title) + (mix ? '<br>' + mix : ''));
+    return tile('Dinner', esc(k.tonight.title), mix);
   }
 
-  function birthdayRows(b, now) {
+  function birthdayTiles(b, now) {
     if (!ok(b) || !Array.isArray(b.birthdays)) return '';
     const today = ymd(now);
     return b.birthdays.map((x) => {
       const days = daysFrom(today, x.date);
       if (days < 0 || days > 14) return '';
-      const age = x.age ? (days === 0 ? ', turning ' : ', turns ') + x.age : '';
+      const who = esc(x.name) + (x.age ? ' turns ' + esc(x.age) : '');
       const when = days === 0 ? '<span class="accent-text">Today</span>' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days';
-      return row(esc(x.name) + (/s$/i.test(x.name) ? "'" : "'s") + ' birthday' + esc(age), when);
+      return tile('Birthday', who, when);
     }).join('');
   }
 
-  function countdownRows(f, now) {
+  function countdownTiles(f, now) {
     const cds = ok(f) && Array.isArray(f.countdowns) ? f.countdowns : [];
     const today = ymd(now);
     return cds.map((c) => {
       const days = daysFrom(today, c.date);
       if (days < 0) return '';
-      return row(esc(c.what), days === 0 ? '<span class="accent-text">Today</span>' : days + (days === 1 ? ' day' : ' days'));
+      return tile('Countdown', esc(cap(c.what)), days === 0 ? '<span class="accent-text">Today</span>' : days + (days === 1 ? ' day' : ' days'));
     }).join('');
   }
 
-  /* Yesterday's wins, folded: "Yesterday · 4 done", open for the names. */
-  function winsRow(y) {
+  /* Yesterday's wins: the count and the first two names; all of them on hover. */
+  function winsTile(y) {
     if (!y || !(y.count > 0)) return '';
-    return `<li><details class="fold"><summary><span>Yesterday</span><span class="tag">${esc(y.count)} done</span></summary>
-      <ul class="fold-list">${(y.items || []).map((x) => `<li class="fold-muted">${esc(x)}</li>`).join('')}</ul></details></li>`;
+    const names = (y.items || []).map(cap);
+    return tile('Yesterday', `${esc(y.count)} done`, esc(names.slice(0, 2).join(', ')), names.join('\n'));
   }
 
+  /* 02 Today as an overview: the day's facts as tiles, then what is left to do. */
   function renderToday(data, now) {
     $('todoLink').href = '../todo/?c=' + encodeURIComponent(code);
     const t = data && data.todos;
-    const list = $('todayList');
-    const openWins = list.querySelector('details[open]') !== null;
-    let html = '';
-    if (!t) html += row('Loading', '', 'empty');
-    else if (!ok(t)) html += row("To-dos can't load right now.", '', 'empty');
-    else if (!t.items.length) html += row('Nothing for today.', '', 'empty');
-    else html += t.items.slice(1).map((i) => `<li class="row task"><span class="circle"></span><span>${esc(i.text)}</span></li>`).join('');
+    let tiles = '';
     if (data) {
-      html += dinnerRow(data.kitchen);
+      tiles += dinnerTile(data.kitchen);
       const bin = binLine(data.bins, now);
-      if (bin) html += row('Bins', (bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when)) + ' · ' + esc(bin.what));
-      html += birthdayRows(data.birthdays, now);
-      html += countdownRows(data.fixed, now);
-      html += winsRow(ok(t) ? t.yesterday : null);
+      if (bin) tiles += tile('Bins', bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
+      tiles += birthdayTiles(data.birthdays, now);
+      tiles += countdownTiles(data.fixed, now);
+      tiles += winsTile(ok(t) ? t.yesterday : null);
     }
-    list.innerHTML = html || row('Nothing else for today.', '', 'empty');
-    if (openWins) { const d = list.querySelector('details'); if (d) d.open = true; }
+    let html = tiles ? `<div class="tiles">${tiles}</div>` : '';
+    if (!t) html += `<ul class="rows">${row('Loading', '', 'empty')}</ul>`;
+    else if (!ok(t)) html += `<ul class="rows">${row("To-dos can't load right now.", '', 'empty')}</ul>`;
+    else {
+      const rest = t.items.slice(1);
+      html += subHead('To do', rest.length);
+      html += `<ul class="rows">${rest.length
+        ? rest.map((i) => `<li class="row task"><span class="circle"></span><span>${esc(cap(i.text))}</span></li>`).join('')
+        : row(t.items.length ? 'Nothing else on the list.' : 'Nothing for today.', '', 'empty')}</ul>`;
+    }
+    setHTML($('todayList'), html);
   }
 
   /* ---------- 03 Projects: read only, kept up to date from Claude Code ---------- */
@@ -212,23 +235,31 @@
     const projects = Array.isArray(p.projects) ? p.projects : [];
     const of = (s) => projects.filter((x) => x.status === s);
     const next = (x) => (x.next ? `<span class="proj-next">${esc(x.next)}</span>` : '');
+    const rows = (list) => `<div class="rows">${list.map((x) => `<div class="proj"><span class="proj-name">${esc(x.name)}</span>${next(x)}</div>`).join('')}</div>`;
+
+    // Your turn first, then one group per status: Building, Up next, Live (chips), Parked (folded).
     let html = of('waiting').map((x) => `<div class="proj proj-turn">
         <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="pill">Your turn</span></div>${next(x)}</div>`).join('');
-    html += [...of('active'), ...of('next')].map((x) => `<div class="proj">
-        <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="tag">${STATUS[x.status]}</span></div>${next(x)}</div>`).join('');
+    if (of('active').length) html += subHead('Building', of('active').length) + rows(of('active'));
+    if (of('next').length) html += subHead('Up next', of('next').length) + rows(of('next'));
     const live = of('live');
-    if (live.length) html += `<div class="proj proj-live"><span>${esc(live.map((x) => x.name).join(', '))}</span><span class="tag">Live</span></div>`;
-    const parkedProjects = of('parked');
-    const parked = Array.isArray(p.parked) ? p.parked : [];
-    if (parkedProjects.length || parked.length) {
-      const label = [parkedProjects.map((x) => x.name).join(', '), parked.length ? parked.length + ' parked' : '']
-        .filter(Boolean).join(parkedProjects.length && parked.length ? ' + ' : '');
-      const items = parkedProjects.map((x) => `<li><span class="fold-from">${esc(x.name)}</span><span>${esc(x.next || 'Parked')}</span></li>`)
-        .concat(parked.map((x) => `<li>${x.from ? `<span class="fold-from">${esc(x.from)}</span>` : ''}<span>${esc(x.text)}</span></li>`));
-      html += `<details class="fold"><summary><span>${esc(label)}</span><span class="tag">Parked</span></summary><ul class="fold-list">${items.join('')}</ul></details>`;
+    if (live.length) {
+      html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
+        `<span class="chip"${x.next ? ` title="${esc(x.next)}"` : ''}><span class="chip-dot"></span>${esc(x.name)}</span>`).join('')}</div>`;
     }
-    list.innerHTML = html || `<div class="row empty"><span>No projects listed.</span></div>`;
-    if (openParked) { const d = list.querySelector('details'); if (d) d.open = true; }
+    // Parked: projects and loose notes together, grouped by where they came from.
+    const groups = new Map();
+    const put = (from, text) => { const k = from || 'Other'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(text); };
+    for (const x of of('parked')) put(x.name, x.next || 'Parked');
+    for (const x of Array.isArray(p.parked) ? p.parked : []) put(x.from, x.text);
+    const count = [...groups.values()].reduce((n, g) => n + g.length, 0);
+    if (count) {
+      const items = [...groups].map(([from, texts]) => `<li><span class="fold-from">${esc(from)}</span>${texts.map((t) => `<span>${esc(t)}</span>`).join('')}</li>`);
+      html += `<details class="fold fold-parked"><summary>${subHead('Parked', count)}<span class="fold-names">${esc([...groups.keys()].join(', '))}</span></summary><ul class="fold-list">${items.join('')}</ul></details>`;
+    }
+    if (setHTML(list, html || `<div class="row empty"><span>No projects listed.</span></div>`) && openParked) {
+      const d = list.querySelector('details'); if (d) d.open = true;
+    }
   }
 
   /* ---------- 04 Week: Odysseus plus the fixed events, one row per event ---------- */

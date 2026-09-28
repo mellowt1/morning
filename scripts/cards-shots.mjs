@@ -69,7 +69,9 @@ async function shoot(data, viewport, name, act) {
     theme: document.documentElement.dataset.theme,
     date: document.querySelector('.js-date').textContent,
     start: document.getElementById('start').hidden ? '' : document.querySelector('.start-text').textContent,
-    today: [...document.querySelectorAll('#todayList > li')].map((li) => li.innerText.replace(/\s+/g, ' ').trim()),
+    today: [...document.querySelectorAll('#todayList li')].map((li) => li.innerText.replace(/\s+/g, ' ').trim()),
+    tiles: [...document.querySelectorAll('#todayList .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+    chips: document.querySelectorAll('#projList .chip').length,
     turn: document.querySelectorAll('#projList .proj-turn').length,
     projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj').length,
     parked: document.querySelector('#projList summary')?.innerText.replace(/\s+/g, ' ').trim() || '',
@@ -90,12 +92,13 @@ console.log(r);
 check(r.theme === 'light', 'light theme');
 check(/^\d{2}\.\d{2}$/.test(r.date), 'date as 24.09');
 check(r.start === 'Email the landlord about the heating', 'start with');
-check(r.today.length === 7, 'today rows: 2 tasks, dinner, bins, birthday, countdown, yesterday');
-check(r.today.some((x) => /Dinner Pasta alla Norma\s*Mix the dough today/.test(x)), 'dinner row');
-check(r.today.some((x) => /^Bins Tomorrow · GFT and Restafval out$/.test(x)), 'bins row');
-check(r.today.some((x) => /^Yesterday 2 done/i.test(x)), 'wins row');
-check(r.turn === 1 && r.projects === 4, 'projects: 1 your turn, 2 more, live line');
-check(/^Old blog \+ 2 parked parked/i.test(r.parked), 'parked summary');
+check(r.today.length === 2, 'two to-dos after Start with');
+check(r.tiles.length === 5, 'tiles: dinner, bins, birthday, countdown, yesterday');
+check(r.tiles.some((x) => /^Dinner Pasta alla Norma Mix the dough today$/i.test(x)), 'dinner tile');
+check(r.tiles.some((x) => /^Bins Tomorrow GFT and Restafval out$/i.test(x)), 'bins tile');
+check(r.tiles.some((x) => /^Yesterday 2 done Paid the rent, Went to the gym$/i.test(x)), 'wins tile');
+check(r.turn === 1 && r.projects === 3 && r.chips === 2, 'projects: your turn, building, up next, two live chips');
+check(/^Parked 3 Old blog, Admin, Other/i.test(r.parked), 'parked summary');
 check(r.week === 4, 'four week rows');
 check(/Arsenal v Fictional Rovers\s*Last: Lost 0–3 at Made Up Town/.test(r.arsenal), 'arsenal');
 check(!r.overflow, 'no sideways scroll on the phone');
