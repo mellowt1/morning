@@ -89,6 +89,9 @@ async function shoot(data, viewport, name, act, when = NOON) {
     projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj').length,
     parked: document.querySelector('#projList summary')?.innerText.replace(/\s+/g, ' ').trim() || '',
     week: document.querySelectorAll('#days .ev').length,
+    band: getComputedStyle(document.getElementById('weekBand')).display === 'none' ? null
+      : [...document.querySelectorAll('#bandDays .bd')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+    agendaShown: document.querySelectorAll('#todayList .evt').length,
     arsenal: document.getElementById('arsenalBody').innerText.replace(/\s+/g, ' ').trim(),
     overflow: document.documentElement.scrollWidth > innerWidth,
   }));
@@ -127,8 +130,17 @@ r = await shoot(answer({ dark: true }), phone, 'cards-phone-dark', (p) => p.clic
 check(r.theme === 'dark', 'dark after sunset');
 check(/\bdown\b/.test(r.sun), 'sun down at 23:30');
 check(/^Nothing more today\. Lunch with a friend tomorrow at 13:00\.$/.test(r.say), 'evening sentence: ' + r.say);
+check(r.band === null, 'no week band on the phone');
 r = await shoot(answer(), laptop, 'cards-laptop');
 check(!r.overflow, 'no sideways scroll on the laptop');
+// The PC's week band: seven days, today first, each fact on its own day.
+check(r.band && r.band.length === 7 && /^Today \d+ 23:00 Quiz night$/i.test(r.band[0]), 'band: today first: ' + (r.band && r.band[0]));
+check(/Bins GFT and Restafval out 13:00 Lunch with a friend Cafe$/i.test(r.band[1]), 'band: bins, then lunch, tomorrow: ' + r.band[1]);
+check(/\d\d:\d\d Arsenal v Fictional Rovers Premier League$/.test(r.band[3]), 'band: the match on its day: ' + r.band[3]);
+check(/All day Day off 20:00 Club: evening$/i.test(r.band[4]), 'band: all day first: ' + r.band[4]);
+check(/Birthday Sam turns 40 19:00 Film at Filmhuis$/i.test(r.band[5]), 'band: birthday on its day: ' + r.band[5]);
+check(r.agendaShown === 0 && r.week === 4 && !r.tiles.some((x) => /^Birthday/i.test(x)), 'Today leaves this week to the band');
+check(r.tiles.some((x) => /^Bins Tomorrow/i.test(x)) && r.tiles.some((x) => /^Countdown/i.test(x)), 'bins out tomorrow and a countdown 12 days off stay in Today');
 await shoot(answer({ dark: true }), laptop, 'cards-laptop-dark', null, at(0, '23:30'));
 await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
 

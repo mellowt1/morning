@@ -70,7 +70,7 @@
     </div>
 
     <div class="col col-c">
-      <section class="card" aria-label="Coming up" style="--i:3">
+      <section id="coming" class="card" aria-label="Coming up" style="--i:3">
         <span class="num">04 Coming up</span>
         <div id="days" class="rows"></div>
         <span id="calNote" class="card-note card-foot"></span>
@@ -82,6 +82,15 @@
       </section>
     </div>
   </div>
+
+  <!-- PC only (1100 px and up): the week across the bottom, one column per day. -->
+  <section id="weekBand" class="card week-band" aria-label="Week" style="--i:5">
+    <div class="card-head">
+      <span class="num">04 Week</span>
+      <span id="bandNote" class="card-note"></span>
+    </div>
+    <div id="bandDays" class="band-days"></div>
+  </section>
 
   <footer class="foot">
     <span id="asOf" class="as-of"></span>

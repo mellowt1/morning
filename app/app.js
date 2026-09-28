@@ -289,24 +289,24 @@
     return tile('Dinner', esc(k.tonight.title), mix);
   }
 
-  function birthdayTiles(b, now) {
+  function birthdayTiles(b, now, skip = () => false) {
     if (!ok(b) || !Array.isArray(b.birthdays)) return '';
     const today = ymd(now);
     return b.birthdays.map((x) => {
       const days = daysFrom(today, x.date);
-      if (days < 0 || days > 14) return '';
+      if (days < 0 || days > 14 || skip(x.date)) return '';
       const who = esc(x.name) + (x.age ? ' turns ' + esc(x.age) : '');
       const when = days === 0 ? '<span class="accent-text">Today</span>' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days';
       return tile('Birthday', who, when);
     }).join('');
   }
 
-  function countdownTiles(f, now) {
+  function countdownTiles(f, now, skip = () => false) {
     const cds = ok(f) && Array.isArray(f.countdowns) ? f.countdowns : [];
     const today = ymd(now);
     return cds.map((c) => {
       const days = daysFrom(today, c.date);
-      if (days < 0) return '';
+      if (days < 0 || skip(c.date)) return '';
       return tile('Countdown', esc(cap(c.what)), days === 0 ? '<span class="accent-text">Today</span>' : days + (days === 1 ? ' day' : ' days'));
     }).join('');
   }
@@ -345,17 +345,21 @@
   function renderToday(data, now) {
     $('todoLink').href = '../todo/?c=' + encodeURIComponent(code);
     const t = data && data.todos;
+    // On the PC the week band holds anything dated this week, so Today keeps only what needs
+    // doing now: bins going out today or tonight, and facts further off than the band reaches.
+    const wide = WIDE.matches;
+    const inBand = (date) => wide && daysFrom(ymd(now), date) <= 6;
     let tiles = '';
     if (data) {
       tiles += dinnerTile(data.kitchen);
       const bin = binLine(data.bins, now);
-      if (bin) tiles += tile('Bins', bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
-      tiles += birthdayTiles(data.birthdays, now);
-      tiles += countdownTiles(data.fixed, now);
+      if (bin && (bin.soon || !wide)) tiles += tile('Bins', bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
+      tiles += birthdayTiles(data.birthdays, now, inBand);
+      tiles += countdownTiles(data.fixed, now, inBand);
       tiles += winsTile(ok(t) ? t.yesterday : null);
     }
     let html = tiles ? `<div class="tiles">${tiles}</div>` : '';
-    const agenda = data ? agendaRows(data, now) : '';
+    const agenda = data && !wide ? agendaRows(data, now) : '';
     if (agenda) html += subHead('On today') + `<ul class="rows">${agenda}</ul>`;
     if (!t) html += `<ul class="rows">${row('Loading', '', 'empty')}</ul>`;
     else if (!ok(t)) html += `<ul class="rows">${row("To-dos can't load right now.", '', 'empty')}</ul>`;
@@ -484,6 +488,77 @@
     } else {
       note.textContent = '';
     }
+    $('bandNote').textContent = note.textContent; // the PC's week band says the same
+  }
+
+  /* ---------- PC only: the week band, seven day columns across the bottom ----------
+   * Today first. Each day holds its all-day events, then its dated facts (bins, birthdays,
+   * countdowns), then its timed events and Arsenal's match in time order. An empty day shows
+   * only its date. Today's column carries the live parts: the next event's ring, "in 42 min". */
+  const WIDE = self.matchMedia ? matchMedia('(min-width: 1100px)') : { matches: false };
+  const BAND_MAX = 5;
+  const CREST = 'https://a.espncdn.com/i/teamlogos/soccer/500/359.png';
+
+  function renderBand(data, now, arsenal) {
+    const box = $('bandDays');
+    if (!WIDE.matches) return; // hidden below 1100 px; nothing to keep up to date
+    if (!data) { setHTML(box, ''); return; }
+    const today = ymd(now);
+    const t = now.valueOf();
+    const hour = +hm(now).slice(0, 2);
+    const events = new Map(calendarDays(data, now).map((d) => [d.date, d.list]));
+    const nextUp = (events.get(today) || []).find((e) => !e.allDay && e.s > t);
+    const item = (cls, time, title, place = '', key = '') =>
+      `<li class="bi${cls ? ' ' + cls : ''}${key ? isNew(key) : ''}"><span class="bi-time">${time}</span>` +
+      `<span class="bi-title">${title}</span>${place ? `<span class="bi-place">${esc(place)}</span>` : ''}</li>`;
+
+    const cols = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(today, i);
+      const list = events.get(date) || [];
+      const items = [];
+      for (const e of list.filter((x) => x.allDay)) items.push({ sort: '', html: item('', 'All day', esc(e.title), e.location, e.key) });
+      // Dated facts. A collection this morning is old news by midday, as in binLine().
+      const bins = ok(data.bins) && Array.isArray(data.bins.collections) ? data.bins.collections : [];
+      for (const c of bins) {
+        if (c.date !== date || !c.types.length || (date === today && hour >= 12)) continue;
+        const names = c.types.length > 1 ? c.types.slice(0, -1).join(', ') + ' and ' + c.types[c.types.length - 1] : c.types[0];
+        items.push({ sort: ' ', html: item('bi-fact', 'Bins', esc(names) + ' out') });
+      }
+      const bdays = ok(data.birthdays) && Array.isArray(data.birthdays.birthdays) ? data.birthdays.birthdays : [];
+      for (const x of bdays) if (x.date === date) items.push({ sort: ' ', html: item('bi-bday', 'Birthday', esc(x.name) + (x.age ? ' turns ' + esc(x.age) : '')) });
+      const cds = ok(data.fixed) && Array.isArray(data.fixed.countdowns) ? data.fixed.countdowns : [];
+      for (const c of cds) if (c.date === date) items.push({ sort: ' ', html: item('bi-fact', 'Countdown', esc(cap(c.what))) });
+      // Timed events; in today's column the next one gets its dot and ring.
+      for (const e of list.filter((x) => !x.allDay)) {
+        let time = esc(e.time);
+        if (date === today) {
+          const on = e.s <= t;
+          const next = e === nextUp;
+          let side = '';
+          if (on && e.en > e.s) side = `until ${timeOf(e.end)}`;
+          else if (next && e.s - t <= 60 * MIN) side = `in ${Math.max(1, Math.ceil((e.s - t) / MIN))} min`;
+          time = `<span class="nd${next ? ' next' : on ? ' on' : ''}"></span>${time}${side ? ` <span class="accent-text">${esc(side)}</span>` : ''}`;
+        }
+        items.push({ sort: e.sort, html: item('', time, esc(e.title), e.location, e.key) });
+      }
+      // Arsenal's next match, on its day, with the crest. Red only while it is on.
+      const n = ok(arsenal) && arsenal.next;
+      if (n && ymd(Date.parse(n.kickoff)) === date) {
+        const k = Date.parse(n.kickoff);
+        const live = n.live || (k <= t && t - k < 150 * MIN);
+        const time = `<img class="bi-crest" src="${CREST}" alt="" width="16" height="16" onerror="this.remove()">` +
+          (live ? '<span class="bi-live">Live now</span>' : esc(hm(k)));
+        items.push({ sort: live ? '00:00' : hm(k), html: item('bi-arsenal', time, esc(n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`), n.competition) });
+      }
+      items.sort((a, b) => (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0));
+      const shown = items.length > BAND_MAX ? items.slice(0, BAND_MAX - 1) : items;
+      const more = items.length - shown.length;
+      cols.push(`<div class="bd${i === 0 ? ' today' : ''}"><div class="bd-head"><span class="bd-wd">${i === 0 ? 'Today' : SHORT[weekday(date)]}</span>` +
+        `<span class="bd-num">${+date.slice(8, 10)}</span></div><ul class="bd-items">${shown.map((x) => x.html).join('')}` +
+        `${more ? `<li class="bi bi-more">+${more} more</li>` : ''}</ul></div>`);
+    }
+    setHTML(box, cols.join(''));
   }
 
   /* ---------- Arsenal ---------- */
@@ -587,9 +662,13 @@
     renderProjects(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
-    renderArsenal(a && !ok(a) && arsenalDirect ? arsenalDirect : a, now);
+    const arsenal = a && !ok(a) && arsenalDirect ? arsenalDirect : a;
+    renderBand(data, now, arsenal);
+    renderArsenal(arsenal, now);
     renderAsOf(now);
   }
+  // Crossing 1100 px moves this week's facts between Today and the band.
+  if (WIDE.addEventListener) WIDE.addEventListener('change', () => render());
 
   /* ---------- Loading ---------- */
   let loading = false;
