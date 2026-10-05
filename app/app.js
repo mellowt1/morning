@@ -373,7 +373,7 @@
     setHTML($('todayList'), html);
   }
 
-  /* ---------- 03 Projects: read only, kept up to date from Claude Code ---------- */
+  /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
   const STATUS = { active: 'Building', next: 'Next', live: 'Live', parked: 'Parked' };
 
   function renderProjects(p, now) {
@@ -406,20 +406,106 @@
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
         `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}><span class="chip-dot"></span>${esc(x.name)}</span>`).join('')}</div>`;
     }
-    // Parked: projects and loose notes together, grouped by where they came from.
-    const groups = new Map();
-    const put = (from, text) => { const k = from || 'Other'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(text); };
-    for (const x of of('parked')) put(x.name, x.next || 'Parked');
-    for (const x of Array.isArray(p.parked) ? p.parked : []) put(x.from, x.text);
-    const count = [...groups.values()].reduce((n, g) => n + g.length, 0);
-    if (count) {
-      const items = [...groups].map(([from, texts]) => `<li><span class="fold-from">${esc(from)}</span>${texts.map((t) => `<span>${esc(t)}</span>`).join('')}</li>`);
-      html += `<details class="fold fold-parked"><summary>${subHead('Parked', count)}<span class="fold-names">${esc([...groups.keys()].join(', '))}</span></summary><ul class="fold-list">${items.join('')}</ul></details>`;
-    }
+    html = parkedHTML(p, now) + html;
     if (setHTML(list, html || `<div class="row empty"><span>No projects listed.</span></div>`) && openParked) {
       const d = list.querySelector('details'); if (d) d.open = true;
     }
   }
+
+  /* ---------- Parked: stares back until something is done with it ----------
+   * Open at the top of 03, oldest first. Calm for a week, then an amber age, then red from
+   * two weeks. Do today puts it on the to-do list's Today; Done and Drop take it off. Every
+   * button takes it off Parked (POST /api/morning/:code/parked) with a few seconds of Undo. */
+  const AMBER_DAYS = 7;
+  const RED_DAYS = 14;
+  const hiding = new Set(); // ids taken off on this screen while the Worker answers
+  const inflight = new Map(); // id -> that button's request, so Undo waits for it
+  const ageLevel = (d) => (d >= RED_DAYS ? 'red' : d >= AMBER_DAYS ? 'amber' : 'calm');
+  const ageText = (d) => (d <= 0 ? 'Today' : d === 1 ? '1 day' : d + ' days');
+
+  function parkedOf(p, now) {
+    const today = ymd(now);
+    const out = [];
+    for (const x of Array.isArray(p.projects) ? p.projects : []) if (x.status === 'parked') out.push({ id: x.id, from: x.name, text: x.next || 'Parked', since: x.since });
+    for (const x of Array.isArray(p.parked) ? p.parked : []) out.push({ id: x.id, from: x.from || 'Other', text: x.text, since: x.since });
+    for (const x of out) x.age = x.since ? Math.max(0, daysFrom(x.since, today)) : null;
+    return out.filter((x) => !hiding.has(x.id)).sort((a, b) => (b.age ?? -1) - (a.age ?? -1));
+  }
+
+  function parkedHTML(p, now) {
+    const items = parkedOf(p, now);
+    if (!items.length) return '';
+    const oldest = items[0].age;
+    const head = `<div class="park-head">${subHead('Parked', items.length)}${oldest !== null ? `<span class="park-oldest lv-${ageLevel(oldest)}">Oldest ${esc(ageText(oldest).toLowerCase())}</span>` : ''}</div>`;
+    const rows = items.map((x) => {
+      const lv = x.age === null ? 'calm' : ageLevel(x.age);
+      const btns = x.id ? `<div class="park-btns">
+          <button type="button" class="pbtn pbtn-today" data-act="today" data-id="${esc(x.id)}" aria-label="Do today: ${esc(x.text)}">Do today</button>
+          <button type="button" class="pbtn pbtn-done" data-act="done" data-id="${esc(x.id)}" aria-label="Done: ${esc(x.text)}">Done</button>
+          <button type="button" class="pbtn pbtn-drop" data-act="drop" data-id="${esc(x.id)}" aria-label="Drop: ${esc(x.text)}">Drop</button>
+        </div>` : '';
+      return `<div class="park lv-${lv}">
+        <span class="fold-from park-from">${esc(x.from)}</span>
+        ${x.age !== null ? `<span class="park-age">${esc(ageText(x.age))}</span>` : ''}
+        <span class="park-what">${esc(x.text)}</span>${btns}</div>`;
+    }).join('');
+    return head + `<div class="parks">${rows}</div>`;
+  }
+
+  const TOAST_WORDS = { today: 'On today’s to-do list', done: 'Marked done', drop: 'Dropped' };
+  let toastT = 0;
+  let toastId = '';
+  function toast(words, id) {
+    const el = $('parkToast');
+    clearTimeout(toastT);
+    toastId = id || '';
+    el.firstChild.textContent = words;
+    el.lastChild.hidden = !id;
+    el.hidden = false;
+    toastT = setTimeout(() => { el.hidden = true; toastId = ''; }, 6000);
+  }
+
+  async function parkedPost(id, action) {
+    const r = await fetch(API + '/api/morning/' + code + '/parked', {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }),
+    });
+    if (!r.ok) throw new Error('status ' + r.status);
+    const out = await r.json();
+    if (last && last.data && out.projects) { last.data.projects = out.projects; store.set(KEY, last); }
+  }
+
+  $('projList').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b || hiding.has(b.dataset.id)) return;
+    const { id, act } = b.dataset;
+    hiding.add(id);
+    render();
+    toast(TOAST_WORDS[act], id);
+    const req = parkedPost(id, act);
+    inflight.set(id, req);
+    try {
+      await req;
+    } catch (err) {
+      toast('Couldn’t save that. Try again.');
+    }
+    inflight.delete(id);
+    hiding.delete(id);
+    render();
+  });
+
+  $('parkToast').lastChild.addEventListener('click', async () => {
+    const id = toastId;
+    if (!id) return;
+    $('parkToast').hidden = true;
+    toastId = '';
+    try {
+      await (inflight.get(id) || Promise.resolve()).catch(() => {});
+      await parkedPost(id, 'undo');
+    } catch (err) {
+      toast('Couldn’t undo that. Try again.');
+    }
+    render();
+  });
 
   /* ---------- 04 Coming up: Odysseus plus the fixed events, one row per event ---------- */
 

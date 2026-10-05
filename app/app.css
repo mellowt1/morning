@@ -16,6 +16,12 @@
   --arsenal: #B3262C;
   --sun: #D8AE5E;
   --start-press: #377152;
+  --amber-bg: #FBEFD9;
+  --amber-ink: #80520A;
+  --red-bg: #FBE3E3;
+  --red-ink: #9E1F25;
+  --red-row: #FDF3F3;
+  --btn-rule: #D9D8D3;
   color-scheme: light;
 }
 
@@ -32,6 +38,12 @@
   --arsenal: #F2878A;
   --sun: #D8AE5E;
   --start-press: #377152;
+  --amber-bg: #3A2E1A;
+  --amber-ink: #F0C27A;
+  --red-bg: #3A1D20;
+  --red-ink: #F5A3A5;
+  --red-row: #2A1A1C;
+  --btn-rule: #3A3D42;
   color-scheme: dark;
 }
 
@@ -143,12 +155,35 @@ details.fold[open] > summary .tag::after { content: ''; }
 .chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; font-size: 13px; font-weight: 500; background: var(--inner); border-radius: 99px; cursor: default; }
 .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-text); }
 
-details.fold-parked > summary { min-height: 0; padding: 0 0 12px; align-items: baseline; }
-details.fold-parked > summary .sub-head { padding-bottom: 0; }
-.fold-names { font-size: 13px; color: var(--muted); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fold-names::after { content: ' \203A'; }
-details.fold-parked[open] > summary .fold-names { visibility: hidden; }
-details.fold-parked .fold-list li > span:not(.fold-from) { color: var(--ink); }
+/* ---------- Parked: open at the top of 03, louder with age (calm, amber from 7 days, red from 14) ---------- */
+.park-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.park-oldest { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.park-oldest.lv-amber { color: var(--amber-ink); }
+.park-oldest.lv-red { color: var(--red-ink); }
+.parks { display: flex; flex-direction: column; gap: 6px; padding-bottom: 14px; }
+.park { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "from age" "what what" "btns btns"; column-gap: 10px; row-gap: 3px; padding: 12px 0; border-top: 1px solid var(--rule); }
+.park:first-child { border-top: 0; }
+.park-from { grid-area: from; align-self: center; }
+.park-age { grid-area: age; justify-self: end; align-self: center; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.park-what { grid-area: what; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.park-btns { grid-area: btns; display: flex; gap: 6px; margin-top: 10px; }
+.lv-calm .park-age { padding-right: 0; }
+.lv-amber .park-age { background: var(--amber-bg); color: var(--amber-ink); }
+.lv-red .park-age { background: var(--red-bg); color: var(--red-ink); }
+.park.lv-red { padding: 14px; border-top: 0; border-radius: 12px; background: var(--red-row); }
+.park.lv-red + .park { border-top: 0; }
+.park.lv-red .park-what { font-weight: 600; }
+.pbtn { min-height: 44px; padding: 0 16px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s ease, background-color .2s ease; }
+.pbtn:active { transform: scale(.97); }
+.pbtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.pbtn-today { border: 0; background: var(--accent); color: var(--on-accent); }
+.pbtn-today:hover { background: var(--start-press); }
+.pbtn-done { border: 1px solid var(--btn-rule); background: transparent; color: var(--ink); }
+.pbtn-drop { border: 0; background: transparent; color: var(--muted); }
+.park-toast { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 14px; padding: 6px 6px 6px 14px; border-radius: 12px; background: var(--inner); font-size: 14px; animation: fade .2s ease-out both; }
+.park-toast[hidden] { display: none; }
+.park-toast button { min-height: 36px; padding: 0 10px; border: 0; background: transparent; color: var(--accent-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.park-toast button[hidden] { display: none; }
 
 /* ---------- Projects ---------- */
 .proj { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; }
@@ -386,7 +421,7 @@ details.fold-parked .fold-list li > span:not(.fold-from) { color: var(--ink); }
   /* Light without breath: while the sun is up the paper round the date holds a still warm
      light; no warmth on the ink, no corona, no ring, no rolls. The ember is still anyway. */
   .date::before, .sun-stop, .sun-stop::before, .sun-stop::after, .nd.next::after,
-  .r-new, .is-new::before, .pill.pop, .card-start { animation: none !important; transition: none !important; }
+  .r-new, .is-new::before, .pill.pop, .card-start, .park-toast, .pbtn { animation: none !important; transition: none !important; }
   .r-old { display: none; }
   .date:has(.sun-stop.up)::before { opacity: .6; transform: scale(.93); will-change: auto; }
   .sun-stop.up::before, .sun-stop.up::after, .nd.next::after { opacity: 0; }
@@ -423,6 +458,12 @@ details.fold-parked .fold-list li > span:not(.fold-from) { color: var(--ink); }
   .card-row { padding: 20px 24px; }
   .proj-turn { padding: 16px; border-radius: 14px; }
   .proj-turn .proj-name { font-size: 17px; }
+  /* Wide: the age sits over the buttons on the right, the words on the left. */
+  .park { grid-template-areas: "from age" "what btns"; column-gap: 16px; }
+  .park-btns { margin-top: 0; align-self: center; }
+}
+@media (min-width: 720px) and (pointer: fine) {
+  .pbtn { min-height: 34px; padding: 0 12px; }
 }
 
 /* ---------- Laptop and PC: now, projects, and the week across the bottom ----------
