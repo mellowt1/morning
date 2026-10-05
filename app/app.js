@@ -406,16 +406,15 @@
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
         `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}><span class="chip-dot"></span>${esc(x.name)}</span>`).join('')}</div>`;
     }
-    html = parkedHTML(p, now) + html;
     if (setHTML(list, html || `<div class="row empty"><span>No projects listed.</span></div>`) && openParked) {
       const d = list.querySelector('details'); if (d) d.open = true;
     }
   }
 
-  /* ---------- Parked: stares back until something is done with it ----------
-   * Open at the top of 03, oldest first. Calm for a week, then an amber age, then red from
-   * two weeks. Do today puts it on the to-do list's Today; Done and Drop take it off. Every
-   * button takes it off Parked (POST /api/morning/:code/parked) with a few seconds of Undo. */
+  /* ---------- Parked: its own card under Projects, stares back until something is done ----------
+   * Oldest first. Calm for a week, then an amber age, then red from two weeks. Do today puts
+   * it on the to-do list's Today; Done and Drop take it off. Every button takes it off Parked
+   * (POST /api/morning/:code/parked) with a few seconds of Undo. Hidden when nothing is parked. */
   const AMBER_DAYS = 7;
   const RED_DAYS = 14;
   const hiding = new Set(); // ids taken off on this screen while the Worker answers
@@ -432,11 +431,16 @@
     return out.filter((x) => !hiding.has(x.id)).sort((a, b) => (b.age ?? -1) - (a.age ?? -1));
   }
 
-  function parkedHTML(p, now) {
-    const items = parkedOf(p, now);
-    if (!items.length) return '';
-    const oldest = items[0].age;
-    const head = `<div class="park-head">${subHead('Parked', items.length)}${oldest !== null ? `<span class="park-oldest lv-${ageLevel(oldest)}">Oldest ${esc(ageText(oldest).toLowerCase())}</span>` : ''}</div>`;
+  function renderParked(p, now) {
+    const items = p && ok(p) ? parkedOf(p, now) : [];
+    $('parked').hidden = !items.length && $('parkToast').hidden;
+    const oldest = items.length ? items[0].age : null;
+    setHTML($('parkHead'), `<span class="num">Parked <span class="sub-count">${items.length}</span></span>` +
+      (oldest !== null ? `<span class="park-oldest lv-${ageLevel(oldest)}">Oldest ${esc(ageText(oldest).toLowerCase())}</span>` : ''));
+    setHTML($('parkList'), items.length ? parkedHTML(items) : `<div class="row empty"><span>Nothing parked.</span></div>`);
+  }
+
+  function parkedHTML(items) {
     const rows = items.map((x) => {
       const lv = x.age === null ? 'calm' : ageLevel(x.age);
       const btns = x.id ? `<div class="park-btns">
@@ -449,7 +453,7 @@
         ${x.age !== null ? `<span class="park-age">${esc(ageText(x.age))}</span>` : ''}
         <span class="park-what">${esc(x.text)}</span>${btns}</div>`;
     }).join('');
-    return head + `<div class="parks">${rows}</div>`;
+    return `<div class="parks">${rows}</div>`;
   }
 
   const TOAST_WORDS = { today: 'On today’s to-do list', done: 'Marked done', drop: 'Dropped' };
@@ -462,7 +466,7 @@
     el.firstChild.textContent = words;
     el.lastChild.hidden = !id;
     el.hidden = false;
-    toastT = setTimeout(() => { el.hidden = true; toastId = ''; }, 6000);
+    toastT = setTimeout(() => { el.hidden = true; toastId = ''; render(); }, 6000);
   }
 
   async function parkedPost(id, action) {
@@ -474,7 +478,7 @@
     if (last && last.data && out.projects) { last.data.projects = out.projects; store.set(KEY, last); }
   }
 
-  $('projList').addEventListener('click', async (e) => {
+  $('parkList').addEventListener('click', async (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b || hiding.has(b.dataset.id)) return;
     const { id, act } = b.dataset;
@@ -746,6 +750,7 @@
     renderStart(data && data.todos);
     renderToday(data, now);
     renderProjects(data && data.projects, now);
+    renderParked(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
     const arsenal = a && !ok(a) && arsenalDirect ? arsenalDirect : a;

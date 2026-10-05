@@ -87,7 +87,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     chips: document.querySelectorAll('#projList .chip').length,
     turn: document.querySelectorAll('#projList .proj-turn').length,
     projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj').length,
-    parked: document.querySelector('#projList .park-head')?.innerText.replace(/\s+/g, ' ').trim() || '',
+    parked: document.getElementById('parked').hidden ? '' : document.getElementById('parkHead').innerText.replace(/\s+/g, ' ').trim() || '',
     week: document.querySelectorAll('#days .ev').length,
     band: getComputedStyle(document.getElementById('weekBand')).display === 'none' ? null
       : [...document.querySelectorAll('#bandDays .bd')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
@@ -119,7 +119,7 @@ check(r.tiles.some((x) => /^Dinner Pasta alla Norma Mix the dough today$/i.test(
 check(r.tiles.some((x) => /^Bins Tomorrow GFT and Restafval out$/i.test(x)), 'bins tile');
 check(r.tiles.some((x) => /^Yesterday 2 done$/i.test(x)), 'wins tile');
 check(r.turn === 1 && r.projects === 3 && r.chips === 2, 'projects: your turn, building, up next, two live chips');
-check(/^Parked 3$/i.test(r.parked), 'parked header, open at the top: ' + r.parked);
+check(/^Parked 3$/i.test(r.parked), 'parked card header: ' + r.parked);
 check(r.week === 4 && /^Tomorrow Lunch with a friend, Cafe 13:00$/.test(r.days[0]), 'coming up starts tomorrow: ' + r.days[0]);
 check(r.days.some((x) => /Club: evening/.test(x)), 'a spaced dash becomes a colon');
 check(r.days.some((x) => /Film at Filmhuis 19:00$/.test(x)), 'the place is dropped when the title says it');

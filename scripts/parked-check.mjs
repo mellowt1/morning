@@ -1,4 +1,4 @@
-// Parked on 03 Projects: ages (calm, amber, red), the three buttons and Undo, against a
+// The Parked card (under 03 Projects): ages (calm, amber, red), the three buttons and Undo, against a
 // mocked Worker that keeps state like the real route. Every value here is made up.
 //   PORT=8095 npm run serve, then: APP=http://localhost:8095/morning/ npm run parked-check
 import { chromium } from 'playwright';
@@ -70,12 +70,12 @@ async function open(viewport, dark) {
   });
   await page.route('**/site.**espn.com/**', (r) => r.abort());
   await page.goto(BASE + '?c=' + CODE);
-  await page.waitForSelector('#projList .park');
+  await page.waitForSelector('#parkList .park');
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1600);
   return { page, ctx, w, errors };
 }
-const rows = (page) => page.$$eval('#projList .park', (els) => els.map((e) => ({
+const rows = (page) => page.$$eval('#parkList .park', (els) => els.map((e) => ({
   lv: e.className.match(/lv-(\w+)/)[1], from: e.querySelector('.park-from').textContent,
   age: e.querySelector('.park-age')?.textContent, what: e.querySelector('.park-what').textContent,
 })));
@@ -87,22 +87,22 @@ for (const [name, viewport, dark] of [['parked-pc', { width: 1440, height: 1000 
   check(r.map((x) => x.what).join('|') === 'Move the posts|Move passwords to a manager|Tidy the downloads folder|Send the birthday list|Fresh idea', name + ': oldest first, parked project included');
   check(r.map((x) => x.lv).join() === 'red,red,amber,calm,calm', name + ': levels red, red, amber, calm, calm');
   check(r[0].age === '16 days' && r[4].age === 'Today', name + ': ages read "16 days" and "Today"');
-  check(await page.textContent('.park-oldest') === 'Oldest 16 days', name + ': header says oldest 16 days');
-  check(await page.$eval('#projList', (l) => l.firstElementChild.classList.contains('park-head')), name + ': Parked sits at the top of 03');
-  const sizes = await page.$$eval('#projList .park:first-child .pbtn', (b) => b.map((x) => Math.round(x.getBoundingClientRect().height)));
+  check(await page.textContent('#parkHead .park-oldest') === 'Oldest 16 days', name + ': header says oldest 16 days');
+  check(await page.evaluate(() => { const a = document.getElementById('projects').getBoundingClientRect(), b = document.getElementById('parked').getBoundingClientRect(); return b.top > a.bottom && !document.querySelector('#projList .park'); }), name + ': Parked is its own card, below Projects');
+  const sizes = await page.$$eval('#parkList .park:first-child .pbtn', (b) => b.map((x) => Math.round(x.getBoundingClientRect().height)));
   check(viewport.width < 700 ? sizes.every((h) => h >= 44) : sizes.every((h) => h >= 34), name + ': button heights ' + sizes);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ': no sideways scroll');
   await page.screenshot({ path: file(name), fullPage: true });
-  await page.locator('#projects').screenshot({ path: file(name + '-card') });
+  await page.locator('#parked').screenshot({ path: file(name + '-card') });
 
   // Do today: off Parked at once, Undo bar, then Undo brings it back.
-  await page.click('#projList .park:nth-child(2) .pbtn-today');
+  await page.click('#parkList .park:nth-child(2) .pbtn-today');
   await page.waitForFunction(() => !document.getElementById('parkToast').hidden);
   check(await page.textContent('#parkToast span') === 'On today’s to-do list', name + ': toast after Do today');
   await page.waitForTimeout(300);
   r = await rows(page);
   check(!r.some((x) => x.what === 'Move passwords to a manager'), name + ': item gone after Do today');
-  await page.locator('#projects').screenshot({ path: file(name + '-toast') });
+  await page.locator('#parked').screenshot({ path: file(name + '-toast') });
   await page.click('#parkToast button');
   await page.waitForTimeout(300);
   r = await rows(page);
@@ -111,10 +111,12 @@ for (const [name, viewport, dark] of [['parked-pc', { width: 1440, height: 1000 
 
   // Done and Drop on the rest until it is empty: the section goes away.
   for (const act of ['done', 'drop', 'done', 'drop', 'done']) {
-    await page.click(`#projList .park:first-child .pbtn-${act}`);
+    await page.click(`#parkList .park:first-child .pbtn-${act}`);
     await page.waitForTimeout(250);
   }
-  check((await page.$$('#projList .park')).length === 0 && !(await page.$('.park-head')), name + ': all handled, Parked is gone');
+  check((await page.$$('#parkList .park')).length === 0, name + ': all handled, no rows left');
+  await page.waitForTimeout(6500);
+  check(await page.$eval('#parked', (e) => e.hidden), name + ': the Parked card goes away once the Undo bar has gone');
   check(await page.$('#projList .proj-turn') !== null, name + ': Your turn still shows');
   check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
   await ctx.close();

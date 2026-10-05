@@ -155,12 +155,11 @@ details.fold[open] > summary .tag::after { content: ''; }
 .chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; font-size: 13px; font-weight: 500; background: var(--inner); border-radius: 99px; cursor: default; }
 .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-text); }
 
-/* ---------- Parked: open at the top of 03, louder with age (calm, amber from 7 days, red from 14) ---------- */
-.park-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+/* ---------- Parked: its own card under Projects, louder with age (calm, amber from 7 days, red from 14) ---------- */
 .park-oldest { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 .park-oldest.lv-amber { color: var(--amber-ink); }
 .park-oldest.lv-red { color: var(--red-ink); }
-.parks { display: flex; flex-direction: column; gap: 6px; padding-bottom: 14px; }
+.parks { display: flex; flex-direction: column; gap: 6px; padding: 6px 0 14px; }
 .park { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "from age" "what what" "btns btns"; column-gap: 10px; row-gap: 3px; padding: 12px 0; border-top: 1px solid var(--rule); }
 .park:first-child { border-top: 0; }
 .park-from { grid-area: from; align-self: center; }
