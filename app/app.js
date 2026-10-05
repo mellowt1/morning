@@ -391,7 +391,7 @@
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
   const STATUS = { active: 'Building', next: 'Next', live: 'Live', parked: 'Parked' };
 
-  function renderProjects(p, now) {
+  function renderProjects(p, now, repos) {
     const box = $('projects');
     if (!p) { box.hidden = true; return; }
     box.hidden = false;
@@ -421,9 +421,23 @@
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
         `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}><span class="chip-dot"></span>${esc(x.name)}</span>`).join('')}</div>`;
     }
+    // Work that only lives on the PC (the daily run scans the repos). Hidden when everything is pushed.
+    const unpushed = repos && ok(repos) && Array.isArray(repos.repos) ? repos.repos : [];
+    if (unpushed.length) {
+      html += subHead('Not pushed', unpushed.length) + `<div class="rows">${unpushed.map((r) =>
+        `<div class="proj proj-repo"><span class="proj-name">${esc(r.name)}</span>${r.why ? `<span class="proj-next">${esc(r.why)}</span>` : ''}</div>`).join('')}</div>`;
+    }
     if (setHTML(list, html || `<div class="row empty"><span>No projects listed.</span></div>`) && openParked) {
       const d = list.querySelector('details'); if (d) d.open = true;
     }
+  }
+
+  /* ---------- Apps: one-tap links from the Worker's LINKS secret (they carry codes) ---------- */
+  function renderApps(l) {
+    const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url)) : [];
+    const nav = $('apps');
+    nav.hidden = !links.length;
+    setHTML(nav, links.map((x) => `<a class="app-link" href="${esc(x.url)}" rel="noreferrer">${esc(x.name)}</a>`).join(''));
   }
 
   /* ---------- Parked: its own card under Projects, stares back until something is done ----------
@@ -766,7 +780,8 @@
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
     renderStart(data && data.todos);
     renderToday(data, now);
-    renderProjects(data && data.projects, now);
+    renderApps(data && data.links);
+    renderProjects(data && data.projects, now, data && data.repos);
     renderParked(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;

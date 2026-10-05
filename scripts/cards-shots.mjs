@@ -48,6 +48,8 @@ function answer({ dark = false, ...over } = {}) {
       ],
       parked: [{ text: 'Move passwords to a manager', from: 'Admin' }, { text: 'Tidy the downloads folder', from: '' }],
     },
+    repos: { updated: new Date().toISOString(), repos: [{ name: 'photo-archive', why: 'No remote yet' }, { name: 'garden', why: '2 commits not pushed' }] },
+    links: { links: [{ name: 'To-do', url: 'https://example.com/todo/' }, { name: 'Kitchen', url: 'https://example.com/kitchen/' }, { name: 'Bad', url: 'javascript:alert(1)' }] },
     ...over,
   };
 }
@@ -87,7 +89,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     tiles: [...document.querySelectorAll('#todayList .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
     chips: document.querySelectorAll('#projList .chip').length,
     turn: document.querySelectorAll('#projList .proj-turn').length,
-    projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj').length,
+    projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj:not(.proj-repo)').length,
     parked: document.getElementById('parked').hidden ? '' : document.getElementById('parkHead').innerText.replace(/\s+/g, ' ').trim() || '',
     week: document.querySelectorAll('#days .ev').length,
     band: getComputedStyle(document.getElementById('weekBand')).display === 'none' ? null
@@ -95,6 +97,8 @@ async function shoot(data, viewport, name, act, when = NOON) {
     agendaShown: document.querySelectorAll('#todayList .evt').length,
     arsenal: document.getElementById('arsenalBody').innerText.replace(/\s+/g, ' ').trim(),
     overflow: document.documentElement.scrollWidth > innerWidth,
+    apps: document.getElementById('apps').hidden ? [] : [...document.querySelectorAll('#apps a')].map((a) => a.textContent + ' ' + a.getAttribute('href')),
+    repos: [...document.querySelectorAll('#projList .proj-repo')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
   }));
   if (name) await page.screenshot({ path: file(name), fullPage: true });
   await ctx.close();
@@ -107,6 +111,8 @@ const laptop = { width: 1440, height: 900 };
 let r = await shoot(answer(), phone, 'cards-phone');
 console.log(r);
 check(r.theme === 'light', 'light theme');
+check(r.apps.length === 2 && r.apps[1] === 'Kitchen https://example.com/kitchen/', 'apps row: two https links, javascript: dropped: ' + r.apps);
+check(r.repos.length === 2 && r.repos[0] === 'photo-archive No remote yet', 'not pushed: ' + r.repos);
 check(/^\d{2}\.\d{2}$/.test(r.date), 'date as 24.09');
 check(r.start === 'Email the landlord about the heating', 'start with');
 check(r.tasks.length === 2, 'two to-dos after Start with');
