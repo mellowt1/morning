@@ -311,6 +311,20 @@
     }).join('');
   }
 
+  /* Whose turn it is (the cleaning): who, and when. The next turn's name on hover. */
+  function rotaTiles(r, now, skip = () => false) {
+    if (!ok(r) || !Array.isArray(r.rotas)) return '';
+    const today = ymd(now);
+    return r.rotas.map((x) => {
+      if (skip(x.date)) return '';
+      const days = daysFrom(today, x.date);
+      const weekend = weekday(x.date) === 6;
+      const when = days <= 0 ? `<span class="accent-text">${weekend ? 'This weekend' : 'Now'}</span>`
+        : days < 7 ? (weekend ? 'This weekend' : DAYS[weekday(x.date)]) : shortDate(x.date);
+      return tile(cap(x.what), esc(cap(x.who)), when, x.then ? 'Then: ' + cap(x.then) : '');
+    }).join('');
+  }
+
   /* Yesterday's wins: the count, and one filled circle per win (the same circles as
    * today's open to-dos, filled in); the names on hover. */
   function winsTile(y) {
@@ -356,6 +370,7 @@
       if (bin && (bin.soon || !wide)) tiles += tile('Bins', bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
       tiles += birthdayTiles(data.birthdays, now, inBand);
       tiles += countdownTiles(data.fixed, now, inBand);
+      tiles += rotaTiles(data.rotas, now, inBand);
       tiles += winsTile(ok(t) ? t.yesterday : null);
     }
     let html = tiles ? `<div class="tiles">${tiles}</div>` : '';
@@ -619,6 +634,8 @@
       for (const x of bdays) if (x.date === date) items.push({ sort: ' ', html: item('bi-bday', 'Birthday', esc(x.name) + (x.age ? ' turns ' + esc(x.age) : '')) });
       const cds = ok(data.fixed) && Array.isArray(data.fixed.countdowns) ? data.fixed.countdowns : [];
       for (const c of cds) if (c.date === date) items.push({ sort: ' ', html: item('bi-fact', 'Countdown', esc(cap(c.what))) });
+      const rotas = ok(data.rotas) && Array.isArray(data.rotas.rotas) ? data.rotas.rotas : [];
+      for (const r of rotas) if (r.date <= date && date <= r.end) items.push({ sort: ' ', html: item('bi-fact', esc(cap(r.what)), esc(cap(r.who))) });
       // Timed events; in today's column the next one gets its dot and ring.
       for (const e of list.filter((x) => !x.allDay)) {
         let time = esc(e.time);

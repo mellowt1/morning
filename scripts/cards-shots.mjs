@@ -33,6 +33,7 @@ function answer({ dark = false, ...over } = {}) {
     arsenal: { next: { opponent: 'Fictional Rovers', home: true, competition: 'Premier League', kickoff: new Date(Date.now() + 3 * 864e5).toISOString() }, last: { opponent: 'Made Up Town', home: false, us: 0, them: 3, result: 'Lost', pens: null } },
     bins: { collections: [{ date: day(1), types: ['GFT', 'Restafval'] }] },
     birthdays: { birthdays: [{ name: 'Sam', date: day(5), days: 5, age: 40 }] },
+    rotas: { rotas: [{ what: 'Cleaning', date: day(2), end: day(3), days: 2, who: 'Alex', then: 'Both of you' }] },
     news: { items: [] },
     kitchen: { tonight: { kind: 'recipe', title: 'Pasta alla Norma', veg: true }, mixToday: true, pizzaOn: day(3) },
     projects: {
@@ -114,7 +115,8 @@ check(r.say === 'Quiz night at 23:00.', 'the day in one sentence: ' + r.say);
 check(/\bup\b/.test(r.sun), 'sun up at 13:00');
 check(/^\.\.\/todo\/\?c=/.test(r.href), 'Start with opens the to-do app');
 check(r.agenda.length === 1 && /^23:00 Quiz night$/.test(r.agenda[0]) && r.nextDot === 1, 'today holds today: ' + r.agenda);
-check(r.tiles.length === 5, 'tiles: dinner, bins, birthday, countdown, yesterday');
+check(r.tiles.length === 6, 'tiles: dinner, bins, birthday, countdown, cleaning, yesterday');
+check(r.tiles.some((x) => /^Cleaning Alex (This weekend|\w+day)$/i.test(x)), 'cleaning tile: ' + r.tiles.find((x) => /^Cleaning/i.test(x)));
 check(r.tiles.some((x) => /^Dinner Pasta alla Norma Mix the dough today$/i.test(x)), 'dinner tile');
 check(r.tiles.some((x) => /^Bins Tomorrow GFT and Restafval out$/i.test(x)), 'bins tile');
 check(r.tiles.some((x) => /^Yesterday 2 done$/i.test(x)), 'wins tile');
@@ -139,6 +141,8 @@ check(/Bins GFT and Restafval out 13:00 Lunch with a friend Cafe$/i.test(r.band[
 check(/\d\d:\d\d Arsenal v Fictional Rovers Premier League$/.test(r.band[3]), 'band: the match on its day: ' + r.band[3]);
 check(/All day Day off 20:00 Club: evening$/i.test(r.band[4]), 'band: all day first: ' + r.band[4]);
 check(/Birthday Sam turns 40 19:00 Film at Filmhuis$/i.test(r.band[5]), 'band: birthday on its day: ' + r.band[5]);
+check(/^\w+ \d+ Cleaning Alex/i.test(r.band[2]) && /^\w+ \d+ Cleaning Alex/i.test(r.band[3]), 'band: cleaning on both days of the turn: ' + r.band[2]);
+check(!r.tiles.some((x) => /^Cleaning/i.test(x)), 'Today leaves the cleaning to the band');
 check(r.agendaShown === 0 && r.week === 4 && !r.tiles.some((x) => /^Birthday/i.test(x)), 'Today leaves this week to the band');
 check(r.tiles.some((x) => /^Bins Tomorrow/i.test(x)) && r.tiles.some((x) => /^Countdown/i.test(x)), 'bins out tomorrow and a countdown 12 days off stay in Today');
 await shoot(answer({ dark: true }), laptop, 'cards-laptop-dark', null, at(0, '23:30'));
