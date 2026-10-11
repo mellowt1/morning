@@ -51,6 +51,7 @@ function answer({ dark = false, ...over } = {}) {
     repos: { updated: new Date().toISOString(), repos: [{ name: 'photo-archive', why: 'No remote yet' }, { name: 'garden', why: '2 commits not pushed' }] },
     intake: { week: 2, needs: [{ id: "r1", at: new Date().toISOString(), who: "mom", kind: "letter", summary: "Insurance letter: a reply is wanted before the 20th.", tasks: 1, needs: true }], recent: [{ id: "r1", at: new Date().toISOString(), who: "mom", kind: "letter", summary: "Insurance letter: a reply is wanted before the 20th.", tasks: 1, needs: true }, { id: "r2", at: new Date(Date.now() - 2 * 864e5).toISOString(), who: "me", kind: "bill", summary: "Energy bill for September, paid by direct debit.", tasks: 0, needs: false }], month: { calls: 3, input: 12000, output: 1500 } },
     events: { events: [{ id: 'e1', source: 'feeling', kind: 'checkin', who: 'Nick', text: 'Nick checked in', at: new Date(Date.now() - 20 * 60000).toISOString() }, { id: 'e2', source: 'plan-regreso', kind: 'task', who: 'Dad', text: 'Dad ticked Pasaporte', at: new Date(Date.now() - 26 * 3600000).toISOString() }], sources: {} },
+    status: { line: 'All jobs on time, 2 things happened in 2 apps, 3 open to-dos.', summary: 'Quiet night: Nick checked in and Dad ticked Pasaporte. Everything is running.', summaryAt: new Date(Date.now() - 3600000).toISOString(), at: new Date().toISOString() },
     links: { links: [{ name: 'To-do', url: 'https://example.com/todo/' }, { name: 'Kitchen', url: 'https://example.com/kitchen/' }, { name: 'Bad', url: 'javascript:alert(1)' }] },
     ...over,
   };
@@ -100,6 +101,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     arsenal: document.getElementById('arsenalBody').innerText.replace(/\s+/g, ' ').trim(),
     overflow: document.documentElement.scrollWidth > innerWidth,
     intake: document.getElementById('intake').hidden ? -1 : [...document.querySelectorAll('#intakeList .proj')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+    status: document.getElementById('feedStatus').hidden ? '' : document.getElementById('feedStatus').innerText.replace(/\s+/g, ' ').trim(),
     feed: document.getElementById('feed').hidden ? -1 : [...document.querySelectorAll('#feedList .proj, #feedList .sub-head')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
     apps: document.getElementById('apps').hidden ? [] : [...document.querySelectorAll('#apps a')].map((a) => a.textContent + ' ' + a.getAttribute('href')),
     repos: [...document.querySelectorAll('#projList .proj-repo')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
@@ -133,6 +135,7 @@ check(r.tiles.some((x) => /^Yesterday 2 done$/i.test(x)), 'wins tile');
 check(r.turn === 1 && r.projects === 3 && r.chips === 2, 'projects: your turn, building, up next, two live chips');
 check(/^Parked 3$/i.test(r.parked), 'parked card header: ' + r.parked);
 check(r.intake.length === 2 && /^Insurance letter.*Mom · letter · today · 1 task$/.test(r.intake[0]) && /bill · .* · nothing to do$/.test(r.intake[1]), 'read for you: ' + r.intake);
+check(/^Quiet night: Nick checked in and Dad ticked Pasaporte\. Everything is running\. as of \d\d:\d\d$/.test(r.status), 'status line above the feed: ' + r.status);
 check(r.feed.length === 4 && /^TODAY 1$/i.test(r.feed[0]) && /^Nick checked in Feeling · \d\d:\d\d$/.test(r.feed[1]) && /^YESTERDAY 1$/i.test(r.feed[2]), 'lately: ' + r.feed);
 check(r.week === 4 && /^Tomorrow Lunch with a friend, Cafe 13:00$/.test(r.days[0]), 'coming up starts tomorrow: ' + r.days[0]);
 check(r.days.some((x) => /Club: evening/.test(x)), 'a spaced dash becomes a colon');
@@ -161,12 +164,16 @@ await shoot(answer({ dark: true }), laptop, 'cards-laptop-dark', null, at(0, '23
 await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
 
 // Empty and broken states.
-r = await shoot(answer({ projects: null, intake: null, events: null, kitchen: null, bins: { collections: [] }, birthdays: { birthdays: [] }, fixed: { events: [], countdowns: [] }, todos: { items: [], updated: null, yesterday: { count: 0, items: [] } } }), phone, 'cards-empty');
+r = await shoot(answer({ projects: null, intake: null, events: null, status: null, kitchen: null, bins: { collections: [] }, birthdays: { birthdays: [] }, fixed: { events: [], countdowns: [] }, todos: { items: [], updated: null, yesterday: { count: 0, items: [] } } }), phone, 'cards-empty');
 check(r.projects === -1, 'projects hidden before the first push');
 check(r.intake === -1, 'read-for-you hidden before the first letter');
-check(r.feed === -1, 'lately hidden before the first event');
+check(r.feed === -1, 'lately hidden before the first event or status');
 check(r.start === '', 'start hidden with no tasks');
 check(r.today.includes('Nothing for today.'), 'empty today');
+r = await shoot(answer({ status: { line: 'A quiet night, 3 open to-dos.', summary: null, summaryAt: null, at: new Date().toISOString() } }), phone);
+check(/^A quiet night, 3 open to-dos\. as of \d\d:\d\d$/.test(r.status), 'rules line when there is no summary: ' + r.status);
+r = await shoot(answer({ events: null }), phone);
+check(r.status.startsWith('Quiet night') && r.feed.length === 0, 'status alone keeps the card: ' + r.status + ' / ' + r.feed);
 r = await shoot(answer({ projects: { error: 'x' }, arsenal: { error: 'x' }, todos: { error: 'x' } }), phone);
 check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /can't load/.test(x)), 'errors shown per card');
 

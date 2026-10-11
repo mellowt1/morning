@@ -197,6 +197,9 @@ details.fold[open] > summary .tag::after { content: ''; }
 .proj-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .proj-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .proj-next { font-size: 13px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
+/* The hub's one line about everything, above the feed. */
+.feed-status { margin: 0; padding: 4px 0 10px; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.feed-status .proj-next { margin-left: 8px; white-space: nowrap; }
 .proj-live { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 10px; color: var(--muted); font-size: 15px; }
 .proj-turn { gap: 4px; margin: 2px 0 6px; padding: 14px; background: var(--inner); border-radius: 12px; }
 .rows > .proj-turn, .rows > .proj-turn + * { border-top: 0; }

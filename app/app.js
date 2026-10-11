@@ -459,14 +459,26 @@
   }
 
   /* ---------- Lately: the hub's feed, one line per thing that happened in the other apps ----------
-   * Grouped by day, newest first. Each line: what happened, then where it came from and when. */
+   * Above it, the hub's own line about everything (status): Claude's summary when there is one,
+   * the rules line otherwise, with the time it was written. Grouped by day below, newest first. */
   const SOURCE_NAME = { feeling: 'Feeling', runway: 'Runway', 'plan-regreso': 'Plan de regreso', 'arsenal-watch': 'Arsenal watch', pc: 'PC', kitchen: 'Kitchen', todo: 'To-do', intake: 'Intake', odysseus: 'Odysseus', 'defence-digest': 'Defence digest' };
   const sourceName = (s) => SOURCE_NAME[s] || String(s || '').replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
-  function renderFeed(b, now) {
+  function renderStatus(s) {
+    const el = $('feedStatus');
+    const text = s && ok(s) ? (s.summary || s.line) : '';
+    if (!text) { el.hidden = true; el.textContent = ''; return false; }
+    const at = Date.parse(s.summary ? s.summaryAt || s.at : s.at);
+    setHTML(el, esc(text) + (Number.isFinite(at) ? ` <span class="proj-next">as of ${esc(hm(at))}</span>` : ''));
+    el.hidden = false;
+    return true;
+  }
+  function renderFeed(b, now, s) {
     const box = $('feed');
-    if (!b) { box.hidden = true; return; }
+    const status = renderStatus(s);
+    if (!b && !status) { box.hidden = true; return; }
     box.hidden = false;
     const list = $('feedList');
+    if (!b) { setHTML(list, ''); $('feedNote').textContent = ''; return; }
     if (!ok(b)) {
       setHTML(list, `<div class="row empty"><span>The feed can't load right now.</span></div>`);
       $('feedNote').textContent = '';
@@ -839,7 +851,7 @@
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos);
     renderIntake(data && data.intake, now);
-    renderFeed(data && data.events, now);
+    renderFeed(data && data.events, now, data && data.status);
     renderParked(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
