@@ -458,6 +458,36 @@
     setHTML(list, html || `<div class="row empty"><span>Nothing read yet.</span></div>`);
   }
 
+  /* ---------- Lately: the hub's feed, one line per thing that happened in the other apps ----------
+   * Grouped by day, newest first. Each line: what happened, then where it came from and when. */
+  const SOURCE_NAME = { feeling: 'Feeling', runway: 'Runway', 'plan-regreso': 'Plan de regreso', 'arsenal-watch': 'Arsenal watch', pc: 'PC', kitchen: 'Kitchen', todo: 'To-do', intake: 'Intake', odysseus: 'Odysseus', 'defence-digest': 'Defence digest' };
+  const sourceName = (s) => SOURCE_NAME[s] || String(s || '').replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  function renderFeed(b, now) {
+    const box = $('feed');
+    if (!b) { box.hidden = true; return; }
+    box.hidden = false;
+    const list = $('feedList');
+    if (!ok(b)) {
+      setHTML(list, `<div class="row empty"><span>The feed can't load right now.</span></div>`);
+      $('feedNote').textContent = '';
+      return;
+    }
+    const events = (Array.isArray(b.events) ? b.events : []).filter((e) => e && e.text && Number.isFinite(Date.parse(e.at)));
+    const today = ymd(now), yesterday = ymd(now - 864e5);
+    const todayCount = events.filter((e) => ymd(Date.parse(e.at)) === today).length;
+    $('feedNote').textContent = todayCount ? `${todayCount} today` : '';
+    const dayLabel = (d) => (d === today ? 'Today' : d === yesterday ? 'Yesterday' : shortDate(d));
+    const groups = [];
+    for (const e of events) {
+      const d = ymd(Date.parse(e.at));
+      const g = groups[groups.length - 1];
+      if (g && g.day === d) g.items.push(e); else groups.push({ day: d, items: [e] });
+    }
+    const row = (e) => `<div class="proj"><span class="proj-name">${esc(e.text)}</span><span class="proj-next">${esc(sourceName(e.source))} · ${esc(hm(Date.parse(e.at)))}</span></div>`;
+    const html = groups.map((g) => subHead(dayLabel(g.day), g.items.length) + `<div class="rows">${g.items.map(row).join('')}</div>`).join('');
+    setHTML(list, html || `<div class="row empty"><span>Nothing happened yet.</span></div>`);
+  }
+
   /* ---------- Apps: one-tap links from the Worker's LINKS secret (they carry codes) ---------- */
   function renderApps(l) {
     const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url)) : [];
@@ -809,6 +839,7 @@
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos);
     renderIntake(data && data.intake, now);
+    renderFeed(data && data.events, now);
     renderParked(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
