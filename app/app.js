@@ -432,6 +432,32 @@
     }
   }
 
+  /* ---------- Read for you: what the paper-clip in the to-do app read lately ---------- */
+  const READ_KIND = { letter: 'letter', bill: 'bill', contract: 'contract', 'credit-report': 'credit report', job: 'job posting', note: 'note', other: 'document' };
+  const whoLabel = (w) => (!w || w === 'me' || w === 'other' ? '' : w.charAt(0).toUpperCase() + w.slice(1));
+  function renderIntake(b, now) {
+    const box = $('intake');
+    if (!b) { box.hidden = true; return; }
+    box.hidden = false;
+    const list = $('intakeList');
+    if (!ok(b)) {
+      setHTML(list, `<div class="row empty"><span>Read items can't load right now.</span></div>`);
+      $('intakeNote').textContent = '';
+      return;
+    }
+    $('intakeNote').textContent = b.week ? `${b.week} this week` : '';
+    const when = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? (ymd(t) === ymd(now) ? 'today' : shortDate(ymd(t))) : ''; };
+    const line = (r) => [whoLabel(r.who), READ_KIND[r.kind] || 'document', when(r.at), r.tasks ? `${r.tasks} task${r.tasks === 1 ? '' : 's'}` : 'nothing to do'].filter(Boolean).join(' · ');
+    const rows = (xs, cls) => `<div class="rows">${xs.map((r) => `<div class="proj${cls}"><span class="proj-name">${esc(r.summary)}</span><span class="proj-next">${esc(line(r))}</span></div>`).join('')}</div>`;
+    const needs = Array.isArray(b.needs) ? b.needs : [];
+    const needIds = new Set(needs.map((r) => r.id));
+    const rest = (Array.isArray(b.recent) ? b.recent : []).filter((r) => !needIds.has(r.id));
+    let html = '';
+    if (needs.length) html += subHead('Needs you', needs.length) + rows(needs, ' proj-turn');
+    if (rest.length) html += subHead(needs.length ? 'Also read' : 'Read lately') + rows(rest, '');
+    setHTML(list, html || `<div class="row empty"><span>Nothing read yet.</span></div>`);
+  }
+
   /* ---------- Apps: one-tap links from the Worker's LINKS secret (they carry codes) ---------- */
   function renderApps(l) {
     const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url)) : [];
@@ -782,6 +808,7 @@
     renderToday(data, now);
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos);
+    renderIntake(data && data.intake, now);
     renderParked(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
