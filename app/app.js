@@ -403,6 +403,28 @@
     setHTML($('todayList'), html);
   }
 
+  /* ---------- Others: tasks Paul does for other people (To-do's Others section) ----------
+   * Never in Today or Start with. Outside a slot, one line at the foot of 02 Today:
+   * "Others: 5 waiting, next slot Sat 10:00". During a slot (hub config others_slots) an Others
+   * card above Today lists them by person. Hidden when nothing waits. */
+  function renderOthers(o) {
+    const line = $('othersLine');
+    const cardEl = $('othersCard');
+    if (!o || !ok(o) || !o.waiting) { line.hidden = true; cardEl.hidden = true; return; }
+    if (o.inSlot && Array.isArray(o.groups)) {
+      line.hidden = true;
+      cardEl.hidden = false;
+      $('othersUntil').textContent = 'Slot until ' + o.inSlot.end;
+      setHTML($('othersList'), o.groups.map((g) => subHead(g.person, g.tasks.length) +
+        '<ul class="rows">' + g.tasks.map((t) => '<li class="row task"><span class="circle"></span><span>' + esc(cap(t.text)) + '</span><span class="side others-days">' + (t.days === 0 ? 'today' : t.days === 1 ? '1 day' : t.days + ' days') + '</span></li>').join('') + '</ul>').join(''));
+      return;
+    }
+    cardEl.hidden = true;
+    line.hidden = false;
+    const when = o.next ? 'next slot ' + o.next.label : o.slots ? '' : 'no slot set';
+    setHTML(line, '<span><b>Others:</b> ' + o.waiting + ' waiting</span>' + (when ? '<span class="others-when">' + esc(when) + '</span>' : ''));
+  }
+
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
   const STATUS = { active: 'Building', next: 'Next', live: 'Live', parked: 'Parked' };
 
@@ -727,6 +749,24 @@
       calNote = `Calendar as of ${(ymd(sent) === today ? '' : SHORT[weekday(ymd(sent))] + ' ') + hm(sent)}. Day has not sent an update since.`;
     }
     $('wkCalNote').textContent = calNote;
+
+    // 05 Others: what Paul did for whom this week, and what still waits, by person
+    const oth = w.others || { done: [], waiting: [] };
+    const odone = oth.done || [];
+    const owait = oth.waiting || [];
+    const people = new Set(odone.map((d) => d.person)).size;
+    $('wkOthersNote').textContent = odone.length ? `${odone.length} done for ${plural(people, 'person', 'people')}` : '';
+    let ohtml = '';
+    if (odone.length) {
+      const shown = wkOpen.odone ? odone : odone.slice(0, WK_SHOWN);
+      ohtml += '<div class="sub-head">Done this week</div><div class="wk-list">' + shown.map((d) =>
+        `<div class="row ${d.handedBack ? 'hand-row' : 'done-row'}"><span>${esc(d.person)}: ${esc(d.text)}${d.handedBack ? ', handed back' : ''}</span><span class="side">${esc(d.day)}</span></div>`).join('') + '</div>' + moreBtn('odone', odone.length);
+    }
+    if (owait.length) {
+      ohtml += '<div class="sub-head">Still waiting</div><div class="wk-list">' + owait.map((g) =>
+        `<div class="row"><span>${esc(g.person)}</span><span class="side">${plural(g.count, 'task', 'tasks')}, ${g.count > 1 ? 'oldest ' : ''}${g.oldestDays === 0 ? 'today' : plural(g.oldestDays, 'day', 'days')}</span></div>`).join('') + '</div>';
+    }
+    setHTML($('wkOthers'), ohtml || emptyRow('Nothing for anyone this week, and nothing waiting.'));
     return w;
   }
 
@@ -1059,6 +1099,7 @@
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
     renderStart(data && data.todos);
     renderToday(data, now);
+    renderOthers(data && data.others);
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos);
     renderIntake(data && data.intake, now);

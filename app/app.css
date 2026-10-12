@@ -478,6 +478,14 @@ details.fold[open] > summary .tag::after { content: ''; }
   .week-view > .card { margin-bottom: 20px; }
 }
 
+/* ---------- Others: one line under Today, a card during a slot ---------- */
+.others-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--inner); font-size: 14px; }
+.others-line b { font-weight: 600; }
+.others-when { flex-shrink: 0; font-size: 13px; color: var(--muted); }
+.slot-pill { padding: 2px 8px; border-radius: 99px; background: var(--inner); color: var(--accent-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.others-days { margin-left: auto; white-space: nowrap; }
+.hand-row > :first-child::before { content: "\21A9"; margin-right: 8px; color: var(--muted); }
+
 /* ---------- Footer ---------- */
 .foot { display: flex; justify-content: flex-end; gap: 12px; padding: 8px 10px 0; font-size: 12px; color: var(--muted); }
 .as-of { text-align: right; }
