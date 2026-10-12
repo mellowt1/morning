@@ -44,6 +44,36 @@
   <p class="say js-say" aria-live="polite"></p>
   <nav id="apps" class="apps" aria-label="Apps" hidden></nav>
 
+  <!-- Sundays (the Sunday reset): Morning opens on the week. The switch goes back to Today. -->
+  <div id="viewSwitch" class="view-switch" hidden>
+    <span id="wkLabel" class="wk-label"></span>
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" data-view="week" aria-pressed="true">Week</button>
+      <button type="button" data-view="today" aria-pressed="false">Today</button>
+    </div>
+  </div>
+
+  <div id="weekView" class="week-view" hidden>
+    <section class="card" aria-label="Done this week" style="--i:1">
+      <div class="card-head"><span class="num">01 Done this week</span><span id="wkDoneNote" class="card-note"></span></div>
+      <div id="wkDone"></div>
+    </section>
+    <section class="card" aria-label="Gone quiet" style="--i:2">
+      <div class="card-head"><span class="num">02 Gone quiet</span><span id="wkQuietNote" class="card-note"></span></div>
+      <div id="wkQuiet"></div>
+      <div id="wkToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
+    </section>
+    <section class="card" aria-label="New vacancies" style="--i:3">
+      <div class="card-head"><span class="num">03 New vacancies</span><span id="wkVacNote" class="card-note"></span></div>
+      <div id="wkVac"></div>
+    </section>
+    <section class="card" aria-label="Next week" style="--i:4">
+      <div class="card-head"><span class="num">04 Next week</span><span id="wkNextNote" class="card-note"></span></div>
+      <div id="wkNext"></div>
+      <span id="wkCalNote" class="card-note card-foot"></span>
+    </section>
+  </div>
+
   <div class="cols">
     <div class="col col-a">
       <a id="start" class="card card-start" href="../todo/" style="--i:0" hidden>

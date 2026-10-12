@@ -437,6 +437,47 @@ details.fold[open] > summary .tag::after { content: ''; }
   .sun-stop.up::before, .sun-stop.up::after, .nd.next::after { opacity: 0; }
 }
 
+/* ---------- Sundays: the Week view (Sunday reset) ----------
+ * The switch sits under the sentence. The four cards are one column on a phone and two
+ * newspaper columns from 720 px (01 and 02 left, 03 and 04 right), so nothing stretches. */
+.view-switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 10px 2px; }
+.wk-label { min-width: 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+.seg { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 3px; border-radius: 99px; background: var(--card); }
+.seg button { min-height: 38px; padding: 0 16px; border: 0; border-radius: 99px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color .2s ease, color .2s ease; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button:focus-visible, .wk-more:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.week-view { display: flex; flex-direction: column; gap: 12px; }
+.week-view .sub-head { padding-top: 10px; }
+.week-view .sub-head:first-child { padding-top: 4px; }
+.wk-list { display: flex; flex-direction: column; padding-bottom: 6px; }
+.wk-list .row { padding: 9px 0; }
+.wk-list .row + .row { border-top: 1px solid var(--rule); }
+.done-row > :first-child::before { content: "\2713"; margin-right: 8px; font-weight: 700; color: var(--accent-text); }
+.wk-more { align-self: flex-start; min-height: 40px; margin: -4px 0 8px; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.week-view .park { grid-template-areas: "from age" "what what" "btns btns"; }
+.week-view .park-btns { flex-wrap: wrap; margin-top: 10px; }
+.week-view .pbtn { padding: 0 13px; } /* three buttons on one line in a red row at 375 px */
+.wk-ask { grid-area: btns; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--inner); font-size: 14px; }
+.wk-ask > span { flex: 1 1 100%; }
+.pbtn-red { border: 0; background: var(--red-ink); color: var(--card); }
+.wk-vac a { text-decoration: underline; text-decoration-color: var(--btn-rule); text-underline-offset: 3px; }
+.wk-state { flex-shrink: 0; padding: 2px 8px; border-radius: 99px; background: var(--inner); font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.wk-state.done { color: var(--accent-text); }
+#wkToast { margin-top: 2px; }
+
+@media (min-width: 720px) {
+  .view-switch { padding: 0 6px; }
+  .wk-label { font-size: 16px; }
+  .week-view { display: block; columns: 2; column-gap: 16px; }
+  .week-view > .card { break-inside: avoid; margin-bottom: 16px; }
+  .week-view .park { grid-template-areas: "from age" "what what" "btns btns"; }
+  .week-view .park-btns { margin-top: 10px; align-self: start; }
+}
+@media (min-width: 1100px) {
+  .week-view { column-gap: 20px; }
+  .week-view > .card { margin-bottom: 20px; }
+}
+
 /* ---------- Footer ---------- */
 .foot { display: flex; justify-content: flex-end; gap: 12px; padding: 8px 10px 0; font-size: 12px; color: var(--muted); }
 .as-of { text-align: right; }

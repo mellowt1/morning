@@ -623,6 +623,195 @@
     render();
   });
 
+  /* ---------- Sundays: the Week view (the Sunday reset) ----------
+   * The Worker sends `week` on Sundays only. The page then opens on it; the switch under the
+   * sentence goes to the usual Today and back. Four cards, each with a short line when empty and
+   * the first five rows of a long list. Gone quiet's buttons write through
+   * POST /api/morning/:code/week: Do this week (to the top of Soon), New date (back in Today on a
+   * Monday ahead) and Delete (asked once). The first two have Undo, like Parked. */
+  let view = 'week';
+  const WK_SHOWN = 5;
+  const wkOpen = {}; // section -> showing all
+  const wkAsk = {}; // task id -> 'delete' | 'date', the inline question under a row
+  const wkHiding = new Set();
+  const wkInflight = new Map();
+  const LATER = [['later1', 'Next week', 1], ['later2', 'In 2 weeks', 2], ['later4', 'In a month', 4]];
+  const SECTION_NAME = { today: 'Today', soon: 'Soon', someday: 'Someday' };
+  const weekOf = (data) => (data && ok(data.week) && data.week.done ? data.week : null);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const dm = (date) => `${+date.slice(8, 10)} ${MONTHS[+date.slice(5, 7) - 1].slice(0, 3)}`;
+  const span = (a, b) => (a.slice(5, 7) === b.slice(5, 7) ? `${+a.slice(8, 10)} to ${dm(b)}` : `${dm(a)} to ${dm(b)}`);
+  /* The Monday a New date brings a task back: 1, 2 or 4 weeks after the coming Monday. The Worker
+   * works out the same date; this one is only for the toast. */
+  const backOn = (today, weeks) => addDays(today, ((8 - weekday(today)) % 7 || 7) + 7 * weeks);
+  const moreBtn = (key, n) => (n > WK_SHOWN ? `<button type="button" class="wk-more" data-more="${key}">${wkOpen[key] ? 'Show fewer' : 'Show all ' + n}</button>` : '');
+  const emptyRow = (words) => `<div class="row empty"><span>${esc(words)}</span></div>`;
+
+  function renderWeekView(data, now) {
+    const w = weekOf(data);
+    const on = !!w && view === 'week';
+    $('viewSwitch').hidden = !w;
+    $('weekView').hidden = !on;
+    document.querySelector('.cols').hidden = on;
+    $('weekBand').hidden = on;
+    for (const b of $('viewSwitch').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.view === (on ? 'week' : 'today')));
+    if (!w) return null;
+    $('wkLabel').textContent = `Week ${w.week} · ${span(w.from, w.to)}`;
+    if (!on) return null;
+
+    // 01 Done this week, grouped by section, newest first in each
+    const done = [];
+    for (const g of w.done.groups || []) for (const x of g.items) done.push({ section: g.section, ...x });
+    const shownDone = wkOpen.done ? done : done.slice(0, WK_SHOWN);
+    let html = '';
+    let lastSection = '';
+    for (const x of shownDone) {
+      if (x.section !== lastSection) { html += `<div class="sub-head">${esc(SECTION_NAME[x.section] || x.section)}</div>`; lastSection = x.section; }
+      html += `<div class="row done-row"><span>${esc(x.text)}</span><span class="side">${esc(x.day)}</span></div>`;
+    }
+    $('wkDoneNote').textContent = w.done.count ? plural(w.done.count, 'thing', 'things') : '';
+    setHTML($('wkDone'), done.length ? `<div class="wk-list">${html}</div>${moreBtn('done', done.length)}` : emptyRow('Nothing ticked off this week. Next week is a fresh one.'));
+
+    // 02 Gone quiet, oldest first, with the three buttons
+    const quiet = (w.quiet || []).filter((q) => !wkHiding.has(q.id));
+    const shownQuiet = wkOpen.quiet ? quiet : quiet.slice(0, WK_SHOWN);
+    const today = ymd(now);
+    const rows = shownQuiet.map((q) => {
+      const ask = wkAsk[q.id];
+      const label = esc(q.text);
+      let btns = `<div class="park-btns">
+          <button type="button" class="pbtn pbtn-today" data-wk="soon" data-id="${esc(q.id)}" aria-label="Do this week: ${label}">Do this week</button>
+          <button type="button" class="pbtn pbtn-done" data-wk="date" data-id="${esc(q.id)}" aria-label="New date: ${label}">New date</button>
+          <button type="button" class="pbtn pbtn-drop" data-wk="delete" data-id="${esc(q.id)}" aria-label="Delete: ${label}">Delete</button>
+        </div>`;
+      if (ask === 'delete') {
+        btns = `<div class="wk-ask" role="group" aria-label="Delete ${label}?"><span>Delete for good?</span>
+          <button type="button" class="pbtn pbtn-red" data-wk="delete-yes" data-id="${esc(q.id)}">Delete</button>
+          <button type="button" class="pbtn pbtn-drop" data-wk="cancel" data-id="${esc(q.id)}">Keep</button></div>`;
+      } else if (ask === 'date') {
+        btns = `<div class="wk-ask" role="group" aria-label="New date for ${label}"><span>Back in Today on</span>
+          ${LATER.map(([act, words, n]) => `<button type="button" class="pbtn pbtn-done" data-wk="${act}" data-id="${esc(q.id)}" title="${esc(shortDate(backOn(today, n)))}">${words}</button>`).join('')}
+          <button type="button" class="pbtn pbtn-drop" data-wk="cancel" data-id="${esc(q.id)}">Cancel</button></div>`;
+      }
+      return `<div class="park lv-${q.days >= 21 ? 'red' : 'amber'}">
+        <span class="fold-from park-from">${esc(SECTION_NAME[q.section] || q.section)}</span>
+        <span class="park-age">${esc(q.days + ' days')}</span>
+        <span class="park-what">${label}</span>${btns}</div>`;
+    }).join('');
+    $('wkQuietNote').textContent = quiet.length ? 'untouched 14+ days' : '';
+    setHTML($('wkQuiet'), quiet.length ? `<div class="parks">${rows}</div>${moreBtn('quiet', quiet.length)}` : emptyRow('Nothing has gone quiet. Every open task moved in the last two weeks.'));
+
+    // 03 New vacancies, from the defence digest, with links
+    const vac = w.vacancies || [];
+    const shownVac = wkOpen.vac ? vac : vac.slice(0, WK_SHOWN);
+    const STATE = { open: 'Open', done: 'Done', deleted: 'Deleted' };
+    $('wkVacNote').textContent = vac.length ? 'from Defence digest' : '';
+    setHTML($('wkVac'), vac.length
+      ? `<div class="rows">${shownVac.map((v) => `<div class="row wk-vac"><span>${v.link ? `<a href="${esc(v.link)}" target="_blank" rel="noopener">${esc(v.text)}</a>` : esc(v.text)}</span>` +
+        `<span class="wk-state ${esc(v.state)}">${esc(STATE[v.state] || v.state)}</span></div>`).join('')}</div>${moreBtn('vac', vac.length)}`
+      : emptyRow('No new vacancies this week.'));
+
+    // 04 Next week, from Day: titles and times only
+    const nx = w.next || { events: [] };
+    const evs = nx.events || [];
+    const shownEv = wkOpen.next ? evs : evs.slice(0, WK_SHOWN);
+    $('wkNextNote').textContent = nx.from ? span(nx.from, nx.to) : '';
+    setHTML($('wkNext'), evs.length
+      ? `<div class="rows">${shownEv.map((e, i) => `<div class="ev${i && shownEv[i - 1].date === e.date ? ' same' : ''}">
+          <span class="ev-day">${i && shownEv[i - 1].date === e.date ? '' : esc(e.day)}</span>
+          <span class="ev-title">${esc(cleanTitle(e.title))}</span><span class="ev-time">${esc(e.time)}</span></div>`).join('')}</div>${moreBtn('next', evs.length)}`
+      : emptyRow('Nothing in Day for next week yet.'));
+    let calNote = '';
+    if (nx.stale && nx.sent) {
+      const sent = Date.parse(nx.sent);
+      calNote = `Calendar as of ${(ymd(sent) === today ? '' : SHORT[weekday(ymd(sent))] + ' ') + hm(sent)}. Day has not sent an update since.`;
+    }
+    $('wkCalNote').textContent = calNote;
+    return w;
+  }
+
+  function weekSentence(w) {
+    const quiet = (w.quiet || []).filter((q) => !wkHiding.has(q.id)).length;
+    if (!w.done.count && !quiet) return 'A quiet week. Nothing to clear up.';
+    const parts = [];
+    parts.push(w.done.count ? `${w.done.count} done this week.` : 'Nothing ticked off this week.');
+    if (quiet) parts.push(quiet === 1 ? '1 thing has gone quiet.' : `${quiet} things have gone quiet.`);
+    return parts.join(' ');
+  }
+
+  let wkToastT = 0;
+  let wkToastId = '';
+  function wkToast(words, id) {
+    const el = $('wkToast');
+    clearTimeout(wkToastT);
+    wkToastId = id || '';
+    el.firstChild.textContent = words;
+    el.lastChild.hidden = !id;
+    el.hidden = false;
+    wkToastT = setTimeout(() => { el.hidden = true; wkToastId = ''; }, 6000);
+  }
+
+  async function weekPost(id, action) {
+    const r = await fetch(API + '/api/morning/' + code + '/week', {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }),
+    });
+    if (!r.ok) throw new Error('status ' + r.status);
+    const out = await r.json();
+    if (last && last.data && out.week) { last.data.week = out.week; store.set(KEY, last); }
+    return out;
+  }
+
+  $('viewSwitch').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (!b || b.dataset.view === view) return;
+    view = b.dataset.view;
+    render();
+    scrollTo(0, 0);
+  });
+
+  $('weekView').addEventListener('click', async (e) => {
+    const more = e.target.closest('button[data-more]');
+    if (more) { wkOpen[more.dataset.more] = !wkOpen[more.dataset.more]; render(); return; }
+    const b = e.target.closest('button[data-wk]');
+    if (!b) return;
+    const { id, wk } = b.dataset;
+    if (wk === 'delete' || wk === 'date') { wkAsk[id] = wk; render(); return; }
+    if (wk === 'cancel') { delete wkAsk[id]; render(); return; }
+    if (wkHiding.has(id)) return;
+    const action = wk === 'delete-yes' ? 'delete' : wk;
+    const later = LATER.find((x) => x[0] === action);
+    delete wkAsk[id];
+    wkHiding.add(id);
+    render();
+    wkToast(action === 'delete' ? 'Deleted.' : later ? `Back in Today on ${shortDate(backOn(ymd(new Date()), later[2]))}.` : 'Moved to the top of Soon.', action === 'delete' ? '' : id);
+    const req = weekPost(id, action);
+    wkInflight.set(id, req);
+    try {
+      await req;
+    } catch (err) {
+      wkToast('Couldn’t save that. Try again.');
+    }
+    wkInflight.delete(id);
+    wkHiding.delete(id);
+    render();
+  });
+
+  $('wkToast').lastChild.addEventListener('click', async () => {
+    const id = wkToastId;
+    if (!id) return;
+    $('wkToast').hidden = true;
+    wkToastId = '';
+    wkHiding.add(id); // stays off until the Worker has put it back
+    try {
+      await (wkInflight.get(id) || Promise.resolve()).catch(() => {});
+      await weekPost(id, 'undo');
+    } catch (err) {
+      wkToast('Couldn’t undo that. Try again.');
+    }
+    wkHiding.delete(id);
+    render();
+  });
+
   /* ---------- 04 Coming up: Odysseus plus the fixed events, one row per event ---------- */
 
   /* "Sint Sebastiaen - Groep A" reads "Sint Sebastiaen: Groep A". Only a dash with a space on
@@ -858,7 +1047,14 @@
     lastRender = now.valueOf();
     applyTheme(now);
     renderHead(now, roll);
-    renderSay(data, now);
+    const week = renderWeekView(data, now);
+    if (week) {
+      const el = document.querySelector('.js-say');
+      const s = weekSentence(week);
+      if (el.textContent !== s) el.textContent = s;
+    } else {
+      renderSay(data, now);
+    }
     findFresh(data, now);
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
     renderStart(data && data.todos);
