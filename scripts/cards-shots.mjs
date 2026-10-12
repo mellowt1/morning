@@ -128,6 +128,18 @@ check(/\bup\b/.test(r.sun), 'sun up at 13:00');
 check(/^\.\.\/todo\/\?c=/.test(r.href), 'Start with opens the to-do app');
 check(r.agenda.length === 1 && /^23:00 Quiz night$/.test(r.agenda[0]) && r.nextDot === 1, 'today holds today: ' + r.agenda);
 check(r.tiles.length === 6, 'tiles: dinner, bins, birthday, countdown, cleaning, yesterday');
+// Out for dinner (the hub's dinner.away from Day): one tile per date, the title, on both widths.
+{
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(day(2) + 'T12:00:00').getDay()];
+  const dinner = { away: [{ date: day(0), title: 'dinner with a friend', start: '19:30' }, { date: day(2), title: 'Team dinner', start: '18:30' }] };
+  for (const [vp, name] of [[phone, 'cards-phone-away'], [laptop, 'cards-laptop-away']]) {
+    const a = await shoot(answer({ dinner }), vp, name);
+    const out = a.tiles.filter((t) => /^out for dinner/i.test(t)).map((t) => t.replace(/^out for dinner /i, ''));
+    check(out.length === 2 && out[0] === 'Dinner with a friend Tonight, 19:30' && out[1] === `Team dinner ${wd}, 18:30`, name + ': ' + out);
+  }
+  const none = await shoot(answer({ dinner: null }), phone, '');
+  check(!none.tiles.some((t) => /^out for dinner/i.test(t)), 'no tile without dinner.away');
+}
 check(r.tiles.some((x) => /^Cleaning Alex (This weekend|\w+day)$/i.test(x)), 'cleaning tile: ' + r.tiles.find((x) => /^Cleaning/i.test(x)));
 check(r.tiles.some((x) => /^Dinner Pasta alla Norma Mix the dough today$/i.test(x)), 'dinner tile');
 check(r.tiles.some((x) => /^Bins Tomorrow GFT and Restafval out$/i.test(x)), 'bins tile');

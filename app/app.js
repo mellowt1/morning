@@ -289,6 +289,20 @@
     return tile('Dinner', esc(k.tonight.title), mix);
   }
 
+  /* Out for dinner: the hub's dinner.away from Day, with the event's title (Kitchen shows only
+   * "Paul out"). On both widths: the band already shows the event itself, this says what it means. */
+  function awayTiles(d, now) {
+    if (!ok(d) || !Array.isArray(d.away)) return '';
+    const today = ymd(now);
+    return d.away.map((x) => {
+      const days = daysFrom(today, x.date);
+      if (days < 0) return '';
+      const at = x.start ? ', ' + esc(x.start) : '';
+      const when = days === 0 ? `<span class="accent-text">Tonight</span>${at}` : (days === 1 ? 'Tomorrow' : SHORT[weekday(x.date)]) + at;
+      return tile('Out for dinner', esc(cap(x.title || 'Out')), when);
+    }).join('');
+  }
+
   function birthdayTiles(b, now, skip = () => false) {
     if (!ok(b) || !Array.isArray(b.birthdays)) return '';
     const today = ymd(now);
@@ -366,6 +380,7 @@
     let tiles = '';
     if (data) {
       tiles += dinnerTile(data.kitchen);
+      tiles += awayTiles(data.dinner, now);
       const bin = binLine(data.bins, now);
       if (bin && (bin.soon || !wide)) tiles += tile('Bins', bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
       tiles += birthdayTiles(data.birthdays, now, inBand);
