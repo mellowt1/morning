@@ -493,6 +493,11 @@ details.fold[open] > summary .tag::after { content: ''; }
 .card-para { padding-bottom: 20px; }
 .card-para[hidden] { display: none; }
 .wk-para { margin: 2px 0 0; font-size: 19px; line-height: 1.45; text-wrap: pretty; }
+.mirror-nums { margin: 8px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.mirror-nums[hidden], .mirror-row[hidden] { display: none; }
+.mirror-row { display: flex; gap: 12px; align-items: baseline; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--inner); font-size: 15px; line-height: 1.4; }
+.mirror-row + .mirror-row { margin-top: 8px; }
+.mirror-k { flex: 0 0 auto; min-width: 72px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .week-view .pbtn { padding: 0 13px; } /* three buttons on one line in a red row at 375 px */
 .wk-ask { grid-area: btns; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--inner); font-size: 14px; }
 .wk-ask > span { flex: 1 1 100%; }

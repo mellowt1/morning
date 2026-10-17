@@ -666,6 +666,21 @@
     $('wkParaCard').hidden = !w.paragraph;
     if ($('wkPara').textContent !== (w.paragraph || '')) $('wkPara').textContent = w.paragraph || '';
 
+    // The mirror: one finding from Paul's own days, the experiment for this week, last week's result
+    const m = w.mirror && typeof w.mirror === 'object' ? w.mirror : null;
+    $('wkMirrorCard').hidden = !m;
+    if (m) {
+      const put = (id, t) => { if ($(id).textContent !== t) $(id).textContent = t; };
+      put('wkMirrorNote', m.days ? plural(m.days, 'day', 'days') : '');
+      put('wkMirror', m.finding ? m.finding.text : `No clear pattern yet in ${plural(m.moodDays || 0, 'day', 'days')} of faces. The mirror keeps watching.`);
+      put('wkMirrorNums', m.finding ? m.finding.numbers : '');
+      $('wkMirrorNums').hidden = !m.finding;
+      put('wkMirrorTryText', m.experiment ? m.experiment.text : '');
+      $('wkMirrorTry').hidden = !m.experiment;
+      put('wkMirrorLastText', m.last ? m.last.text : '');
+      $('wkMirrorLast').hidden = !m.last;
+    }
+
     // 01 Done this week, grouped by section, newest first in each
     const done = [];
     for (const g of w.done.groups || []) for (const x of g.items) done.push({ section: g.section, ...x });

@@ -29,6 +29,12 @@ function world(now, empty) {
   const week = () => ({
     week: 42, from: '2026-10-12', to: '2026-10-18',
     paragraph: empty ? null : 'You got seven things done, including the rent and the ID card. The hallway light has sat for two weeks now. Thursday is busy, so do it Monday evening after archery.',
+    mirror: empty ? null : {
+      days: 45, moodDays: 31,
+      finding: { text: 'You tend to tick off almost twice as much on good days, about 6 tasks against 3.', numbers: 'Tasks done 5.8 on good or very good days (12 days), 3.1 on okay or worse days (9 days)' },
+      experiment: { text: 'Keep 3 evenings this week free of plans.' },
+      last: { text: 'You hit it: 4 of 7 days against a target of 4, and your mood was a little higher than the month before.' },
+    },
     done: empty ? { count: 0, groups: [] } : { count: 7, groups: [
       { section: 'today', items: [{ text: 'Book the dentist', day: 'Sun' }, { text: 'Pay the rent', day: 'Fri' }, { text: 'Call home', day: 'Thu' }, { text: 'Bins out', day: 'Tue' }] },
       { section: 'soon', items: [{ text: 'Renew the ID card', day: 'Fri' }, { text: 'Back up the bike key', day: 'Tue' }] },
@@ -97,8 +103,12 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, then four cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, the mirror, then four cards in order');
   check((await page.textContent('#wkPara')).startsWith('You got seven things done'), name + ': Your week paragraph shows');
+  check((await page.textContent('#wkMirror')).startsWith('You tend to tick off') && await page.textContent('#wkMirrorNote') === '45 days', name + ': the mirror shows its finding and day count');
+  check(await shown(page, '#wkMirrorNums') && await shown(page, '#wkMirrorTry') && await shown(page, '#wkMirrorLast'), name + ': numbers, this week and last week show');
+  check(await page.evaluate(() => { const a = document.getElementById('wkMirrorCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(); return a.width > v.width * 0.9; }), name + ': the mirror spans the full width');
+  await page.locator('#wkMirrorCard').screenshot({ path: file(name + '-mirror') });
   check(await page.evaluate(() => { const a = document.getElementById('wkParaCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(); return a.width > v.width * 0.9; }), name + ': Your week spans the full width');
   if (viewport.width >= 1100) {
     const box = await page.$$eval('#weekView > .card:not(.card-para)', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
@@ -164,6 +174,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check((await texts(page, '#weekView .row.empty')).join('|') === 'Nothing ticked off this week. Next week is a fresh one.|Nothing has gone quiet. Every open task moved in the last two weeks.|No new vacancies this week.|Nothing in Day for next week yet.', 'empty: every card says so in a line');
   check(await page.textContent('.js-say') === 'A quiet week. Nothing to clear up.', 'empty: sentence');
   check(!(await shown(page, '#wkParaCard')), 'empty: no Your week card before it is written');
+  check(!(await shown(page, '#wkMirrorCard')), 'empty: no mirror card before it is written');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
   await ctx.close();
