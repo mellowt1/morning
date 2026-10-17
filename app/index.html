@@ -102,6 +102,18 @@
     </div>
 
     <div class="col col-b">
+      <!-- Desk: type one line, Claude prepares tasks and drafts, Paul approves each. PC only. -->
+      <section id="desk" class="card card-desk" aria-label="Desk" style="--i:2">
+        <div class="card-head"><span class="num">Desk</span><span id="deskNote" class="card-note">Prepared for you to approve</span></div>
+        <form id="deskForm" class="desk-form" autocomplete="off">
+          <input id="deskInput" class="desk-input" type="text" maxlength="1000" placeholder="Type a task, a message to write, or a question" aria-label="Type one line for Desk">
+          <button id="deskGo" class="pbtn pbtn-today" type="submit">Prepare</button>
+        </form>
+        <p id="deskBusy" class="desk-busy" role="status" hidden>Preparing…</p>
+        <div id="deskList"></div>
+        <div id="deskToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
+      </section>
+
       <section id="projects" class="card" aria-label="Projects" style="--i:2" hidden>
         <div class="card-head">
           <span class="num">03 Projects</span>

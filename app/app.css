@@ -192,6 +192,30 @@ details.fold[open] > summary .tag::after { content: ''; }
 .park-toast button { min-height: 36px; padding: 0 10px; border: 0; background: transparent; color: var(--accent-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .park-toast button[hidden] { display: none; }
 
+/* ---------- Desk: one line in, prepared rows out (PC and tablet only) ---------- */
+.card-desk { display: none; }
+@media (min-width: 720px) { .card-desk { display: flex; } }
+.desk-form { display: flex; gap: 8px; padding: 6px 0 10px; }
+.desk-input { flex: 1; min-width: 0; min-height: 44px; padding: 0 16px; border: 1px solid var(--btn-rule); border-radius: 99px; background: var(--inner); color: var(--ink); font: inherit; font-size: 15px; }
+.desk-input:focus { outline: 2px solid var(--accent-text); outline-offset: 1px; background: var(--card); }
+.desk-input::placeholder { color: var(--muted); }
+.desk-busy { margin: 0 0 10px; font-size: 13px; color: var(--muted); animation: fade .2s ease-out both; }
+.desk-busy[hidden] { display: none; }
+.desk-entry { padding: 10px 0 12px; border-top: 1px solid var(--rule); }
+.desk-said { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.desk-answer { margin: 6px 0 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.desk-act { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "from" "what" "state" "btns"; row-gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: var(--inner); }
+.desk-act .fold-from { grid-area: from; display: flex; gap: 6px; }
+.desk-act .desk-what, .desk-act .desk-edit { grid-area: what; }
+.desk-act .desk-state { grid-area: state; }
+.desk-what { font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
+.desk-edit { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--btn-rule); border-radius: 10px; background: var(--card); color: var(--ink); font: inherit; font-size: 15px; line-height: 1.4; resize: vertical; }
+.desk-act.is-done { background: transparent; padding: 6px 0 0; }
+.desk-act.is-done .desk-what { color: var(--muted); }
+.desk-state { font-size: 12px; font-weight: 600; color: var(--accent-text); }
+.desk-act.is-skipped .desk-state { color: var(--muted); }
+.desk-act .park-btns { flex-wrap: wrap; }
+
 /* ---------- Projects ---------- */
 .proj { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; }
 .proj-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -431,7 +455,7 @@ details.fold[open] > summary .tag::after { content: ''; }
   /* Light without breath: while the sun is up the paper round the date holds a still warm
      light; no warmth on the ink, no corona, no ring, no rolls. The ember is still anyway. */
   .date::before, .sun-stop, .sun-stop::before, .sun-stop::after, .nd.next::after,
-  .r-new, .is-new::before, .pill.pop, .card-start, .park-toast, .pbtn { animation: none !important; transition: none !important; }
+  .r-new, .is-new::before, .pill.pop, .card-start, .park-toast, .pbtn, .desk-busy { animation: none !important; transition: none !important; }
   .r-old { display: none; }
   .date:has(.sun-stop.up)::before { opacity: .6; transform: scale(.93); will-change: auto; }
   .sun-stop.up::before, .sun-stop.up::after, .nd.next::after { opacity: 0; }
