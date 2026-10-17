@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hiscores</title>
+<meta name="description" content="Paul's real life as Old School RuneScape skills.">
+<meta name="theme-color" content="#1b1712">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hiscores">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="icon" type="image/png" href="assets/stats.png">
+<link rel="preload" href="assets/runescape-small.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="assets/runescape-plain-12.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="hiscores.css">
+</head>
+<body>
+<main id="app">
+  <header class="top">
+    <a class="back" href="../" aria-label="Back to Morning">&lsaquo; Morning</a>
+    <h1>Hiscores</h1>
+    <p id="sub" class="sub">&nbsp;</p>
+  </header>
+
+  <!-- The skills tab: three across, the total level in the last slot. -->
+  <section class="tab" aria-label="Skills">
+    <div id="grid" class="grid"></div>
+    <div id="tip" class="tip" role="tooltip" hidden></div>
+  </section>
+
+  <!-- The chatbox: what earned XP lately, newest at the bottom; the level-up dialog takes it over. -->
+  <section class="chat" aria-label="Recent XP">
+    <div id="log" class="log" aria-live="polite"></div>
+    <div id="levelup" class="levelup" role="dialog" aria-live="assertive" hidden>
+      <img id="luIcon" alt="" width="46" height="46">
+      <div class="lu-text">
+        <p id="luHead" class="lu-blue"></p>
+        <p id="luBody"></p>
+        <button id="luNext" type="button" class="lu-next">Click here to continue</button>
+      </div>
+    </div>
+  </section>
+  <div id="fx" class="fx" aria-hidden="true"></div>
+  <p id="foot" class="foot"></p>
+</main>
+<p id="nocode" class="nocode" hidden>Open Morning from your private link first; this page uses the same one.</p>
+<script src="hiscores.js"></script>
+</body>
+</html>

@@ -1095,7 +1095,28 @@
     const arsenal = a && !ok(a) && arsenalDirect ? arsenalDirect : a;
     renderBand(data, now, arsenal);
     renderArsenal(arsenal, now);
+    renderHiscores(data && data.hiscores);
     renderAsOf(now);
+  }
+
+  /* ---------- Hiscores: a small OSRS skills tab; the full page is hiscores/ ----------
+   * Level ups are celebrated there, with sound; here a skill above what that page last showed
+   * (hiscores.seen.<code>, written by the page) only says "Level up waiting". */
+  function renderHiscores(h) {
+    const card = $('hiscores');
+    card.hidden = !ok(h) || !Array.isArray(h.skills);
+    if (card.hidden) return;
+    card.href = 'hiscores/?c=' + code;
+    const seen = store.get('hiscores.seen.' + code) || {};
+    const up = h.skills.filter((s) => s.level > (Number(seen[s.id]) || 1));
+    const today = h.skills.reduce((n, s) => n + (s.today || 0), 0);
+    const note = up.length ? `Level up waiting: ${up[0].name}${up.length > 1 ? ` +${up.length - 1}` : ''}` : today ? `+${today.toLocaleString('en-GB')} XP today` : `Total ${h.total}`;
+    if ($('hsNote').textContent !== note) $('hsNote').textContent = note;
+    $('hsNote').classList.toggle('hs-up', up.length > 0);
+    let html = '';
+    for (const s of h.skills) html += `<span class="hs-slot${up.includes(s) ? ' up' : ''}" title="${esc(s.name)}: ${s.xp.toLocaleString('en-GB')} XP"><img src="hiscores/assets/${esc(s.id)}.png" alt="" width="${s.id === 'construction' ? 25 : 23}" height="23"><b>${s.level}</b></span>`;
+    html += `<span class="hs-slot hs-total"><small>Total</small><b>${h.total}</b></span>`;
+    setHTML($('hsGrid'), html);
   }
   // Crossing 1100 px moves this week's facts between Today and the band.
   if (WIDE.addEventListener) WIDE.addEventListener('change', () => render());
