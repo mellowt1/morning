@@ -28,6 +28,7 @@ function world(now, empty) {
   ];
   const week = () => ({
     week: 42, from: '2026-10-12', to: '2026-10-18',
+    paragraph: empty ? null : 'You got seven things done, including the rent and the ID card. The hallway light has sat for two weeks now. Thursday is busy, so do it Monday evening after archery.',
     done: empty ? { count: 0, groups: [] } : { count: 7, groups: [
       { section: 'today', items: [{ text: 'Book the dentist', day: 'Sun' }, { text: 'Pay the rent', day: 'Fri' }, { text: 'Call home', day: 'Thu' }, { text: 'Bins out', day: 'Tue' }] },
       { section: 'soon', items: [{ text: 'Renew the ID card', day: 'Fri' }, { text: 'Back up the bike key', day: 'Tue' }] },
@@ -103,11 +104,13 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === '01 Done this week|02 Gone quiet|03 New vacancies|04 Next week|05 Others', name + ': five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week|05 Others', name + ': Your week, then five cards in order');
+  check((await page.textContent('#wkPara')).startsWith('You got seven things done'), name + ': Your week paragraph shows');
+  check(await page.evaluate(() => { const a = document.getElementById('wkParaCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(); return a.width > v.width * 0.9; }), name + ': Your week spans the full width');
   check((await texts(page, '#wkOthers .row')).join('|') === 'Dad: Renew his parking permitTue|Nick: Proofread the cover letter, handed backFri|Dad2 tasks, oldest 12 days|Mom1 task, 6 days', name + ': 05 Others ' + (await texts(page, '#wkOthers .row')).join('|'));
   check(await page.textContent('#wkOthersNote') === '2 done for 2 people', name + ': Others note');
   if (viewport.width >= 1100) {
-    const box = await page.$$eval('#weekView > .card', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+    const box = await page.$$eval('#weekView > .card:not(.card-para)', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
     check(box[0] === box[1] && box[2] === box[3] && box[2] > box[0], name + ': 01 and 02 left, 03 and 04 right ' + box);
   }
   check((await page.$$('#wkDone .row')).length === 5 && await page.textContent('#wkDone .wk-more') === 'Show all 7', name + ': Done shows 5 of 7');
@@ -170,6 +173,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   const { page, ctx, errors } = await open({ width: 390, height: 844 }, { empty: true });
   check((await texts(page, '#weekView .row.empty')).join('|') === 'Nothing ticked off this week. Next week is a fresh one.|Nothing has gone quiet. Every open task moved in the last two weeks.|No new vacancies this week.|Nothing in Day for next week yet.|Nothing for anyone this week, and nothing waiting.', 'empty: every card says so in a line');
   check(await page.textContent('.js-say') === 'A quiet week. Nothing to clear up.', 'empty: sentence');
+  check(!(await shown(page, '#wkParaCard')), 'empty: no Your week card before it is written');
   check(!(await shown(page, '#othersLine')), 'empty: no Others line when nothing waits');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));

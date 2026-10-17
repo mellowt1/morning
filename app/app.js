@@ -681,6 +681,10 @@
     $('wkLabel').textContent = `Week ${w.week} · ${span(w.from, w.to)}`;
     if (!on) return null;
 
+    // Your week: Claude's three sentences, once written on Sunday morning
+    $('wkParaCard').hidden = !w.paragraph;
+    if ($('wkPara').textContent !== (w.paragraph || '')) $('wkPara').textContent = w.paragraph || '';
+
     // 01 Done this week, grouped by section, newest first in each
     const done = [];
     for (const g of w.done.groups || []) for (const x of g.items) done.push({ section: g.section, ...x });

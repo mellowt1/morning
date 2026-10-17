@@ -54,6 +54,11 @@
   </div>
 
   <div id="weekView" class="week-view" hidden>
+    <!-- Three sentences Claude writes once each Sunday morning from the cards below. Hidden until written. -->
+    <section id="wkParaCard" class="card card-para" aria-label="Your week" style="--i:0" hidden>
+      <div class="card-head"><span class="num">Your week</span></div>
+      <p id="wkPara" class="wk-para"></p>
+    </section>
     <section class="card" aria-label="Done this week" style="--i:1">
       <div class="card-head"><span class="num">01 Done this week</span><span id="wkDoneNote" class="card-note"></span></div>
       <div id="wkDone"></div>
