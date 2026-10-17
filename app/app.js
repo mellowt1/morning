@@ -1114,7 +1114,7 @@
     if ($('hsNote').textContent !== note) $('hsNote').textContent = note;
     $('hsNote').classList.toggle('hs-up', up.length > 0);
     let html = '';
-    for (const s of h.skills) html += `<span class="hs-slot${up.includes(s) ? ' up' : ''}" title="${esc(s.name)}: ${s.xp.toLocaleString('en-GB')} XP"><img src="hiscores/assets/${esc(s.id)}.png" alt="" height="23"><b>${s.level}</b></span>`;
+    for (const s of h.skills) html += `<span class="hs-slot${up.includes(s) ? ' up' : ''}" title="${esc(s.name)}: ${s.xp.toLocaleString('en-GB')} XP"><img src="hiscores/assets/${esc(s.id)}.png" alt="" style="max-height:22px"><b>${s.level}</b></span>`;
     html += `<span class="hs-slot hs-total"><small>Total</small><b>${h.total}</b></span>`;
     setHTML($('hsGrid'), html);
   }

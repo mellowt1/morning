@@ -19,7 +19,14 @@ const LV = [0, 0, 83, 174, 276, 388, 512, 650, 801, 969, 1154];
 const skill = (id, name, from, xp, level, today = 0) => ({ id, name, from, xp, level, at: 0, next: level < 99 ? xp + 500 : null, today });
 const BOARD = {
   skills: [
+    skill('attack', 'Attack', 'Old to-dos finally done', 0, 1),
+    skill('hitpoints', 'Hitpoints', 'A third of your combat XP', 1154, 10),
+    skill('mining', 'Mining', 'Letters Intake read', 0, 1),
     skill('strength', 'Strength', 'Gym visits', 0, 1),
+    skill('smithing', 'Smithing', 'Git commits', 0, 1),
+    skill('defence', 'Defence', 'Letter tasks done', 0, 1),
+    skill('herblore', 'Herblore', 'New recipes cooked', 0, 1),
+    skill('fishing', 'Fishing', 'Vacancies caught', 0, 1),
     skill('ranged', 'Ranged', 'Archery evenings', 6600, 15),
     skill('cooking', 'Cooking', 'Kitchen dinners', 9900, 18, 800),
     skill('prayer', 'Prayer', 'Feeling faces', 8100, 17, 450),
@@ -28,8 +35,9 @@ const BOARD = {
     skill('woodcutting', 'Woodcutting', 'To-dos ticked', 11500, 20, 200),
     skill('slayer', 'Slayer', 'Applications', 4000, 13),
     skill('construction', 'Construction', 'Sunday resets', 0, 1),
+    skill('hunter', 'Hunter', 'Arsenal ticket drops', 0, 1),
   ],
-  total: 90, totalXp: 40550, at: new Date(NOW).toISOString(),
+  total: 107, totalXp: 40550, at: new Date(NOW).toISOString(),
   log: [
     { skill: 'woodcutting', xp: 100, at: '2026-10-17T18:10:00Z', what: 'Water the plants' },
     { skill: 'cooking', xp: 800, at: '2026-10-16T18:00:00Z', what: 'A stew' },
@@ -57,7 +65,7 @@ async function open(path, viewport, { seen = null, morning = false } = {}) {
   await page.route('**/api/hiscores/**', (r) => {
     if (r.request().url().endsWith('/gym')) { gymPosts++; return r.fulfill({ json: { ok: true, added: true, level: 9, xp: 1000, say: 'x' }, headers: h }); }
     const b = structuredClone(BOARD);
-    if (gymDone) Object.assign(b.skills[0], { xp: 1000, level: 9, today: 1000 });
+    if (gymDone) Object.assign(b.skills.find((x) => x.id === 'strength'), { xp: 1000, level: 9, today: 1000 });
     return r.fulfill({ json: b, headers: h });
   });
   await page.route('**/api/morning/**', (r) => r.fulfill({ headers: h, json: {
@@ -77,9 +85,9 @@ const shown = (page, sel) => page.$eval(sel, (e) => !e.hidden && getComputedStyl
 const all = Object.fromEntries(BOARD.skills.map((s) => [s.id, s.level]));
 for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], ['hiscores-phone', { width: 390, height: 844 }]]) {
   const { page, ctx, errors } = await open('hiscores/', viewport, { seen: all });
-  check((await page.$$('#grid .slot[data-skill]')).length === 9 && (await page.$$('#grid .slot')).length === 12, name + ': nine skills, two empty slots and the total');
-  check((await page.textContent('#grid .total')).includes('90'), name + ': total level 90');
-  check((await page.textContent('#sub')) === 'Total level 90 · 40,550 XP · +1,450 today', name + ': sub ' + await page.textContent('#sub'));
+  check((await page.$$('#grid .slot[data-skill]')).length === 17 && (await page.$$('#grid .slot')).length === 18, name + ': seventeen skills and the total');
+  check((await page.textContent('#grid .total')).includes('107'), name + ': total level 107');
+  check((await page.textContent('#sub')) === 'Total level 107 · 40,550 XP · +1,450 today', name + ': sub ' + await page.textContent('#sub'));
   check(!(await shown(page, '#levelup')), name + ': no dialog when nothing is new');
   const lines = await page.$$eval('#log p', (p) => p.map((x) => x.textContent));
   check(lines.length === 4 && lines[3].includes('You chop through: Water the plants. (+100 XP)'), name + ': newest line last ' + lines[3]);
@@ -130,7 +138,7 @@ for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], 
 {
   const { page, ctx, errors } = await open('?c=' + CODE, { width: 1440, height: 1000 }, { seen: { ...all, magic: 0, slayer: 10 } });
   check(await shown(page, '#hiscores'), 'morning: card shows');
-  check((await page.$$('#hsGrid .hs-slot')).length === 10, 'morning: nine skills and the total');
+  check((await page.$$('#hsGrid .hs-slot')).length === 18, 'morning: seventeen skills and the total');
   check(await page.textContent('#hsNote') === 'Level up waiting: Slayer', 'morning: ' + await page.textContent('#hsNote'));
   check((await page.getAttribute('#hiscores', 'href')) === 'hiscores/?c=' + CODE, 'morning: opens the page');
   await page.locator('#hiscores').screenshot({ path: file('hiscores-card') });

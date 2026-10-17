@@ -29,6 +29,13 @@
   const num = (n) => Number(n || 0).toLocaleString('en-GB');
   const VERB = {
     strength: () => 'You lift some weights at the gym.',
+    attack: (w) => `You defeat an old foe: ${w}.`,
+    mining: (w) => `You mine a letter: ${w}.`,
+    smithing: (w) => `You smith a commit: ${w}.`,
+    defence: (w) => `You fend off a letter: ${w}.`,
+    herblore: (w) => `You discover a new recipe: ${w}.`,
+    fishing: (w) => `You catch a vacancy: ${w}.`,
+    hunter: (w) => `You track down tickets: ${w}.`,
     woodcutting: (w) => `You chop through: ${w}.`,
     slayer: (w) => `You complete a Slayer task: ${w}.`,
     cooking: (w) => `You cook ${w}.`,
@@ -72,7 +79,7 @@
     if (g.dataset.html !== html) { g.innerHTML = html; g.dataset.html = html; }
     const today = data.skills.reduce((n, s) => n + s.today, 0);
     $('sub').textContent = `Total level ${data.total} · ${num(data.totalXp)} XP` + (today ? ` · +${num(today)} today` : '');
-    $('foot').textContent = 'Updated ' + stamp(data.at) + ' · To-do, Kitchen, Feeling, Day, Desk, German, gym';
+    $('foot').textContent = 'Updated ' + stamp(data.at) + ' · every app on the hub, plus the gym and git';
     const str = data.skills.find((s) => s.id === 'strength');
     const gym = $('gym');
     gym.hidden = !str;
