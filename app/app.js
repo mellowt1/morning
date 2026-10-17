@@ -236,7 +236,7 @@
 
   /* ---------- 01 Start with: tapping it opens the to-do app ---------- */
   function renderStart(t) {
-    const first = ok(t) && t.items.length ? t.items[0].text : '';
+    const first = ok(t) && t.items.length ? taskName(t.items[0].text).name : '';
     $('start').hidden = !first;
     $('start').href = '../todo/?c=' + encodeURIComponent(code);
     $('start').setAttribute('aria-label', first ? 'Start with: ' + cap(first) + '. Opens the to-do app.' : '');
@@ -261,6 +261,16 @@
 
   /* To-dos are shown as typed, except for a capital first letter. */
   const cap = (s) => String(s).replace(/^\s*\p{Ll}/u, (c) => c.toUpperCase());
+  /* The name only, as To-do shows it: no [intake] mark, no "Apply:", the date apart ("1 Nov"). */
+  const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function taskName(text) {
+    let t = String(text).replace(/\s*\[intake\]$/, '');
+    const m = t.match(/\s*·\s*(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) t = t.slice(0, m.index);
+    t = t.replace(/^Apply:\s*/i, '');
+    return { name: cap(t), due: m ? +m[3] + ' ' + SHORT_MONTHS[+m[2] - 1] : null };
+  }
+  const rowName = (text) => { const n = taskName(text); return esc(n.name) + (n.due ? ` <span class="row-due">${esc(n.due)}</span>` : ''); };
 
   /* One fact tile: a small label, the value, and an optional line under it. */
   const tile = (label, value, sub = '', title = '') =>
@@ -397,32 +407,10 @@
       const rest = t.items.slice(1);
       html += subHead('To do', rest.length);
       html += `<ul class="rows">${rest.length
-        ? rest.map((i) => `<li class="row task${isNew(todoKey(i.text))}"><span class="circle"></span><span>${esc(cap(i.text))}</span></li>`).join('')
+        ? rest.map((i) => `<li class="row task${isNew(todoKey(i.text))}"><span class="circle"></span><span>${rowName(i.text)}</span></li>`).join('')
         : row(t.items.length ? 'Nothing else on the list.' : 'Nothing for today.', '', 'empty')}</ul>`;
     }
     setHTML($('todayList'), html);
-  }
-
-  /* ---------- Others: tasks Paul does for other people (To-do's Others section) ----------
-   * Never in Today or Start with. Outside a slot, one line at the foot of 02 Today:
-   * "Others: 5 waiting, next slot Sat 10:00". During a slot (hub config others_slots) an Others
-   * card above Today lists them by person. Hidden when nothing waits. */
-  function renderOthers(o) {
-    const line = $('othersLine');
-    const cardEl = $('othersCard');
-    if (!o || !ok(o) || !o.waiting) { line.hidden = true; cardEl.hidden = true; return; }
-    if (o.inSlot && Array.isArray(o.groups)) {
-      line.hidden = true;
-      cardEl.hidden = false;
-      $('othersUntil').textContent = 'Slot until ' + o.inSlot.end;
-      setHTML($('othersList'), o.groups.map((g) => subHead(g.person, g.tasks.length) +
-        '<ul class="rows">' + g.tasks.map((t) => '<li class="row task"><span class="circle"></span><span>' + esc(cap(t.text)) + '</span><span class="side others-days">' + (t.days === 0 ? 'today' : t.days === 1 ? '1 day' : t.days + ' days') + '</span></li>').join('') + '</ul>').join(''));
-      return;
-    }
-    cardEl.hidden = true;
-    line.hidden = false;
-    const when = o.next ? 'next slot ' + o.next.label : o.slots ? '' : 'no slot set';
-    setHTML(line, '<span><b>Others:</b> ' + o.waiting + ' waiting</span>' + (when ? '<span class="others-when">' + esc(when) + '</span>' : ''));
   }
 
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
@@ -753,24 +741,6 @@
       calNote = `Calendar as of ${(ymd(sent) === today ? '' : SHORT[weekday(ymd(sent))] + ' ') + hm(sent)}. Day has not sent an update since.`;
     }
     $('wkCalNote').textContent = calNote;
-
-    // 05 Others: what Paul did for whom this week, and what still waits, by person
-    const oth = w.others || { done: [], waiting: [] };
-    const odone = oth.done || [];
-    const owait = oth.waiting || [];
-    const people = new Set(odone.map((d) => d.person)).size;
-    $('wkOthersNote').textContent = odone.length ? `${odone.length} done for ${plural(people, 'person', 'people')}` : '';
-    let ohtml = '';
-    if (odone.length) {
-      const shown = wkOpen.odone ? odone : odone.slice(0, WK_SHOWN);
-      ohtml += '<div class="sub-head">Done this week</div><div class="wk-list">' + shown.map((d) =>
-        `<div class="row ${d.handedBack ? 'hand-row' : 'done-row'}"><span>${esc(d.person)}: ${esc(d.text)}${d.handedBack ? ', handed back' : ''}</span><span class="side">${esc(d.day)}</span></div>`).join('') + '</div>' + moreBtn('odone', odone.length);
-    }
-    if (owait.length) {
-      ohtml += '<div class="sub-head">Still waiting</div><div class="wk-list">' + owait.map((g) =>
-        `<div class="row"><span>${esc(g.person)}</span><span class="side">${plural(g.count, 'task', 'tasks')}, ${g.count > 1 ? 'oldest ' : ''}${g.oldestDays === 0 ? 'today' : plural(g.oldestDays, 'day', 'days')}</span></div>`).join('') + '</div>';
-    }
-    setHTML($('wkOthers'), ohtml || emptyRow('Nothing for anyone this week, and nothing waiting.'));
     return w;
   }
 
@@ -1103,7 +1073,6 @@
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
     renderStart(data && data.todos);
     renderToday(data, now);
-    renderOthers(data && data.others);
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos);
     renderIntake(data && data.intake, now);
@@ -1125,7 +1094,7 @@
    * button. Approve puts a task on the to-do list with a few seconds of Undo, like Parked.
    * Copy puts a draft on the clipboard; nothing is ever sent. Skip only notes it.
    * Its own fetches, apart from the Morning block. Hidden on the phone (CSS). */
-  const DESK_SECTIONS = { today: 'Today', soon: 'Soon', someday: 'Someday', others: 'Others' };
+  const DESK_SECTIONS = { today: 'Today', soon: 'Soon', someday: 'Someday' };
   const DESK_LANGS = { nl: 'Dutch', en: 'English', es: 'Spanish' };
   const DESK_SHOWN = 5;
   let deskItems = [];
@@ -1154,7 +1123,7 @@
     const busy = deskBusyRows.has(key) ? ' disabled' : '';
     const data = `data-id="${esc(item.id)}" data-idx="${idx}"`;
     const label = a.kind === 'todo'
-      ? `<span>Task</span><span>· ${esc(DESK_SECTIONS[a.section] || 'Soon')}${a.person ? ' for ' + esc(a.person) : ''}</span>`
+      ? `<span>Task</span><span>· ${esc(DESK_SECTIONS[a.section] || 'Soon')}</span>`
       : `<span>Draft${a.to ? ' to ' + esc(a.to) : ''}</span><span>· ${esc(DESK_LANGS[a.lang] || 'English')}</span>`;
     if (a.state !== 'ready') {
       const words = a.state === 'approved' ? 'On the to-do list' : a.state === 'copied' ? 'Copied' : 'Skipped';

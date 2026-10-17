@@ -125,6 +125,7 @@ a.card-start:active { transform: scale(.985); background: var(--start-press); tr
 .row .side { color: var(--muted); text-align: right; max-width: 62%; }
 .row.empty { color: var(--muted); }
 .row.task { justify-content: flex-start; gap: 10px; }
+.row-due { margin-left: 4px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 .circle { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 50%; flex-shrink: 0; transform: translateY(2px); }
 .accent-text { font-weight: 600; color: var(--accent-text); }
 
@@ -505,14 +506,6 @@ details.fold[open] > summary .tag::after { content: ''; }
   .week-view { column-gap: 20px; }
   .week-view > .card { margin-bottom: 20px; }
 }
-
-/* ---------- Others: one line under Today, a card during a slot ---------- */
-.others-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--inner); font-size: 14px; }
-.others-line b { font-weight: 600; }
-.others-when { flex-shrink: 0; font-size: 13px; color: var(--muted); }
-.slot-pill { padding: 2px 8px; border-radius: 99px; background: var(--inner); color: var(--accent-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.others-days { margin-left: auto; white-space: nowrap; }
-.hand-row > :first-child::before { content: "\21A9"; margin-right: 8px; color: var(--muted); }
 
 /* ---------- Footer ---------- */
 .foot { display: flex; justify-content: flex-end; gap: 12px; padding: 8px 10px 0; font-size: 12px; color: var(--muted); }

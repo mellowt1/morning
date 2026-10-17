@@ -47,10 +47,6 @@ function world(now, empty) {
       { date: '2026-10-24', day: 'Sat', time: '13:30', title: 'Football' },
       { date: '2026-10-25', day: 'Sun', time: '11:00', title: 'Call family' },
     ] },
-    others: empty ? { done: [], waiting: [] } : {
-      done: [{ person: 'Dad', text: 'Renew his parking permit', day: 'Tue', handedBack: false }, { person: 'Nick', text: 'Proofread the cover letter', day: 'Fri', handedBack: true }],
-      waiting: [{ person: 'Dad', count: 2, oldestDays: 12 }, { person: 'Mom', count: 1, oldestDays: 6 }],
-    },
   });
   const gone = new Map();
   return {
@@ -59,10 +55,7 @@ function world(now, empty) {
       const sunday = now === SUNDAY;
       return { now: new Date(now).toISOString(), todos: { items: [{ text: 'Water the plants' }], updated: now, yesterday: { count: 0, items: [] } },
         calendar: { events: [], sent: now, stale: false }, fixed: { events: [], countdowns: [] }, weather: null, arsenal: null, bins: null,
-        birthdays: { birthdays: [] }, news: { items: [] }, kitchen: null, projects: null, german: null, week: sunday ? week() : null,
-        others: empty ? { waiting: 0, slots: false, inSlot: null, next: null, groups: null }
-          : sunday ? { waiting: 3, slots: true, inSlot: null, next: { day: 'Wed', start: '19:00', label: 'Wed 19:00' }, groups: null }
-          : { waiting: 3, slots: true, inSlot: { day: 'Mon', start: '08:00', end: '09:00' }, next: { label: 'Wed 19:00' }, groups: [{ person: 'Dad', tasks: [{ id: 'a', text: 'Set up the printer', days: 12 }, { id: 'b', text: 'Check the pension letter', days: 3 }] }, { person: 'Mom', tasks: [{ id: 'c', text: 'Find a cheaper phone plan', days: 6 }] }] } };
+        birthdays: { birthdays: [] }, news: { items: [] }, kitchen: null, projects: null, german: null, week: sunday ? week() : null };
     },
     act({ id, action }) {
       this.posts.push(action);
@@ -104,11 +97,9 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week|05 Others', name + ': Your week, then five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, then four cards in order');
   check((await page.textContent('#wkPara')).startsWith('You got seven things done'), name + ': Your week paragraph shows');
   check(await page.evaluate(() => { const a = document.getElementById('wkParaCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(); return a.width > v.width * 0.9; }), name + ': Your week spans the full width');
-  check((await texts(page, '#wkOthers .row')).join('|') === 'Dad: Renew his parking permitTue|Nick: Proofread the cover letter, handed backFri|Dad2 tasks, oldest 12 days|Mom1 task, 6 days', name + ': 05 Others ' + (await texts(page, '#wkOthers .row')).join('|'));
-  check(await page.textContent('#wkOthersNote') === '2 done for 2 people', name + ': Others note');
   if (viewport.width >= 1100) {
     const box = await page.$$eval('#weekView > .card:not(.card-para)', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
     check(box[0] === box[1] && box[2] === box[3] && box[2] > box[0], name + ': 01 and 02 left, 03 and 04 right ' + box);
@@ -162,7 +153,6 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   // The switch: Today shows the usual cards, Week comes back.
   await page.click('#viewSwitch [data-view="today"]');
   check(await shown(page, '.cols') && !(await shown(page, '#weekView')) && await shown(page, '#viewSwitch'), name + ': Today shows the usual page, switch stays');
-  check((await page.textContent('#othersLine')) === 'Others: 3 waitingnext slot Wed 19:00' && !(await shown(page, '#othersCard')), name + ': one Others line under Today, no list');
   await page.click('#viewSwitch [data-view="week"]');
   check(await shown(page, '#weekView'), name + ': Week comes back');
   check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
@@ -171,10 +161,9 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
 
 {
   const { page, ctx, errors } = await open({ width: 390, height: 844 }, { empty: true });
-  check((await texts(page, '#weekView .row.empty')).join('|') === 'Nothing ticked off this week. Next week is a fresh one.|Nothing has gone quiet. Every open task moved in the last two weeks.|No new vacancies this week.|Nothing in Day for next week yet.|Nothing for anyone this week, and nothing waiting.', 'empty: every card says so in a line');
+  check((await texts(page, '#weekView .row.empty')).join('|') === 'Nothing ticked off this week. Next week is a fresh one.|Nothing has gone quiet. Every open task moved in the last two weeks.|No new vacancies this week.|Nothing in Day for next week yet.', 'empty: every card says so in a line');
   check(await page.textContent('.js-say') === 'A quiet week. Nothing to clear up.', 'empty: sentence');
   check(!(await shown(page, '#wkParaCard')), 'empty: no Your week card before it is written');
-  check(!(await shown(page, '#othersLine')), 'empty: no Others line when nothing waits');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
   await ctx.close();
@@ -182,10 +171,6 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
 {
   const { page, ctx, errors } = await open({ width: 1440, height: 1000 }, { now: MONDAY });
   check(!(await shown(page, '#viewSwitch')) && !(await shown(page, '#weekView')) && await shown(page, '.cols'), 'Monday: no switch, the usual page');
-  check(await shown(page, '#othersCard') && !(await shown(page, '#othersLine')), 'Monday in a slot: the Others card instead of the line');
-  check((await texts(page, '#othersList .sub-head')).join('|') === 'Dad2|Mom1' && (await page.textContent('#othersUntil')) === 'Slot until 09:00', 'Monday in a slot: by person, until 09:00');
-  check(!(await texts(page, '#todayList .row')).some((t) => t.includes('printer')), 'Monday: Others never in Today');
-  await page.locator('#othersCard').screenshot({ path: file('others-slot-card') });
   check(errors.length === 0, 'Monday: no page errors ' + errors.join('; '));
   await ctx.close();
 }
