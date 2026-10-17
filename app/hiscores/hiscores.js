@@ -28,6 +28,7 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = (n) => Number(n || 0).toLocaleString('en-GB');
   const VERB = {
+    strength: () => 'You lift some weights at the gym.',
     woodcutting: (w) => `You chop through: ${w}.`,
     slayer: (w) => `You complete a Slayer task: ${w}.`,
     cooking: (w) => `You cook ${w}.`,
@@ -66,12 +67,37 @@
         + (s.today ? '<span class="gain" title="XP today"></span>' : '')
         + '</button>';
     }
+    for (let i = data.skills.length + 1; i % 3; i++) html += '<div class="slot empty" aria-hidden="true"></div>';
     html += `<div class="slot total" role="note"><span>Total level:</span><span>${data.total}</span></div>`;
     if (g.dataset.html !== html) { g.innerHTML = html; g.dataset.html = html; }
     const today = data.skills.reduce((n, s) => n + s.today, 0);
     $('sub').textContent = `Total level ${data.total} · ${num(data.totalXp)} XP` + (today ? ` · +${num(today)} today` : '');
-    $('foot').textContent = 'Updated ' + stamp(data.at) + ' · To-do, Kitchen, Feeling, Day, Desk, German';
+    $('foot').textContent = 'Updated ' + stamp(data.at) + ' · To-do, Kitchen, Feeling, Day, Desk, German, gym';
+    const str = data.skills.find((s) => s.id === 'strength');
+    const gym = $('gym');
+    gym.hidden = !str;
+    if (str) {
+      const done = str.today > 0;
+      gym.disabled = done || gym.classList.contains('busy');
+      const t = done ? 'Gym visit logged today' : 'Log a gym visit';
+      if (gym.textContent !== t) gym.textContent = t;
+    }
   }
+
+  // Strength: one gym visit a day. An iPhone Shortcut on arriving at the gym posts the same route.
+  $('gym').addEventListener('click', async () => {
+    const gym = $('gym');
+    gym.classList.add('busy');
+    gym.disabled = true;
+    try {
+      const r = await fetch(API + '/api/hiscores/' + code + '/gym', { method: 'POST' });
+      if (!r.ok) throw new Error('status ' + r.status);
+    } catch (e) {
+      gym.textContent = "Couldn't log it. Try again.";
+    }
+    gym.classList.remove('busy');
+    await load();
+  });
 
   function drawLog() {
     if (!data) return;

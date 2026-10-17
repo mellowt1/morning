@@ -535,7 +535,7 @@ details.fold[open] > summary .tag::after { content: ''; }
 .hs-slot small { font-size: 12px; }
 .hs-slot.up { animation: hs-glow 1.6s steps(2) infinite; }
 @keyframes hs-glow { 50% { filter: brightness(1.45); } }
-.hs-total { justify-content: center; gap: 6px; }
+.hs-total { grid-column: 1 / -1; justify-content: center; gap: 6px; height: 30px; }
 .card-hiscores:hover .hs-grid { box-shadow: inset 1px 1px 0 #5d5242, inset -1px -1px 0 #221d16, 0 0 0 2px var(--accent-text); }
 @media (prefers-reduced-motion: reduce) { .hs-slot.up { animation: none; outline: 1px solid #ff0; } }
 

@@ -19,6 +19,7 @@ const LV = [0, 0, 83, 174, 276, 388, 512, 650, 801, 969, 1154];
 const skill = (id, name, from, xp, level, today = 0) => ({ id, name, from, xp, level, at: 0, next: level < 99 ? xp + 500 : null, today });
 const BOARD = {
   skills: [
+    skill('strength', 'Strength', 'Gym visits', 0, 1),
     skill('ranged', 'Ranged', 'Archery evenings', 6600, 15),
     skill('cooking', 'Cooking', 'Kitchen dinners', 9900, 18, 800),
     skill('prayer', 'Prayer', 'Feeling faces', 8100, 17, 450),
@@ -28,7 +29,7 @@ const BOARD = {
     skill('slayer', 'Slayer', 'Applications', 4000, 13),
     skill('construction', 'Construction', 'Sunday resets', 0, 1),
   ],
-  total: 89, totalXp: 40550, at: new Date(NOW).toISOString(),
+  total: 90, totalXp: 40550, at: new Date(NOW).toISOString(),
   log: [
     { skill: 'woodcutting', xp: 100, at: '2026-10-17T18:10:00Z', what: 'Water the plants' },
     { skill: 'cooking', xp: 800, at: '2026-10-16T18:00:00Z', what: 'A stew' },
@@ -37,6 +38,7 @@ const BOARD = {
   ],
 };
 
+let gymPosts = 0, gymDone = false;
 const browser = await chromium.launch();
 async function open(path, viewport, { seen = null, morning = false } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
@@ -52,7 +54,12 @@ async function open(path, viewport, { seen = null, morning = false } = {}) {
     } catch (e) {}
   }, [CODE, seen, NOW.slice(0, 10)]);
   const h = { 'Access-Control-Allow-Origin': '*' };
-  await page.route('**/api/hiscores/**', (r) => r.fulfill({ json: BOARD, headers: h }));
+  await page.route('**/api/hiscores/**', (r) => {
+    if (r.request().url().endsWith('/gym')) { gymPosts++; return r.fulfill({ json: { ok: true, added: true, level: 9, xp: 1000, say: 'x' }, headers: h }); }
+    const b = structuredClone(BOARD);
+    if (gymDone) Object.assign(b.skills[0], { xp: 1000, level: 9, today: 1000 });
+    return r.fulfill({ json: b, headers: h });
+  });
   await page.route('**/api/morning/**', (r) => r.fulfill({ headers: h, json: {
     now: new Date(NOW).toISOString(), todos: { items: [], updated: NOW, yesterday: { count: 0, items: [] } }, calendar: { events: [], sent: NOW, stale: false },
     fixed: { events: [], countdowns: [] }, weather: null, arsenal: null, bins: null, birthdays: { birthdays: [] }, news: { items: [] }, kitchen: null, projects: null, german: null, week: null,
@@ -70,9 +77,9 @@ const shown = (page, sel) => page.$eval(sel, (e) => !e.hidden && getComputedStyl
 const all = Object.fromEntries(BOARD.skills.map((s) => [s.id, s.level]));
 for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], ['hiscores-phone', { width: 390, height: 844 }]]) {
   const { page, ctx, errors } = await open('hiscores/', viewport, { seen: all });
-  check((await page.$$('#grid .slot')).length === 9, name + ': eight skills and the total');
-  check((await page.textContent('#grid .total')).includes('89'), name + ': total level 89');
-  check((await page.textContent('#sub')) === 'Total level 89 · 40,550 XP · +1,450 today', name + ': sub ' + await page.textContent('#sub'));
+  check((await page.$$('#grid .slot[data-skill]')).length === 9 && (await page.$$('#grid .slot')).length === 12, name + ': nine skills, two empty slots and the total');
+  check((await page.textContent('#grid .total')).includes('90'), name + ': total level 90');
+  check((await page.textContent('#sub')) === 'Total level 90 · 40,550 XP · +1,450 today', name + ': sub ' + await page.textContent('#sub'));
   check(!(await shown(page, '#levelup')), name + ': no dialog when nothing is new');
   const lines = await page.$$eval('#log p', (p) => p.map((x) => x.textContent));
   check(lines.length === 4 && lines[3].includes('You chop through: Water the plants. (+100 XP)'), name + ': newest line last ' + lines[3]);
@@ -84,6 +91,14 @@ for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], 
   check(await page.evaluate(() => getComputedStyle(document.querySelector('.lv')).fontFamily.includes('RS Small')), name + ': RuneScape font');
   check(await page.evaluate(() => [...document.querySelectorAll('#grid img')].every((i) => i.complete && i.naturalWidth > 0)), name + ': every icon loads');
   await page.screenshot({ path: file(name) });
+  check(await page.textContent('#gym') === 'Log a gym visit' && !(await page.$eval('#gym', (b) => b.disabled)), name + ': gym button ready');
+  if (name === 'hiscores-pc') {
+    gymDone = true;
+    await page.click('#gym');
+    await page.waitForTimeout(400);
+    check(gymPosts === 1 && await page.textContent('#gym') === 'Gym visit logged today' && await page.$eval('#gym', (b) => b.disabled), 'gym: posted once, button says logged ' + gymPosts);
+    gymDone = false;
+  }
   await page.click('h1');
   check(!(await shown(page, '#tip')), name + ': a tap elsewhere closes the tooltip');
   check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
@@ -97,7 +112,7 @@ for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], 
   check(await page.textContent('#luHead') === 'Congratulations, you just advanced 2 Woodcutting levels.', 'level up: ' + await page.textContent('#luHead'));
   check(await page.textContent('#luBody') === 'Your Woodcutting level is now 20.', 'level up: body');
   check(await page.$eval('#levelup', (e) => e.classList.contains('wait')), 'level up: waits for a tap for sound');
-  await page.screenshot({ path: file('hiscores-levelup') });
+  await page.screenshot({ path: file('hiscores-dialog') });
   await page.tap('#luNext');
   await page.waitForTimeout(200);
   check(await page.textContent('#luBody') === 'Your Woodcutting level is now 20.' && !(await page.$eval('#levelup', (e) => e.classList.contains('wait'))), 'level up: the first tap plays it, the dialog stays');
@@ -115,10 +130,10 @@ for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], 
 {
   const { page, ctx, errors } = await open('?c=' + CODE, { width: 1440, height: 1000 }, { seen: { ...all, magic: 0, slayer: 10 } });
   check(await shown(page, '#hiscores'), 'morning: card shows');
-  check((await page.$$('#hsGrid .hs-slot')).length === 9, 'morning: nine slots');
+  check((await page.$$('#hsGrid .hs-slot')).length === 10, 'morning: nine skills and the total');
   check(await page.textContent('#hsNote') === 'Level up waiting: Slayer', 'morning: ' + await page.textContent('#hsNote'));
   check((await page.getAttribute('#hiscores', 'href')) === 'hiscores/?c=' + CODE, 'morning: opens the page');
-  await page.locator('#hiscores').screenshot({ path: file('hiscores-morning-card') });
+  await page.locator('#hiscores').screenshot({ path: file('hiscores-card') });
   check(errors.length === 0, 'morning: no page errors ' + errors.join('; '));
   await ctx.close();
 }
