@@ -88,7 +88,7 @@ for (const [name, viewport, dark] of [['parked-pc', { width: 1440, height: 1000 
   check(r.map((x) => x.lv).join() === 'red,red,amber,calm,calm', name + ': levels red, red, amber, calm, calm');
   check(r[0].age === '16 days' && r[4].age === 'Today', name + ': ages read "16 days" and "Today"');
   check(await page.textContent('#parkHead .park-oldest') === 'Oldest 16 days', name + ': header says oldest 16 days');
-  check(await page.evaluate(() => { const a = document.getElementById('projects').getBoundingClientRect(), b = document.getElementById('parked').getBoundingClientRect(); return b.top > a.bottom && !document.querySelector('#projList .park'); }), name + ': Parked is its own card, below Projects');
+  check(await page.evaluate(() => { const a = document.querySelector('.card-today').getBoundingClientRect(), b = document.getElementById('parked').getBoundingClientRect(); return b.top > a.bottom && !document.querySelector('#projList .park'); }), name + ': Parked is its own card, below Today');
   const sizes = await page.$$eval('#parkList .park:first-child .pbtn', (b) => b.map((x) => Math.round(x.getBoundingClientRect().height)));
   check(viewport.width < 700 ? sizes.every((h) => h >= 44) : sizes.every((h) => h >= 34), name + ': button heights ' + sizes);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ': no sideways scroll');

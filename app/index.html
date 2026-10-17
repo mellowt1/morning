@@ -82,23 +82,29 @@
   <div class="cols">
     <div class="col col-a">
       <a id="start" class="card card-start" href="../todo/" style="--i:0" hidden>
-        <span class="num"><span>01 Start with</span><span class="start-go" aria-hidden="true">Open ›</span></span>
+        <span class="num"><span>Start with</span><span class="start-go" aria-hidden="true">Open ›</span></span>
         <span class="start-text"></span>
       </a>
 
-      <section class="card" aria-label="Today" style="--i:1">
+      <section class="card card-today" aria-label="Today" style="--i:1">
         <div class="card-head">
-          <span class="num">02 Today</span>
+          <span class="num">Today</span>
           <a id="todoLink" class="card-link" href="../todo/">Open to-do app</a>
         </div>
         <div id="todayList"></div>
+      </section>
+
+      <section id="parked" class="card" aria-label="Parked" style="--i:4" hidden>
+        <div id="parkHead" class="card-head"></div>
+        <div id="parkList"></div>
+        <div id="parkToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
       </section>
     </div>
 
     <div class="col col-b">
       <!-- Desk: type one line, Claude prepares tasks and drafts, Paul approves each. PC only. -->
       <section id="desk" class="card card-desk" aria-label="Desk" style="--i:2">
-        <div class="card-head"><span class="num">Desk</span><span id="deskNote" class="card-note">Prepared for you to approve</span></div>
+        <div class="card-head"><span class="num">Desk</span><span id="deskNote" class="card-note"></span></div>
         <form id="deskForm" class="desk-form" autocomplete="off">
           <input id="deskInput" class="desk-input" type="text" maxlength="1000" placeholder="Type a task, a message to write, or a question" aria-label="Type one line for Desk">
           <button id="deskGo" class="pbtn pbtn-today" type="submit">Prepare</button>
@@ -110,16 +116,24 @@
 
       <section id="projects" class="card" aria-label="Projects" style="--i:2" hidden>
         <div class="card-head">
-          <span class="num">03 Projects</span>
+          <span class="num">Projects</span>
           <span id="projUpdated" class="card-note"></span>
         </div>
         <div id="projList"></div>
+      </section>
+    </div>
+
+    <div class="col col-c">
+      <section id="coming" class="card" aria-label="Coming up" style="--i:3">
+        <span class="num">Coming up</span>
+        <div id="days" class="rows"></div>
+        <span id="calNote" class="card-note card-foot"></span>
       </section>
 
       <!-- What the paper-clip in the to-do app read lately. Hidden until the first letter. -->
       <section id="intake" class="card" aria-label="Read for you" style="--i:3" hidden>
         <div class="card-head">
-          <span class="num">05 Read for you</span>
+          <span class="num">Read for you</span>
           <span id="intakeNote" class="card-note"></span>
         </div>
         <div id="intakeList"></div>
@@ -128,25 +142,10 @@
       <!-- The hub's feed: one line per thing that happened in the other apps. Hidden until the first. -->
       <section id="feed" class="card" aria-label="Lately" style="--i:4" hidden>
         <div class="card-head">
-          <span class="num">06 Lately</span>
+          <span class="num">Lately</span>
           <span id="feedNote" class="card-note"></span>
         </div>
-        <p id="feedStatus" class="feed-status" hidden></p>
         <div id="feedList"></div>
-      </section>
-    </div>
-
-    <div class="col col-c">
-      <section id="coming" class="card" aria-label="Coming up" style="--i:3">
-        <span class="num">04 Coming up</span>
-        <div id="days" class="rows"></div>
-        <span id="calNote" class="card-note card-foot"></span>
-      </section>
-
-      <section id="parked" class="card" aria-label="Parked" style="--i:4" hidden>
-        <div id="parkHead" class="card-head"></div>
-        <div id="parkList"></div>
-        <div id="parkToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
       </section>
 
       <section id="arsenal" class="card card-row card-arsenal" aria-label="Arsenal" style="--i:4">
@@ -159,7 +158,7 @@
   <!-- PC only (1100 px and up): the week across the bottom, one column per day. -->
   <section id="weekBand" class="card week-band" aria-label="Week" style="--i:5">
     <div class="card-head">
-      <span class="num">04 Week</span>
+      <span class="num">Week</span>
       <span id="bandNote" class="card-note"></span>
     </div>
     <div id="bandDays" class="band-days"></div>

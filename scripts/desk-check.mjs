@@ -97,11 +97,11 @@ const acts = (page) => page.$$eval('#deskList .desk-act', (els) => els.map((e) =
   check((await page.textContent('#deskToast span')) === 'On the to-do list, in Soon', 'pc: toast after Approve');
   await page.waitForTimeout(300);
   r = await acts(page);
-  check(r[0].done && r[0].state === 'On the to-do list' && r[0].what === 'Call the dentist before Thursday', 'pc: approved row shows the edited text');
+  check(r.length === 1 && !r.some((x) => /dentist/.test(x.what)), 'pc: the approved row leaves the card');
   await page.click('#deskToast button');
   await page.waitForTimeout(300);
   r = await acts(page);
-  check(!r[0].done, 'pc: Undo makes the row ready again');
+  check(r.length === 2 && !r[0].done, 'pc: Undo brings the row back, ready');
 
   // Copy the draft, Skip the task.
   await page.click('#deskList .desk-act:nth-of-type(2) [data-desk="copy"]');
@@ -110,7 +110,7 @@ const acts = (page) => page.$$eval('#deskList .desk-act', (els) => els.map((e) =
   await page.click('#deskList .desk-act:nth-of-type(1) [data-desk="skip"]');
   await page.waitForTimeout(300);
   r = await acts(page);
-  check(r[0].state === 'Skipped' && r[1].state === 'Copied', 'pc: Skipped and Copied');
+  check(r.length === 0, 'pc: Skipped and Copied rows leave the card');
   check(w.posts.join() === 'approve,undo,copied,skip', 'pc: Worker got approve, undo, copied, skip: ' + w.posts);
 
   // A question: the answer shows, no buttons.
@@ -123,7 +123,7 @@ const acts = (page) => page.$$eval('#deskList .desk-act', (els) => els.map((e) =
   // Reload: the card comes back from GET.
   await page.reload();
   await page.waitForSelector('#deskList .desk-entry');
-  check((await page.$$('#deskList .desk-entry')).length === 2, 'pc: both lines are back after a reload');
+  check((await page.$$('#deskList .desk-entry')).length === 1, 'pc: after a reload only the fresh answer is back (settled rows stay gone)');
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'pc: no sideways scroll');
   check(errors.length === 0, 'pc: no page errors ' + errors.join('; '));
   await ctx.close();

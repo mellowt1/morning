@@ -52,7 +52,7 @@ function answer({ dark = false, ...over } = {}) {
     intake: { week: 2, needs: [{ id: "r1", at: new Date().toISOString(), who: "mom", kind: "letter", summary: "Insurance letter: a reply is wanted before the 20th.", tasks: 1, needs: true }], recent: [{ id: "r1", at: new Date().toISOString(), who: "mom", kind: "letter", summary: "Insurance letter: a reply is wanted before the 20th.", tasks: 1, needs: true }, { id: "r2", at: new Date(Date.now() - 2 * 864e5).toISOString(), who: "me", kind: "bill", summary: "Energy bill for September, paid by direct debit.", tasks: 0, needs: false }], month: { calls: 3, input: 12000, output: 1500 } },
     events: { events: [{ id: 'e1', source: 'feeling', kind: 'checkin', who: 'Nick', text: 'Nick checked in', at: new Date(Date.now() - 20 * 60000).toISOString() }, { id: 'e2', source: 'plan-regreso', kind: 'task', who: 'Dad', text: 'Dad ticked Pasaporte', at: new Date(Date.now() - 26 * 3600000).toISOString() }], sources: {} },
     status: { line: 'All jobs on time, 2 things happened in 2 apps, 3 open to-dos.', summary: 'Quiet night: Nick checked in and Dad ticked Pasaporte. Everything is running.', summaryAt: new Date(Date.now() - 3600000).toISOString(), at: new Date().toISOString() },
-    links: { links: [{ name: 'To-do', url: 'https://example.com/todo/' }, { name: 'Kitchen', url: 'https://example.com/kitchen/' }, { name: 'Bad', url: 'javascript:alert(1)' }] },
+    links: { links: [{ name: 'To-do', url: 'https://example.com/todo/' }, { name: 'Kitchen', url: 'https://example.com/kitchen/' }, { name: 'Plan de regreso', url: 'https://example.com/plan/' }, { name: 'Bad', url: 'javascript:alert(1)' }] },
     ...over,
   };
 }
@@ -92,7 +92,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     tiles: [...document.querySelectorAll('#todayList .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
     chips: document.querySelectorAll('#projList .chip').length,
     turn: document.querySelectorAll('#projList .proj-turn').length,
-    projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj:not(.proj-repo)').length,
+    projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj').length,
     parked: document.getElementById('parked').hidden ? '' : document.getElementById('parkHead').innerText.replace(/\s+/g, ' ').trim() || '',
     week: document.querySelectorAll('#days .ev').length,
     band: getComputedStyle(document.getElementById('weekBand')).display === 'none' ? null
@@ -101,10 +101,10 @@ async function shoot(data, viewport, name, act, when = NOON) {
     arsenal: document.getElementById('arsenalBody').innerText.replace(/\s+/g, ' ').trim(),
     overflow: document.documentElement.scrollWidth > innerWidth,
     intake: document.getElementById('intake').hidden ? -1 : [...document.querySelectorAll('#intakeList .proj')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
-    status: document.getElementById('feedStatus').hidden ? '' : document.getElementById('feedStatus').innerText.replace(/\s+/g, ' ').trim(),
-    feed: document.getElementById('feed').hidden ? -1 : [...document.querySelectorAll('#feedList .proj, #feedList .sub-head')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+    feed: document.getElementById('feed').hidden ? -1 : [...document.querySelectorAll('#feedList .feed-row')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+    projNext: document.querySelectorAll('#projList .proj-next').length,
     apps: document.getElementById('apps').hidden ? [] : [...document.querySelectorAll('#apps a')].map((a) => a.textContent + ' ' + a.getAttribute('href')),
-    repos: [...document.querySelectorAll('#projList .proj-repo')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+    repos: [...document.querySelectorAll('#projList .repo-line span')].map((d) => d.textContent + ' ' + d.title),
   }));
   if (name) await page.screenshot({ path: file(name), fullPage: true });
   await ctx.close();
@@ -134,11 +134,13 @@ check(r.tiles.length === 6, 'tiles: dinner, bins, birthday, countdown, cleaning,
   const dinner = { away: [{ date: day(0), title: 'dinner with a friend', start: '19:30' }, { date: day(2), title: 'Team dinner', start: '18:30' }] };
   for (const [vp, name] of [[phone, 'cards-phone-away'], [laptop, 'cards-laptop-away']]) {
     const a = await shoot(answer({ dinner }), vp, name);
-    const out = a.tiles.filter((t) => /^out for dinner/i.test(t)).map((t) => t.replace(/^out for dinner /i, ''));
-    check(out.length === 2 && out[0] === 'Dinner with a friend Tonight, 19:30' && out[1] === `Team dinner ${wd}, 18:30`, name + ': ' + out);
+    const out = a.tiles.filter((t) => /^eating out/i.test(t)).map((t) => t.replace(/^eating out /i, ''));
+    check(out.length === 2 && out[0] === 'Dinner with a friend Tonight 19:30' && out[1] === `Team dinner ${wd} 18:30`, name + ': ' + out);
   }
+  const place = await shoot(answer({ dinner: { away: [{ date: day(1), title: 'Harbour Cafe - Table 4', start: '20:00' }] } }), laptop, '');
+  check(place.tiles.some((t) => t === 'EATING OUT Harbour Cafe Tomorrow 20:00' || t === 'Eating out Harbour Cafe Tomorrow 20:00'), 'eating out shows the place only: ' + place.tiles);
   const none = await shoot(answer({ dinner: null }), phone, '');
-  check(!none.tiles.some((t) => /^out for dinner/i.test(t)), 'no tile without dinner.away');
+  check(!none.tiles.some((t) => /^eating out/i.test(t)), 'no tile without dinner.away');
 }
 check(r.tiles.some((x) => /^Cleaning Alex (This weekend|\w+day)$/i.test(x)), 'cleaning tile: ' + r.tiles.find((x) => /^Cleaning/i.test(x)));
 check(r.tiles.some((x) => /^Dinner Pasta alla Norma Mix the dough today$/i.test(x)), 'dinner tile');
@@ -147,8 +149,9 @@ check(r.tiles.some((x) => /^Yesterday 2 done$/i.test(x)), 'wins tile');
 check(r.turn === 1 && r.projects === 3 && r.chips === 2, 'projects: your turn, building, up next, two live chips');
 check(/^Parked 3$/i.test(r.parked), 'parked card header: ' + r.parked);
 check(r.intake.length === 2 && /^Insurance letter.*Mom · letter · today · 1 task$/.test(r.intake[0]) && /bill · .* · nothing to do$/.test(r.intake[1]), 'read for you: ' + r.intake);
-check(/^Quiet night: Nick checked in and Dad ticked Pasaporte\. Everything is running\. as of \d\d:\d\d$/.test(r.status), 'status line above the feed: ' + r.status);
-check(r.feed.length === 4 && /^TODAY 1$/i.test(r.feed[0]) && /^Nick checked in Feeling · \d\d:\d\d$/.test(r.feed[1]) && /^YESTERDAY 1$/i.test(r.feed[2]), 'lately: ' + r.feed);
+check(r.projNext === 0, 'projects: names only, no descriptions');
+// Plan de regreso stays off Morning, so its feed line is left out.
+check(r.feed.length === 1 && /^Nick checked in \d\d:\d\d$/.test(r.feed[0]), 'lately: one line per thing, time on the right: ' + r.feed);
 check(r.week === 4 && /^Tomorrow Lunch with a friend, Cafe 13:00$/.test(r.days[0]), 'coming up starts tomorrow: ' + r.days[0]);
 check(r.days.some((x) => /Club: evening/.test(x)), 'a spaced dash becomes a colon');
 check(r.days.some((x) => /Film at Filmhuis 19:00$/.test(x)), 'the place is dropped when the title says it');
@@ -179,13 +182,11 @@ await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
 r = await shoot(answer({ projects: null, intake: null, events: null, status: null, kitchen: null, bins: { collections: [] }, birthdays: { birthdays: [] }, fixed: { events: [], countdowns: [] }, todos: { items: [], updated: null, yesterday: { count: 0, items: [] } } }), phone, 'cards-empty');
 check(r.projects === -1, 'projects hidden before the first push');
 check(r.intake === -1, 'read-for-you hidden before the first letter');
-check(r.feed === -1, 'lately hidden before the first event or status');
+check(r.feed === -1, 'lately hidden before the first event');
 check(r.start === '', 'start hidden with no tasks');
 check(r.today.includes('Nothing for today.'), 'empty today');
-r = await shoot(answer({ status: { line: 'A quiet night, 3 open to-dos.', summary: null, summaryAt: null, at: new Date().toISOString() } }), phone);
-check(/^A quiet night, 3 open to-dos\. as of \d\d:\d\d$/.test(r.status), 'rules line when there is no summary: ' + r.status);
 r = await shoot(answer({ events: null }), phone);
-check(r.status.startsWith('Quiet night') && r.feed.length === 0, 'status alone keeps the card: ' + r.status + ' / ' + r.feed);
+check(r.feed === -1, 'lately hidden without events (the status paragraph is no longer on Morning)');
 r = await shoot(answer({ projects: { error: 'x' }, arsenal: { error: 'x' }, todos: { error: 'x' } }), phone);
 check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /can't load/.test(x)), 'errors shown per card');
 

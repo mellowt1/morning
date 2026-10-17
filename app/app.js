@@ -272,9 +272,11 @@
   }
   const rowName = (text) => { const n = taskName(text); return esc(n.name) + (n.due ? ` <span class="row-due">${esc(n.due)}</span>` : ''); };
 
-  /* One fact tile: a small label, the value, and an optional line under it. */
+  /* One fact tile: a small label, the value, and an optional line under it. Each is one line;
+   * the whole text is on hover when a line is cut. */
+  const plain = (html) => String(html).replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
   const tile = (label, value, sub = '', title = '') =>
-    `<div class="tile"${title ? ` title="${esc(title)}"` : ''}><span class="tile-label">${esc(label)}</span>` +
+    `<div class="tile" title="${esc(title || [plain(value), plain(sub)].filter(Boolean).join(' · '))}"><span class="tile-label">${esc(label)}</span>` +
     `<span class="tile-value">${value}</span>${sub ? `<span class="tile-sub">${sub}</span>` : ''}</div>`;
 
   const subHead = (label, count) =>
@@ -307,9 +309,11 @@
     return d.away.map((x) => {
       const days = daysFrom(today, x.date);
       if (days < 0) return '';
-      const at = x.start ? ', ' + esc(x.start) : '';
+      // The place only ("Harbour Cafe - Table 4" → "Harbour Cafe"), the day and time under it.
+      const at = x.start ? ' ' + esc(x.start) : '';
       const when = days === 0 ? `<span class="accent-text">Tonight</span>${at}` : (days === 1 ? 'Tomorrow' : SHORT[weekday(x.date)]) + at;
-      return tile('Out for dinner', esc(cap(x.title || 'Out')), when);
+      const place = cap(String(x.title || 'Out').split(/\s+[-–—:]\s+/)[0].trim());
+      return tile('Eating out', esc(place), when, [cap(x.title || ''), plain(when)].filter(Boolean).join(' · '));
     }).join('');
   }
 
@@ -429,16 +433,17 @@
     const openParked = list.querySelector('details[open]') !== null;
     const at = Date.parse(p.updated);
     $('projUpdated').textContent = Number.isFinite(at) ? 'Updated ' + (ymd(at) === ymd(now) ? 'today' : shortDate(ymd(at))) : '';
-    const projects = Array.isArray(p.projects) ? p.projects : [];
+    const projects = (Array.isArray(p.projects) ? p.projects : []).filter((x) => !offMorning(x.name));
     const of = (s) => projects.filter((x) => x.status === s);
-    const next = (x) => (x.next ? `<span class="proj-next">${esc(x.next)}</span>` : '');
-    const rows = (list) => `<div class="rows">${list.map((x) => `<div class="proj${isNew(projKey(x))}"><span class="proj-name">${esc(x.name)}</span>${next(x)}</div>`).join('')}</div>`;
+    // Names only; what is next for a project is on hover (Paul picks it up with Claude anyway).
+    const hint = (x) => (x.next ? ` title="${esc(x.next)}"` : '');
+    const rows = (list) => `<div class="rows">${list.map((x) => `<div class="proj${isNew(projKey(x))}"${hint(x)}><span class="proj-name">${esc(x.name)}</span></div>`).join('')}</div>`;
     // A project that has just become Your turn pops its pill once, in its first second on screen.
     const pops = (x) => fresh.has(projKey(x)) && Date.now() - (freshAt.get(projKey(x)) || 0) < 1500;
 
     // Your turn first, then one group per status: Building, Up next, Live (chips), Parked (folded).
-    let html = of('waiting').map((x) => `<div class="proj proj-turn${isNew(projKey(x))}">
-        <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="pill${pops(x) ? ' pop' : ''}">Your turn</span></div>${next(x)}</div>`).join('');
+    let html = of('waiting').map((x) => `<div class="proj proj-turn${isNew(projKey(x))}"${hint(x)}>
+        <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="pill${pops(x) ? ' pop' : ''}">Your turn</span></div></div>`).join('');
     if (of('active').length) html += subHead('Building', of('active').length) + rows(of('active'));
     if (of('next').length) html += subHead('Up next', of('next').length) + rows(of('next'));
     const live = of('live');
@@ -449,8 +454,9 @@
     // Work that only lives on the PC (the daily run scans the repos). Hidden when everything is pushed.
     const unpushed = repos && ok(repos) && Array.isArray(repos.repos) ? repos.repos : [];
     if (unpushed.length) {
-      html += subHead('Not pushed', unpushed.length) + `<div class="rows">${unpushed.map((r) =>
-        `<div class="proj proj-repo"><span class="proj-name">${esc(r.name)}</span>${r.why ? `<span class="proj-next">${esc(r.why)}</span>` : ''}</div>`).join('')}</div>`;
+      // One quiet line of names; the reason sits in each name's tooltip.
+      html += subHead('Not pushed', unpushed.length) + `<p class="repo-line">${unpushed.map((r) =>
+        `<span${r.why ? ` title="${esc(r.why)}"` : ''}>${esc(r.name)}</span>`).join(' · ')}</p>`;
     }
     if (setHTML(list, html || `<div class="row empty"><span>No projects listed.</span></div>`) && openParked) {
       const d = list.querySelector('details'); if (d) d.open = true;
@@ -473,7 +479,7 @@
     $('intakeNote').textContent = b.week ? `${b.week} this week` : '';
     const when = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? (ymd(t) === ymd(now) ? 'today' : shortDate(ymd(t))) : ''; };
     const line = (r) => [whoLabel(r.who), READ_KIND[r.kind] || 'document', when(r.at), r.tasks ? `${r.tasks} task${r.tasks === 1 ? '' : 's'}` : 'nothing to do'].filter(Boolean).join(' · ');
-    const rows = (xs, cls) => `<div class="rows">${xs.map((r) => `<div class="proj${cls}"><span class="proj-name">${esc(r.summary)}</span><span class="proj-next">${esc(line(r))}</span></div>`).join('')}</div>`;
+    const rows = (xs, cls) => `<div class="rows">${xs.map((r) => `<div class="proj proj-read${cls}"><span class="proj-name">${esc(r.summary)}</span><span class="proj-next">${esc(line(r))}</span></div>`).join('')}</div>`;
     const needs = Array.isArray(b.needs) ? b.needs : [];
     const needIds = new Set(needs.map((r) => r.id));
     const rest = (Array.isArray(b.recent) ? b.recent : []).filter((r) => !needIds.has(r.id));
@@ -484,50 +490,37 @@
   }
 
   /* ---------- Lately: the hub's feed, one line per thing that happened in the other apps ----------
-   * Above it, the hub's own line about everything (status): Claude's summary when there is one,
-   * the rules line otherwise, with the time it was written. Grouped by day below, newest first. */
-  const SOURCE_NAME = { feeling: 'Feeling', runway: 'Runway', 'plan-regreso': 'Plan de regreso', 'arsenal-watch': 'Arsenal watch', pc: 'PC', kitchen: 'Kitchen', todo: 'To-do', intake: 'Intake', odysseus: 'Odysseus', 'defence-digest': 'Defence digest' };
+   * Newest first, a few lines, each cut to one line. The app and the full text are on hover. */
+  const SOURCE_NAME = { feeling: 'Feeling', runway: 'Runway', 'arsenal-watch': 'Arsenal watch', pc: 'PC', kitchen: 'Kitchen', todo: 'To-do', intake: 'Intake', odysseus: 'Odysseus', 'defence-digest': 'Defence digest' };
   const sourceName = (s) => SOURCE_NAME[s] || String(s || '').replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
-  function renderStatus(s) {
-    const el = $('feedStatus');
-    const text = s && ok(s) ? (s.summary || s.line) : '';
-    if (!text) { el.hidden = true; el.textContent = ''; return false; }
-    const at = Date.parse(s.summary ? s.summaryAt || s.at : s.at);
-    setHTML(el, esc(text) + (Number.isFinite(at) ? ` <span class="proj-next">as of ${esc(hm(at))}</span>` : ''));
-    el.hidden = false;
-    return true;
-  }
-  function renderFeed(b, now, s) {
+  const FEED_SHOWN = 4;
+  function renderFeed(b, now) {
     const box = $('feed');
-    const status = renderStatus(s);
-    if (!b && !status) { box.hidden = true; return; }
+    if (!b) { box.hidden = true; return; }
     box.hidden = false;
     const list = $('feedList');
-    if (!b) { setHTML(list, ''); $('feedNote').textContent = ''; return; }
     if (!ok(b)) {
       setHTML(list, `<div class="row empty"><span>The feed can't load right now.</span></div>`);
       $('feedNote').textContent = '';
       return;
     }
-    const events = (Array.isArray(b.events) ? b.events : []).filter((e) => e && e.text && Number.isFinite(Date.parse(e.at)));
+    const all = (Array.isArray(b.events) ? b.events : [])
+      .filter((e) => e && e.text && Number.isFinite(Date.parse(e.at)) && !OFF_SOURCES.has(e.source));
     const today = ymd(now), yesterday = ymd(now - 864e5);
-    const todayCount = events.filter((e) => ymd(Date.parse(e.at)) === today).length;
+    const todayCount = all.filter((e) => ymd(Date.parse(e.at)) === today).length;
     $('feedNote').textContent = todayCount ? `${todayCount} today` : '';
-    const dayLabel = (d) => (d === today ? 'Today' : d === yesterday ? 'Yesterday' : shortDate(d));
-    const groups = [];
-    for (const e of events) {
-      const d = ymd(Date.parse(e.at));
-      const g = groups[groups.length - 1];
-      if (g && g.day === d) g.items.push(e); else groups.push({ day: d, items: [e] });
-    }
-    const row = (e) => `<div class="proj"><span class="proj-name">${esc(e.text)}</span><span class="proj-next">${esc(sourceName(e.source))} · ${esc(hm(Date.parse(e.at)))}</span></div>`;
-    const html = groups.map((g) => subHead(dayLabel(g.day), g.items.length) + `<div class="rows">${g.items.map(row).join('')}</div>`).join('');
+    const when = (t) => { const d = ymd(t); return d === today ? hm(t) : d === yesterday ? 'Yesterday' : SHORT[weekday(d)]; };
+    const row = (e) => { const t = Date.parse(e.at); return `<div class="feed-row" title="${esc(sourceName(e.source) + ' · ' + e.text)}"><span class="feed-text">${esc(e.text)}</span><span class="feed-when">${esc(when(t))}</span></div>`; };
+    const html = all.length ? `<div class="rows">${all.slice(0, FEED_SHOWN).map(row).join('')}</div>` : '';
     setHTML(list, html || `<div class="row empty"><span>Nothing happened yet.</span></div>`);
   }
 
+  const offMorning = (name) => /^plan de regreso$/i.test(String(name || '').trim());
+  const OFF_SOURCES = new Set(['plan-regreso']);
+
   /* ---------- Apps: one-tap links from the Worker's LINKS secret (they carry codes) ---------- */
   function renderApps(l) {
-    const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url)) : [];
+    const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url) && !offMorning(x.name)) : [];
     const nav = $('apps');
     nav.hidden = !links.length;
     setHTML(nav, links.map((x) => `<a class="app-link" href="${esc(x.url)}" rel="noreferrer">${esc(x.name)}</a>`).join(''));
@@ -828,7 +821,7 @@
 
   /* ---------- 04 Coming up: Odysseus plus the fixed events, one row per event ---------- */
 
-  /* "Sint Sebastiaen - Groep A" reads "Sint Sebastiaen: Groep A". Only a dash with a space on
+  /* "Harbour Cafe - Table 4" reads "Harbour Cafe: Table 4". Only a dash with a space on
    * both sides, so "Jan-Willem" stays. The same rule the Worker applies to NOS titles. */
   const cleanTitle = (s) => cap(String(s).replace(/\s+[-–—]\s+/g, ': ').trim());
   /* The place is dropped when the title already says it. */
@@ -936,9 +929,16 @@
       for (const c of cds) if (c.date === date) items.push({ sort: ' ', html: item('bi-fact', 'Countdown', esc(cap(c.what))) });
       const rotas = ok(data.rotas) && Array.isArray(data.rotas.rotas) ? data.rotas.rotas : [];
       for (const r of rotas) if (r.date <= date && date <= r.end) items.push({ sort: ' ', html: item('bi-fact', esc(cap(r.what)), esc(cap(r.who))) });
+      // Arsenal's next match, when it falls on this day. A calendar event for the same match
+      // (the Arsenal ECAL) takes the crest instead, so the match shows once.
+      const n = ok(arsenal) && arsenal.next;
+      const k = n ? Date.parse(n.kickoff) : NaN;
+      let matchShown = !(n && ymd(k) === date);
+      const crest = `<img class="bi-crest" src="${CREST}" alt="" width="16" height="16" onerror="this.remove()">`;
       // Timed events; in today's column the next one gets its dot and ring.
       for (const e of list.filter((x) => !x.allDay)) {
         let time = esc(e.time);
+        if (!matchShown && /arsenal/i.test(e.title) && Math.abs(e.s - k) < 30 * MIN) { time = crest + time; matchShown = true; }
         if (date === today) {
           const on = e.s <= t;
           const next = e === nextUp;
@@ -949,13 +949,10 @@
         }
         items.push({ sort: e.sort, html: item('', time, esc(e.title), e.location, e.key) });
       }
-      // Arsenal's next match, on its day, with the crest. Red only while it is on.
-      const n = ok(arsenal) && arsenal.next;
-      if (n && ymd(Date.parse(n.kickoff)) === date) {
-        const k = Date.parse(n.kickoff);
+      // Otherwise the match on its own, with the crest. Red only while it is on.
+      if (!matchShown) {
         const live = n.live || (k <= t && t - k < 150 * MIN);
-        const time = `<img class="bi-crest" src="${CREST}" alt="" width="16" height="16" onerror="this.remove()">` +
-          (live ? '<span class="bi-live">Live now</span>' : esc(hm(k)));
+        const time = crest + (live ? '<span class="bi-live">Live now</span>' : esc(hm(k)));
         items.push({ sort: live ? '00:00' : hm(k), html: item('bi-arsenal', time, esc(n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`), n.competition) });
       }
       items.sort((a, b) => (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0));
@@ -1076,7 +1073,7 @@
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos);
     renderIntake(data && data.intake, now);
-    renderFeed(data && data.events, now, data && data.status);
+    renderFeed(data && data.events, now);
     renderParked(data && data.projects, now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
@@ -1097,6 +1094,7 @@
   const DESK_SECTIONS = { today: 'Today', soon: 'Soon', someday: 'Someday' };
   const DESK_LANGS = { nl: 'Dutch', en: 'English', es: 'Spanish' };
   const DESK_SHOWN = 5;
+  const DESK_FRESH = 10 * 60e3;
   let deskItems = [];
   const deskEditing = new Set(); // "id:idx" rows open for editing
   const deskBusyRows = new Set(); // "id:idx" rows waiting on the Worker
@@ -1145,11 +1143,14 @@
   }
 
   function renderDesk() {
-    const shown = deskItems.slice(0, DESK_SHOWN).filter((x) => x.answer || x.actions.length);
+    // Only what waits for Paul: actions to approve, and a fresh answer for a few minutes.
+    // Done, copied and skipped actions leave the card at once (the toast has the Undo).
+    const fresh = (x) => Date.now() - (Date.parse(x.at) || 0) < DESK_FRESH;
+    const ready = (x) => x.actions.some((a) => a.state === 'ready');
+    const shown = deskItems.slice(0, DESK_SHOWN).filter((x) => ready(x) || (x.answer && fresh(x)));
     setHTML($('deskList'), shown.map((item) => `<div class="desk-entry">
-        <span class="desk-said">${esc(item.text)}</span>
-        ${item.answer ? `<p class="desk-answer">${esc(item.answer)}</p>` : ''}
-        ${item.actions.map((a, idx) => deskActHTML(item, a, idx)).join('')}
+        ${item.answer && fresh(item) ? `<p class="desk-answer">${esc(item.answer)}</p>` : ''}
+        ${item.actions.map((a, idx) => (a.state === 'ready' ? deskActHTML(item, a, idx) : '')).join('')}
       </div>`).join(''));
   }
 
