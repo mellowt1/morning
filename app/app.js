@@ -681,6 +681,8 @@
       $('wkMirrorLast').hidden = !m.last;
     }
 
+    renderLessons(w);
+
     // 01 Done this week, grouped by section, newest first in each
     const done = [];
     for (const g of w.done.groups || []) for (const x of g.items) done.push({ section: g.section, ...x });
@@ -751,6 +753,93 @@
     $('wkCalNote').textContent = calNote;
     return w;
   }
+
+  /* What Claude learned (paul-hub src/lessons.js): each Sunday Claude reads how Paul corrected Desk
+   * and Tidy that week and proposes a few short rules. Keep puts a rule into their prompts from the
+   * next call on; Drop throws it away. Kept rules sit under a fold, each with its own Drop. Both
+   * buttons have Undo, which puts the rule back to wait. POST /api/morning/:code/lesson. */
+  const LS_APP = { desk: 'Desk', tidy: 'Tidy' };
+  const lsHiding = new Set();
+  const lsInflight = new Map();
+  function renderLessons(w) {
+    const ls = w.lessons && typeof w.lessons === 'object' ? w.lessons : null;
+    const proposed = ls ? (ls.proposed || []).filter((x) => !lsHiding.has(x.id)) : [];
+    const kept = ls ? (ls.kept || []).filter((x) => !lsHiding.has(x.id)) : [];
+    $('wkLessonsCard').hidden = !ls || (!proposed.length && !kept.length && $('lsToast').hidden);
+    if (!ls) return;
+    $('wkLessonsNote').textContent = proposed.length ? plural(proposed.length, 'rule to check', 'rules to check') : kept.length ? plural(kept.length, 'rule kept', 'rules kept') : '';
+    const row = (x, isKept) => `<div class="park lv-calm">
+        <span class="fold-from park-from">${esc(LS_APP[x.app] || x.app)}</span>
+        <span class="park-what">${esc(x.text)}</span>
+        ${x.why ? `<span class="lesson-why">${esc(x.why)}</span>` : ''}
+        <div class="park-btns">${isKept ? '' : `<button type="button" class="pbtn pbtn-today" data-ls="keep" data-id="${esc(x.id)}" aria-label="Keep: ${esc(x.text)}">Keep</button>`}
+          <button type="button" class="pbtn pbtn-drop" data-ls="drop" data-id="${esc(x.id)}" aria-label="Drop: ${esc(x.text)}">Drop</button></div></div>`;
+    let html = proposed.length ? `<div class="parks">${proposed.map((x) => row(x, false)).join('')}</div>` : '';
+    if (kept.length) {
+      html += `<button type="button" class="wk-more" data-more="lessons">${wkOpen.lessons ? 'Hide kept rules' : 'Kept rules (' + kept.length + ')'}</button>`;
+      if (wkOpen.lessons) html += `<div class="parks">${kept.map((x) => row(x, true)).join('')}</div>`;
+    }
+    setHTML($('wkLessons'), html);
+  }
+
+  let lsToastT = 0;
+  let lsToastId = '';
+  function lsToast(words, id) {
+    const el = $('lsToast');
+    clearTimeout(lsToastT);
+    lsToastId = id || '';
+    el.firstChild.textContent = words;
+    el.lastChild.hidden = !id;
+    el.hidden = false;
+    lsToastT = setTimeout(() => { el.hidden = true; lsToastId = ''; render(); }, 6000);
+  }
+
+  async function lessonPost(id, action) {
+    const r = await fetch(API + '/api/morning/' + code + '/lesson', {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }),
+    });
+    if (!r.ok) throw new Error('status ' + r.status);
+    const out = await r.json();
+    if (last && last.data && last.data.week && out.lessons) { last.data.week.lessons = out.lessons; store.set(KEY, last); }
+  }
+
+  $('wkLessons').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-ls]');
+    if (!b || lsHiding.has(b.dataset.id)) return;
+    e.stopPropagation();
+    const { id, ls } = b.dataset;
+    const w = last && last.data && last.data.week;
+    const x = w && w.lessons && [...(w.lessons.proposed || []), ...(w.lessons.kept || [])].find((l) => l.id === id);
+    lsHiding.add(id);
+    lsToast(ls === 'keep' ? `Kept. ${(x && LS_APP[x.app]) || 'Claude'} follows it from now on.` : 'Dropped.', id);
+    render();
+    const req = lessonPost(id, ls);
+    lsInflight.set(id, req);
+    try {
+      await req;
+    } catch (err) {
+      lsToast('Couldn’t save that. Try again.');
+    }
+    lsInflight.delete(id);
+    lsHiding.delete(id);
+    render();
+  });
+
+  $('lsToast').lastChild.addEventListener('click', async () => {
+    const id = lsToastId;
+    if (!id) return;
+    $('lsToast').hidden = true;
+    lsToastId = '';
+    lsHiding.add(id);
+    try {
+      await (lsInflight.get(id) || Promise.resolve()).catch(() => {});
+      await lessonPost(id, 'undo');
+    } catch (err) {
+      lsToast('Couldn’t undo that. Try again.');
+    }
+    lsHiding.delete(id);
+    render();
+  });
 
   function weekSentence(w) {
     const quiet = (w.quiet || []).filter((q) => !wkHiding.has(q.id)).length;

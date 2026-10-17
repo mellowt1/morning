@@ -67,6 +67,12 @@
       <div id="wkMirrorTry" class="mirror-row"><span class="mirror-k">This week</span><span id="wkMirrorTryText"></span></div>
       <div id="wkMirrorLast" class="mirror-row"><span class="mirror-k">Last week</span><span id="wkMirrorLastText"></span></div>
     </section>
+    <!-- What Claude learned: short rules from Paul's corrections of Desk and Tidy. He keeps or drops each; kept ones go into their prompts. -->
+    <section id="wkLessonsCard" class="card card-para card-lessons" aria-label="What Claude learned" style="--i:0" hidden>
+      <div class="card-head"><span class="num">What Claude learned</span><span id="wkLessonsNote" class="card-note"></span></div>
+      <div id="wkLessons"></div>
+      <div id="lsToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
+    </section>
     <section class="card" aria-label="Done this week" style="--i:1">
       <div class="card-head"><span class="num">01 Done this week</span><span id="wkDoneNote" class="card-note"></span></div>
       <div id="wkDone"></div>

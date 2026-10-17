@@ -28,6 +28,7 @@ function world(now, empty) {
   ];
   const week = () => ({
     week: 42, from: '2026-10-12', to: '2026-10-18',
+    lessons: structuredClone(lessons),
     paragraph: empty ? null : 'You got seven things done, including the rent and the ID card. The hallway light has sat for two weeks now. Thursday is busy, so do it Monday evening after archery.',
     mirror: empty ? null : {
       days: 45, moodDays: 31,
@@ -55,8 +56,27 @@ function world(now, empty) {
     ] },
   });
   const gone = new Map();
+  const lessons = empty ? { proposed: [], kept: [] } : {
+    proposed: [
+      { id: 'lesson000001', app: 'tidy', text: 'Leave "tmrw" as typed; never turn it into a date.', why: 'You undid 3 tidies that turned tmrw into a date.' },
+      { id: 'lesson000002', app: 'desk', text: 'Write tasks for family in Spanish.', why: 'You edited 2 Desk tasks for family into Spanish.' },
+    ],
+    kept: [{ id: 'lesson000000', app: 'desk', text: 'Put dentist and doctor tasks in Today.', why: 'You moved 2 of them to Today.' }],
+  };
   return {
     posts: [],
+    lessonPosts: [],
+    lesson({ id, action }) {
+      this.lessonPosts.push(action);
+      const all = [...lessons.proposed, ...lessons.kept];
+      const x = all.find((l) => l.id === id) || this.dropped;
+      lessons.proposed = lessons.proposed.filter((l) => l.id !== id);
+      lessons.kept = lessons.kept.filter((l) => l.id !== id);
+      if (action === 'keep') lessons.kept.unshift(x);
+      if (action === 'undo') lessons.proposed.unshift(x);
+      if (action === 'drop') this.dropped = x;
+      return { ok: true, lessons: structuredClone(lessons) };
+    },
     answer() {
       const sunday = now === SUNDAY;
       return { now: new Date(now).toISOString(), todos: { items: [{ text: 'Water the plants' }], updated: now, yesterday: { count: 0, items: [] } },
@@ -85,6 +105,7 @@ async function open(viewport, { dark = false, now = SUNDAY, empty = false } = {}
   await page.route('**/api/morning/**', async (r) => {
     const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
     if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+    if (r.request().url().endsWith('/lesson')) return r.fulfill({ json: w.lesson(r.request().postDataJSON()), headers: h });
     if (r.request().url().endsWith('/week')) return r.fulfill({ json: w.act(r.request().postDataJSON()), headers: h });
     return r.fulfill({ json: w.answer(), headers: h });
   });
@@ -103,7 +124,25 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, the mirror, then four cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|What Claude learned|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, the mirror, the lessons, then four cards in order');
+  // What Claude learned: two rules to check with Keep and Drop, one kept rule under a fold.
+  check(await page.textContent('#wkLessonsNote') === '2 rules to check' && (await page.$$('#wkLessons .parks .park')).length === 2, name + ': lessons shows 2 rules to check');
+  check((await texts(page, '#wkLessons .park-from')).join() === 'Tidy,Desk' && (await page.textContent('#wkLessons .lesson-why')).startsWith('You undid 3'), name + ': each rule names its app and why');
+  check(await page.textContent('#wkLessons .wk-more') === 'Kept rules (1)', name + ': kept rules sit under a fold');
+  await page.locator('#wkLessonsCard').screenshot({ path: file(name + '-lessons') });
+  await page.click('#wkLessons [data-ls="keep"][data-id="lesson000001"]');
+  await page.waitForTimeout(300);
+  check(await page.textContent('#lsToast span') === 'Kept. Tidy follows it from now on.' && await page.textContent('#wkLessons .wk-more') === 'Kept rules (2)', name + ': Keep moves it under the fold ' + await page.textContent('#lsToast span'));
+  await page.click('#lsToast button');
+  await page.waitForTimeout(300);
+  check((await page.$$('#wkLessons .parks .park')).length === 2 && await page.textContent('#wkLessons .wk-more') === 'Kept rules (1)', name + ': Undo puts it back to check');
+  await page.click('#wkLessons .wk-more');
+  check((await texts(page, '#wkLessons .park-what')).includes('Put dentist and doctor tasks in Today.'), name + ': the fold opens the kept rules');
+  await page.click('#wkLessons [data-ls="drop"][data-id="lesson000000"]');
+  await page.waitForTimeout(300);
+  check(await page.textContent('#lsToast span') === 'Dropped.' && !(await shown(page, '#wkLessons .wk-more')), name + ': Drop takes a kept rule out');
+  check(w.lessonPosts.join() === 'keep,undo,drop', name + ': lesson posts ' + w.lessonPosts);
+  check(w.posts.length === 0, name + ': lesson buttons never touch the week route');
   check((await page.textContent('#wkPara')).startsWith('You got seven things done'), name + ': Your week paragraph shows');
   check((await page.textContent('#wkMirror')).startsWith('You tend to tick off') && await page.textContent('#wkMirrorNote') === '45 days', name + ': the mirror shows its finding and day count');
   check(await shown(page, '#wkMirrorNums') && await shown(page, '#wkMirrorTry') && await shown(page, '#wkMirrorLast'), name + ': numbers, this week and last week show');
@@ -175,6 +214,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await page.textContent('.js-say') === 'A quiet week. Nothing to clear up.', 'empty: sentence');
   check(!(await shown(page, '#wkParaCard')), 'empty: no Your week card before it is written');
   check(!(await shown(page, '#wkMirrorCard')), 'empty: no mirror card before it is written');
+  check(!(await shown(page, '#wkLessonsCard')), 'empty: no lessons card without rules');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
   await ctx.close();
