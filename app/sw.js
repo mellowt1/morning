@@ -15,6 +15,16 @@ const FILES = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-512-maskable.png',
+  './icons/apps/todo.png',
+  './icons/apps/runway.png',
+  './icons/apps/feeling.png',
+  './icons/apps/morning.png',
+  './icons/apps/hiscores.png',
+  './icons/apps/door.png',
+  './icons/apps/kitchen.png',
+  './icons/apps/lift.png',
+  './icons/apps/defence.png',
+  './icons/apps/german.ico',
 ];
 const FONTS = /^https:\/\/fonts\.(googleapis|gstatic)\.com$/;
 

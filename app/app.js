@@ -419,6 +419,17 @@
 
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
   const STATUS = { active: 'Building', next: 'Next', live: 'Live', parked: 'Parked' };
+  // A project with an app of its own shows that app's icon (copies in icons/apps; Arsenal uses the crest).
+  const APP_ICONS = [
+    [/to-?do/i, 'icons/apps/todo.png'], [/runway/i, 'icons/apps/runway.png'], [/feeling/i, 'icons/apps/feeling.png'],
+    [/morning/i, 'icons/apps/morning.png'], [/hiscores/i, 'icons/apps/hiscores.png'], [/door/i, 'icons/apps/door.png'],
+    [/kitchen/i, 'icons/apps/kitchen.png'], [/lift/i, 'icons/apps/lift.png'], [/defence/i, 'icons/apps/defence.png'],
+    [/german/i, 'icons/apps/german.ico'], [/arsenal/i, 'https://a.espncdn.com/i/teamlogos/soccer/500/359.png'],
+  ];
+  const appIcon = (name, cls) => {
+    const hit = APP_ICONS.find(([re]) => re.test(name || ''));
+    return hit ? `<img class="${cls}" src="${hit[1]}" alt="" width="18" height="18" onerror="this.remove()">` : '';
+  };
 
   function renderProjects(p, now, repos) {
     const box = $('projects');
@@ -437,19 +448,19 @@
     const of = (s) => projects.filter((x) => x.status === s);
     // Names only; what is next for a project is on hover (Paul picks it up with Claude anyway).
     const hint = (x) => (x.next ? ` title="${esc(x.next)}"` : '');
-    const rows = (list) => `<div class="rows">${list.map((x) => `<div class="proj${isNew(projKey(x))}"${hint(x)}><span class="proj-name">${esc(x.name)}</span></div>`).join('')}</div>`;
+    const rows = (list) => `<div class="rows">${list.map((x) => `<div class="proj${isNew(projKey(x))}"${hint(x)}><span class="proj-name">${appIcon(x.name, 'app-ico')}${esc(x.name)}</span></div>`).join('')}</div>`;
     // A project that has just become Your turn pops its pill once, in its first second on screen.
     const pops = (x) => fresh.has(projKey(x)) && Date.now() - (freshAt.get(projKey(x)) || 0) < 1500;
 
     // Your turn first, then one group per status: Building, Up next, Live (chips), Parked (folded).
     let html = of('waiting').map((x) => `<div class="proj proj-turn${isNew(projKey(x))}"${hint(x)}>
-        <div class="proj-top"><span class="proj-name">${esc(x.name)}</span><span class="pill${pops(x) ? ' pop' : ''}">Your turn</span></div></div>`).join('');
+        <div class="proj-top"><span class="proj-name">${appIcon(x.name, 'app-ico')}${esc(x.name)}</span><span class="pill${pops(x) ? ' pop' : ''}">Your turn</span></div></div>`).join('');
     if (of('active').length) html += subHead('Building', of('active').length) + rows(of('active'));
     if (of('next').length) html += subHead('Up next', of('next').length) + rows(of('next'));
     const live = of('live');
     if (live.length) {
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
-        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}><span class="chip-dot"></span>${esc(x.name)}</span>`).join('')}</div>`;
+        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || '<span class="chip-dot"></span>'}${esc(x.name)}</span>`).join('')}</div>`;
     }
     // Work that only lives on the PC (the daily run scans the repos). Hidden when everything is pushed.
     const unpushed = repos && ok(repos) && Array.isArray(repos.repos) ? repos.repos : [];
