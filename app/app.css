@@ -158,10 +158,13 @@ details.fold[open] > summary .tag::after { content: ''; }
 .sub-head { display: flex; align-items: baseline; gap: 8px; padding: 16px 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .sub-count { font-weight: 500; color: var(--ink); opacity: .55; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 6px; }
-.chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; font-size: 13px; font-weight: 500; background: var(--inner); border-radius: 99px; cursor: default; }
+/* Live projects: an even grid, every tile the same width with the icon in the same slot. */
+.chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; padding: 8px 0 6px; }
+.chip { display: flex; align-items: center; gap: 9px; min-width: 0; height: 38px; padding: 0 10px; font-size: 13px; font-weight: 500; background: var(--inner); border-radius: 10px; cursor: default; }
+.chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-text); }
-.chip-ico { width: 18px; height: 18px; margin-left: -5px; border-radius: 5px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
+.chip-ico { width: 20px; height: 20px; border-radius: 5px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
+.chip-ico-none { display: grid; place-items: center; box-shadow: none; }
 .app-ico { width: 20px; height: 20px; margin-right: 8px; border-radius: 5px; object-fit: cover; vertical-align: -4px; }
 
 /* ---------- Apps: a row of one-tap links under the day's sentence ---------- */

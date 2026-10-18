@@ -430,6 +430,10 @@
     const hit = APP_ICONS.find(([re]) => re.test(name || ''));
     return hit ? `<img class="${cls}" src="${hit[1]}" alt="" width="18" height="18" onerror="this.remove()">` : '';
   };
+  // Short names for the Live grid so every tile fits one line.
+  const CHIP_NAMES = [[/^simple to-?do$/i, 'To-do'], [/runway/i, 'Runway'], [/^morning/i, 'Morning'], [/^german/i, 'German'],
+    [/^arsenal ticket/i, 'Ticket watch'], [/^heartbeat/i, 'Heartbeat']];
+  const chipName = (name) => (CHIP_NAMES.find(([re]) => re.test(name)) || [, name])[1];
 
   function renderProjects(p, now, repos) {
     const box = $('projects');
@@ -457,10 +461,11 @@
         <div class="proj-top"><span class="proj-name">${appIcon(x.name, 'app-ico')}${esc(x.name)}</span><span class="pill${pops(x) ? ' pop' : ''}">Your turn</span></div></div>`).join('');
     if (of('active').length) html += subHead('Building', of('active').length) + rows(of('active'));
     if (of('next').length) html += subHead('Up next', of('next').length) + rows(of('next'));
-    const live = of('live');
+    // Apps with an icon first, the rest after, so the grid reads as one block.
+    const live = of('live').sort((a, b) => !appIcon(a.name) - !appIcon(b.name));
     if (live.length) {
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
-        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || '<span class="chip-dot"></span>'}${esc(x.name)}</span>`).join('')}</div>`;
+        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || '<span class="chip-ico chip-ico-none"><span class="chip-dot"></span></span>'}<span class="chip-name">${esc(chipName(x.name))}</span></span>`).join('')}</div>`;
     }
     // Work that only lives on the PC (the daily run scans the repos). Hidden when everything is pushed.
     const unpushed = repos && ok(repos) && Array.isArray(repos.repos) ? repos.repos : [];
