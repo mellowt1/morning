@@ -1184,8 +1184,38 @@
     const arsenal = a && !ok(a) && arsenalDirect ? arsenalDirect : a;
     renderBand(data, now, arsenal);
     renderArsenal(arsenal, now);
+    renderLift(data && data.lift, now);
     renderHiscores(data && data.hiscores);
     renderAsOf(now);
+  }
+
+  /* ---------- Gym: the routine due next in Lift's rotation, or today's workout once done ----------
+   * Lift sends paul-hub its plan and workouts (src/lift.js); the card opens Lift. */
+  const LIFT_DAY = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
+  const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  function renderLift(l, now) {
+    const card = $('lift');
+    card.hidden = !ok(l) || (!l.next && !l.doneToday);
+    if (card.hidden) return;
+    const w = l.week || {};
+    const week = w.planned ? `${w.done} of ${w.planned} this week` : w.done ? `${w.done} this week` : '';
+    if ($('liftNote').textContent !== week) $('liftNote').textContent = week;
+    let main, sub, when;
+    if (l.doneToday) {
+      const d = l.doneToday;
+      main = `${esc(d.name)} done`;
+      sub = [d.volume ? `${d.volume.toLocaleString('en-GB')} kg` : '', d.prs ? `${d.prs} PR${d.prs === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
+      when = l.next ? `Next: ${esc(l.next.name)}` : '';
+    } else {
+      const items = l.next.items || [];
+      const up = items.filter((it) => it.up).length;
+      main = esc(l.next.name);
+      sub = [`${items.length} exercise${items.length === 1 ? '' : 's'}`, up ? `<span class="lift-up">${up} going up</span>` : ''].filter(Boolean).join(' · ');
+      const today = new Date(now);
+      const tomorrow = new Date(now + 24 * 36e5);
+      when = !l.nextDay ? '' : l.nextDay === ymdLocal(today) ? 'Today' : l.nextDay === ymdLocal(tomorrow) ? 'Tomorrow' : LIFT_DAY.format(new Date(l.nextDay + 'T12:00:00'));
+    }
+    setHTML($('liftBody'), `<div class="fx-main"><span class="fx-next">${main}</span>${sub ? `<span class="fx-sub">${sub}</span>` : ''}</div>${when ? `<span class="fx-when">${when}</span>` : ''}`);
   }
 
   /* ---------- Hiscores: a small OSRS skills tab; the full page is hiscores/ ----------

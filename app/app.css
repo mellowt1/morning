@@ -526,6 +526,11 @@ details.fold[open] > summary .tag::after { content: ''; }
 
 /* ---------- Hiscores: a small OSRS skills tab (the full page is hiscores/) ---------- */
 @font-face { font-family: "RS Small"; src: url("hiscores/assets/runescape-small.ttf") format("truetype"); font-display: swap; }
+.card-lift { color: inherit; text-decoration: none; padding-bottom: 18px; }
+.card-lift[hidden] { display: none; }
+.card-lift:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.card-lift .fx-next { font-size: 17px; }
+.lift-up { color: var(--accent-text); font-weight: 600; }
 .card-hiscores { display: block; color: inherit; text-decoration: none; }
 .card-hiscores[hidden] { display: none; }
 .card-hiscores:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
