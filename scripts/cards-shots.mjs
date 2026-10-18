@@ -100,7 +100,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     agendaShown: document.querySelectorAll('#todayList .evt').length,
     arsenal: document.getElementById('arsenalBody').innerText.replace(/\s+/g, ' ').trim(),
     overflow: document.documentElement.scrollWidth > innerWidth,
-    intake: document.getElementById('intake').hidden ? -1 : [...document.querySelectorAll('#intakeList .proj')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+    intake: document.getElementById('intake').hidden ? -1 : [...document.querySelectorAll('#intakeList .read-row')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
     feed: document.getElementById('feed').hidden ? -1 : [...document.querySelectorAll('#feedList .feed-row')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
     projNext: document.querySelectorAll('#projList .proj-next').length,
     apps: document.getElementById('apps').hidden ? [] : [...document.querySelectorAll('#apps a')].map((a) => a.textContent + ' ' + a.getAttribute('href')),
@@ -116,7 +116,7 @@ const laptop = { width: 1440, height: 900 };
 
 let r = await shoot(answer(), phone, 'cards-phone');
 console.log(r);
-check(r.theme === 'light', 'light theme');
+check(r.theme === 'dark', 'always dark');
 check(r.apps.length === 2 && r.apps[1] === 'Kitchen https://example.com/kitchen/', 'apps row: two https links, javascript: dropped: ' + r.apps);
 check(r.repos.length === 2 && r.repos[0] === 'photo-archive No remote yet', 'not pushed: ' + r.repos);
 check(/^\d{2}\.\d{2}$/.test(r.date), 'date as 24.09');
@@ -148,7 +148,8 @@ check(r.tiles.some((x) => /^Bins Tomorrow GFT and Restafval out$/i.test(x)), 'bi
 check(r.tiles.some((x) => /^Yesterday 2 done$/i.test(x)), 'wins tile');
 check(r.turn === 1 && r.projects === 3 && r.chips === 2, 'projects: your turn, building, up next, two live chips');
 check(/^Parked 3$/i.test(r.parked), 'parked card header: ' + r.parked);
-check(r.intake.length === 2 && /^Insurance letter.*Mom · letter · today · 1 task$/.test(r.intake[0]) && /bill · .* · nothing to do$/.test(r.intake[1]), 'read for you: ' + r.intake);
+// One line each: kind, the gist, then its tasks (needs you) or when it was read.
+check(r.intake.length === 2 && /^letter Insurance letter.* 1 task$/i.test(r.intake[0]) && /^bill Energy bill/i.test(r.intake[1]), 'read for you: ' + r.intake);
 check(r.projNext === 0, 'projects: names only, no descriptions');
 // Plan de regreso stays off Morning, so its feed line is left out.
 check(r.feed.length === 1 && /^Nick checked in \d\d:\d\d$/.test(r.feed[0]), 'lately: one line per thing, time on the right: ' + r.feed);
@@ -159,7 +160,7 @@ check(/Arsenal v Fictional Rovers\s*Last: Lost 0 to 3 at Made Up Town/.test(r.ar
 check(!r.overflow, 'no sideways scroll on the phone');
 
 r = await shoot(answer({ dark: true }), phone, 'cards-phone-dark', null, at(0, '23:30'));
-check(r.theme === 'dark', 'dark after sunset');
+check(r.theme === 'dark', 'dark after sunset too');
 check(/\bdown\b/.test(r.sun), 'sun down at 23:30');
 check(/^Nothing more today\. Lunch with a friend tomorrow at 13:00\.$/.test(r.say), 'evening sentence: ' + r.say);
 check(r.band === null, 'no week band on the phone');

@@ -175,16 +175,9 @@
     if (instant) { void date.offsetWidth; date.classList.remove('nt'); }
   }
 
-  /* Dark between sunset and sunrise in The Hague, light otherwise. Nothing else decides.
-   * sun.js already set it before the first paint; this keeps it right as the day turns. */
-  let shownTheme = '';
-  function applyTheme(now) {
-    const theme = Sun && Sun.dark(now.valueOf()) ? 'dark' : 'light';
-    if (shownTheme === theme) return;
-    shownTheme = theme;
-    document.documentElement.dataset.theme = theme;
-    document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#111214' : '#EEEDE9');
-    document.querySelector('meta[name="color-scheme"]').setAttribute('content', theme);
+  /* Always dark since 2026-10-18 (the control-room look). sun.js sets it before the first paint. */
+  function applyTheme() {
+    document.documentElement.dataset.theme = 'dark';
   }
 
   /* ---------- Since you last looked ----------
@@ -268,9 +261,8 @@
     const m = t.match(/\s*·\s*(\d{4})-(\d{2})-(\d{2})$/);
     if (m) t = t.slice(0, m.index);
     t = t.replace(/^Apply:\s*/i, '');
-    return { name: cap(t), due: m ? +m[3] + ' ' + SHORT_MONTHS[+m[2] - 1] : null };
+    return { name: cap(t), due: m ? +m[3] + ' ' + SHORT_MONTHS[+m[2] - 1] : null, dueOn: m ? `${m[1]}-${m[2]}-${m[3]}` : null, letter: /\[intake\]$/.test(String(text)) };
   }
-  const rowName = (text) => { const n = taskName(text); return esc(n.name) + (n.due ? ` <span class="row-due">${esc(n.due)}</span>` : ''); };
 
   /* One fact tile: a small label, the value, and an optional line under it. Each is one line;
    * the whole text is on hover when a line is cut. */
@@ -409,12 +401,34 @@
     else if (!ok(t)) html += `<ul class="rows">${row("To-dos can't load right now.", '', 'empty')}</ul>`;
     else {
       const rest = t.items.slice(1);
+      html += todoProgress(t);
       html += subHead('To do', rest.length);
       html += `<ul class="rows">${rest.length
-        ? rest.map((i) => `<li class="row task${isNew(todoKey(i.text))}"><span class="circle"></span><span>${rowName(i.text)}</span></li>`).join('')
+        ? rest.map((i) => todoRow(i.text, now)).join('')
         : row(t.items.length ? 'Nothing else on the list.' : 'Nothing for today.', '', 'empty')}</ul>`;
+      // What was ticked off today stays in sight, struck through, so the card moves through the day.
+      const won = t.doneToday && Array.isArray(t.doneToday.items) ? t.doneToday.items.slice(0, 3) : [];
+      if (won.length) html += `<ul class="rows rows-done">${won.map((x) => `<li class="row task task-done"><span class="tick" aria-hidden="true"></span><span>${esc(taskName(x).name)}</span></li>`).join('')}</ul>`;
     }
     setHTML($('todayList'), html);
+  }
+
+  /* The day's progress: how many are left (the big number) and a bar of what is done today. */
+  function todoProgress(t) {
+    const left = t.items.length;
+    const done = t.doneToday && Number.isFinite(t.doneToday.count) ? t.doneToday.count : null;
+    if (done === null) return '';
+    const pct = left + done ? Math.round((done / (left + done)) * 100) : 0;
+    return `<div class="tprog"><div class="tprog-top"><span class="tprog-big">${left}</span><span class="tprog-label">left today</span>` +
+      `<span class="tprog-done">${done} done</span></div><div class="tprog-bar" role="img" aria-label="${done} of ${left + done} done today"><i style="width:${pct}%"></i></div></div>`;
+  }
+  /* One open task: the circle, the name, and on the right its date (warm from two days before) or a letter mark. */
+  function todoRow(text, now) {
+    const n = taskName(text);
+    const close = n.dueOn && daysFrom(ymd(now), n.dueOn) <= 2;
+    const meta = (n.letter ? '<span class="tmeta tmeta-letter">Letter</span>' : '') +
+      (n.due ? `<span class="tmeta${close ? ' tmeta-near' : ''}">${esc(n.due)}</span>` : '');
+    return `<li class="row task${isNew(todoKey(text))}"><span class="circle"></span><span class="task-name">${esc(n.name)}</span>${meta}</li>`;
   }
 
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
@@ -430,6 +444,7 @@
     const hit = APP_ICONS.find(([re]) => re.test(name || ''));
     return hit ? `<img class="${cls}" src="${hit[1]}" alt="" width="18" height="18" onerror="this.remove()">` : '';
   };
+  const noIcon = '<span class="chip-ico chip-ico-none"><span class="chip-dot"></span></span>';
   // Short names for the Live grid so every tile fits one line.
   const CHIP_NAMES = [[/^simple to-?do$/i, 'To-do'], [/runway/i, 'Runway'], [/^morning/i, 'Morning'], [/^german/i, 'German'],
     [/^arsenal ticket/i, 'Ticket watch'], [/^heartbeat/i, 'Heartbeat']];
@@ -465,7 +480,7 @@
     const live = of('live').sort((a, b) => !appIcon(a.name) - !appIcon(b.name));
     if (live.length) {
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
-        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || '<span class="chip-ico chip-ico-none"><span class="chip-dot"></span></span>'}<span class="chip-name">${esc(chipName(x.name))}</span></span>`).join('')}</div>`;
+        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || noIcon}<span class="chip-name">${esc(chipName(x.name))}</span></span>`).join('')}</div>`;
     }
     // Work that only lives on the PC (the daily run scans the repos). Hidden when everything is pushed.
     const unpushed = repos && ok(repos) && Array.isArray(repos.repos) ? repos.repos : [];
@@ -495,13 +510,16 @@
     $('intakeNote').textContent = b.week ? `${b.week} this week` : '';
     const when = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? (ymd(t) === ymd(now) ? 'today' : shortDate(ymd(t))) : ''; };
     const line = (r) => [whoLabel(r.who), READ_KIND[r.kind] || 'document', when(r.at), r.tasks ? `${r.tasks} task${r.tasks === 1 ? '' : 's'}` : 'nothing to do'].filter(Boolean).join(' · ');
-    const rows = (xs, cls) => `<div class="rows">${xs.map((r) => `<div class="proj proj-read${cls}"><span class="proj-name">${esc(r.summary)}</span><span class="proj-next">${esc(line(r))}</span></div>`).join('')}</div>`;
+    // One line per letter: what kind, the gist (cut to one line, all of it on hover), when.
+    // What still needs Paul comes first, on a tinted row; at most 3 lines.
+    const one = (r, needs) => `<div class="read-row${needs ? ' read-needs' : ''}" title="${esc(r.summary + ' · ' + line(r))}">` +
+      `<span class="read-kind">${esc(cap(READ_KIND[r.kind] || 'document'))}</span><span class="read-text">${esc(r.summary)}</span>` +
+      `<span class="read-when">${esc(needs && r.tasks ? `${r.tasks} task${r.tasks === 1 ? '' : 's'}` : when(r.at))}</span></div>`;
     const needs = Array.isArray(b.needs) ? b.needs : [];
     const needIds = new Set(needs.map((r) => r.id));
     const rest = (Array.isArray(b.recent) ? b.recent : []).filter((r) => !needIds.has(r.id));
-    let html = '';
-    if (needs.length) html += subHead('Needs you', needs.length) + rows(needs, ' proj-turn');
-    if (rest.length) html += subHead(needs.length ? 'Also read' : 'Read lately') + rows(rest, '');
+    const shown = [...needs.map((r) => one(r, true)), ...rest.map((r) => one(r, false))].slice(0, 3);
+    let html = shown.length ? `<div class="rows read-rows">${shown.join('')}</div>` : '';
     setHTML(list, html || `<div class="row empty"><span>Nothing read yet.</span></div>`);
   }
 
@@ -509,6 +527,8 @@
    * Newest first, a few lines, each cut to one line. The app and the full text are on hover. */
   const SOURCE_NAME = { feeling: 'Feeling', runway: 'Runway', 'arsenal-watch': 'Arsenal watch', pc: 'PC', kitchen: 'Kitchen', todo: 'To-do', intake: 'Intake', odysseus: 'Odysseus', 'defence-digest': 'Defence digest' };
   const sourceName = (s) => SOURCE_NAME[s] || String(s || '').replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  // Feed sources that are part of another app show that app's icon.
+  const SOURCE_ICON = { intake: 'todo', 'arsenal-watch': 'arsenal', 'defence-digest': 'defence' };
   const FEED_SHOWN = 4;
   function renderFeed(b, now) {
     const box = $('feed');
@@ -526,7 +546,7 @@
     const todayCount = all.filter((e) => ymd(Date.parse(e.at)) === today).length;
     $('feedNote').textContent = todayCount ? `${todayCount} today` : '';
     const when = (t) => { const d = ymd(t); return d === today ? hm(t) : d === yesterday ? 'Yesterday' : SHORT[weekday(d)]; };
-    const row = (e) => { const t = Date.parse(e.at); return `<div class="feed-row" title="${esc(sourceName(e.source) + ' · ' + e.text)}"><span class="feed-text">${esc(e.text)}</span><span class="feed-when">${esc(when(t))}</span></div>`; };
+    const row = (e) => { const t = Date.parse(e.at); return `<div class="feed-row" title="${esc(sourceName(e.source) + ' · ' + e.text)}">${appIcon(SOURCE_ICON[e.source] || e.source, 'chip-ico') || noIcon}<span class="feed-text">${esc(e.text)}</span><span class="feed-when">${esc(when(t))}</span></div>`; };
     const html = all.length ? `<div class="rows">${all.slice(0, FEED_SHOWN).map(row).join('')}</div>` : '';
     setHTML(list, html || `<div class="row empty"><span>Nothing happened yet.</span></div>`);
   }
@@ -539,7 +559,7 @@
     const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url) && !offMorning(x.name)) : [];
     const nav = $('apps');
     nav.hidden = !links.length;
-    setHTML(nav, links.map((x) => `<a class="app-link" href="${esc(x.url)}" rel="noreferrer">${esc(x.name)}</a>`).join(''));
+    setHTML(nav, links.map((x) => `<a class="app-link" href="${esc(x.url)}" rel="noreferrer">${appIcon(x.name, 'chip-ico') || noIcon}<span class="chip-name">${esc(x.name)}</span></a>`).join(''));
   }
 
   /* ---------- Parked: its own card under Projects, stares back until something is done ----------
@@ -580,7 +600,7 @@
           <button type="button" class="pbtn pbtn-drop" data-act="drop" data-id="${esc(x.id)}" aria-label="Drop: ${esc(x.text)}">Drop</button>
         </div>` : '';
       return `<div class="park lv-${lv}">
-        <span class="fold-from park-from">${esc(x.from)}</span>
+        <span class="fold-from park-from">${appIcon(x.from, 'park-ico')}${esc(x.from)}</span>
         ${x.age !== null ? `<span class="park-age">${esc(ageText(x.age))}</span>` : ''}
         <span class="park-what">${esc(x.text)}</span>${btns}</div>`;
     }).join('');
@@ -1176,7 +1196,7 @@
     const data = last && last.data;
     roll = roll && now - lastRender < 90000;
     lastRender = now.valueOf();
-    applyTheme(now);
+    applyTheme();
     renderHead(now, roll);
     const week = renderWeekView(data, now);
     if (week) {

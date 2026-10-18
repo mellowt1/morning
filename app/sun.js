@@ -46,8 +46,8 @@
 
   root.MorningSun = { alt, day, dark, HORIZON };
 
-  // Before the first paint: the theme follows the sun and nothing else.
+  // Morning is always dark (2026-10-18); the sun still drives the stop beside the date.
   if (typeof document !== 'undefined' && document.documentElement) {
-    document.documentElement.dataset.theme = dark(Date.now()) ? 'dark' : 'light';
+    document.documentElement.dataset.theme = 'dark';
   }
 })(typeof self !== 'undefined' ? self : globalThis);
