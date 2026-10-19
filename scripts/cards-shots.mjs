@@ -116,7 +116,7 @@ const laptop = { width: 1440, height: 900 };
 
 let r = await shoot(answer(), phone, 'cards-phone');
 console.log(r);
-check(r.theme === 'dark', 'always dark');
+check(r.theme === 'light', 'one daylight theme');
 check(r.apps.length === 2 && r.apps[1] === 'Kitchen https://example.com/kitchen/', 'apps row: two https links, javascript: dropped: ' + r.apps);
 check(r.repos.length === 2 && r.repos[0] === 'photo-archive No remote yet', 'not pushed: ' + r.repos);
 check(/^\d{1,2} [A-Z][a-z]+$/.test(r.date), 'the date reads "19 October" to a screen reader: ' + r.date);
@@ -161,7 +161,7 @@ check(/Arsenal v Fictional Rovers\s*Last: Lost 0 to 3 at Made Up Town/.test(r.ar
 check(!r.overflow, 'no sideways scroll on the phone');
 
 r = await shoot(answer({ dark: true }), phone, 'cards-phone-dark', null, at(0, '23:30'));
-check(r.theme === 'dark', 'dark after sunset too');
+check(r.theme === 'light', 'the same daylight board after sunset');
 check(/\bdown\b/.test(r.sun), 'sun down at 23:30');
 check(/^Nothing more today\. Lunch with a friend tomorrow at 13:00\.$/.test(r.say), 'evening sentence: ' + r.say);
 check(r.band === null, 'no week band on the phone');
@@ -180,6 +180,22 @@ check(r.tiles.some((x) => /^Bins Tomorrow/i.test(x)) && r.tiles.some((x) => /^Co
 await shoot(answer({ dark: true }), laptop, 'cards-laptop-dark', null, at(0, '23:30'));
 await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
 
+// The read-outs (PC): next thing, left today, then tonight or Arsenal; never the same thing twice.
+{
+  let ro = [];
+  let sayShown = true;
+  const grab = async (page) => {
+    ro = await page.evaluate(() => [...document.querySelectorAll('#readouts .ro')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()));
+    sayShown = await page.evaluate(() => getComputedStyle(document.querySelector('.js-say')).display !== 'none');
+  };
+  await shoot(answer(), laptop, '', grab);
+  check(ro.length === 3 && ro[0] === 'Next at 23:00 Quiz night' && ro[1] === 'Left today 3 on the list' && /^Arsenal \w+ \d\d:\d\d Arsenal v Fictional Rovers$/.test(ro[2]) && !sayShown,
+    'read-outs: ' + JSON.stringify(ro) + ' say shown: ' + sayShown);
+  await shoot(answer({ dinner: { away: [{ date: day(0), title: 'Harbour Cafe - Table 4', start: '19:30' }] } }), laptop, '', grab, at(0, '22:40'));
+  check(ro[0] === 'Next, in 20 min 23:00 Quiz night' && /^Arsenal /.test(ro[2] || ''), 'read-outs at 22:40: the night out is past, so Arsenal: ' + JSON.stringify(ro));
+  await shoot(answer({ dinner: { away: [{ date: day(0), title: 'Harbour Cafe - Table 4', start: '19:30' }] } }), laptop, '', grab);
+  check(ro[2] === 'Tonight 19:30 Harbour Cafe', 'read-outs: a night out is Tonight: ' + JSON.stringify(ro));
+}
 // Today: the next three to-dos, then "+N more" into the to-do app.
 {
   const items = ['One', 'Two', 'Three', 'Four', 'Five', 'Six'].map((text) => ({ text }));

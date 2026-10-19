@@ -177,9 +177,9 @@
     if (instant) { void date.offsetWidth; date.classList.remove('nt'); }
   }
 
-  /* Always dark since 2026-10-18 (the control-room look). sun.js sets it before the first paint. */
+  /* One light theme since 2026-10-19 (the daylight strip board). sun.js sets it before the first paint. */
   function applyTheme() {
-    document.documentElement.dataset.theme = 'dark';
+    document.documentElement.dataset.theme = 'light';
   }
 
   /* ---------- Since you last looked ----------
@@ -418,22 +418,26 @@
 
   const TODO_SHOWN = 3;
 
-  /* The day's progress: how many are left (the big number) and a bar of what is done today. */
+  /* The day's progress: how many are left (the big number) and one tick per thing on today's
+   * list, the done ones filled (at most 24 ticks; past that each tick stands for more than one). */
   function todoProgress(t) {
     const left = t.items.length;
     const done = t.doneToday && Number.isFinite(t.doneToday.count) ? t.doneToday.count : null;
     if (done === null) return '';
-    const pct = left + done ? Math.round((done / (left + done)) * 100) : 0;
+    const total = left + done;
+    const cells = Math.max(1, Math.min(total, 24));
+    const on = total ? Math.round((done / total) * cells) : 0;
     return `<div class="tprog"><div class="tprog-top"><span class="tprog-big">${left}</span><span class="tprog-label">left today</span>` +
-      `<span class="tprog-done">${done} done</span></div><div class="tprog-bar" role="img" aria-label="${done} of ${left + done} done today"><i style="width:${pct}%"></i></div></div>`;
+      `<span class="tprog-done">${done} done</span></div><div class="tticks" role="img" aria-label="${done} of ${total} done today" style="--n:${cells}">` +
+      `${'<i class="on"></i>'.repeat(on)}${'<i></i>'.repeat(cells - on)}</div></div>`;
   }
-  /* One open task: the circle, the name, and on the right its date (warm from two days before) or a letter mark. */
+  /* One open task: a strip with the name, and on the right its date (warm from two days before) or a letter mark. */
   function todoRow(text, now) {
     const n = taskName(text);
     const close = n.dueOn && daysFrom(ymd(now), n.dueOn) <= 2;
     const meta = (n.letter ? '<span class="tmeta tmeta-letter">Letter</span>' : '') +
       (n.due ? `<span class="tmeta${close ? ' tmeta-near' : ''}">${esc(n.due)}</span>` : '');
-    return `<li class="row task${isNew(todoKey(text))}"><span class="circle"></span><span class="task-name">${esc(n.name)}</span>${meta}</li>`;
+    return `<li class="row task${isNew(todoKey(text))}"><span class="task-name">${esc(n.name)}</span>${meta}</li>`;
   }
 
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
@@ -1182,6 +1186,63 @@
     return parts.join(' ');
   }
 
+  /* ---------- The read-outs: three tiles in the header (PC) ----------
+   * Next (what is on now, or the next thing and how long until it), Left today (with what is
+   * done), Tonight (a night out or an evening event, else Arsenal's next match this week).
+   * Rebuilt on the minute tick, so "in 29 min" counts down. Tonight never repeats Next. */
+  const placeOf = (title) => cap(String(title || 'Out').split(/\s+[-–—:]\s+/)[0].trim());
+  const dur = (ms) => { const m = inMin(ms); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`; };
+  const readout = (k, v, s, near = false) =>
+    `<div class="ro${near ? ' ro-near' : ''}"><span class="ro-k">${esc(k)}</span><b class="ro-v">${esc(v)}</b><span class="ro-s">${esc(s)}</span></div>`;
+
+  function renderReadouts(data, now, arsenal) {
+    const box = $('readouts');
+    if (!data) { box.hidden = true; return; }
+    const t = now.valueOf();
+    const today = ymd(now);
+    const tiles = [];
+    // Next
+    const days = calendarDays(data, now);
+    const timed = ((days.find((d) => d.date === today) || { list: [] }).list).filter((e) => !e.allDay);
+    const cur = timed.find((e) => e.s <= t && e.en > t);
+    const nxt = timed.find((e) => e.s > t);
+    let nextAt = '';
+    if (cur) tiles.push(readout('Now, until', timeOf(cur.end), cur.title));
+    else if (nxt) {
+      nextAt = hm(nxt.s);
+      const left = nxt.s - t;
+      tiles.push(left <= 90 * MIN ? readout('Next, in', dur(left), `${nextAt} ${nxt.title}`, left <= 10 * MIN) : readout('Next at', nextAt, nxt.title));
+    } else {
+      const later = days.find((d) => d.date > today);
+      if (later) {
+        const e = later.list[0];
+        tiles.push(readout('Next', later.date === addDays(today, 1) ? 'Tomorrow' : DAYS[weekday(later.date)], `${e.allDay ? 'All day' : hm(e.s)} ${shortTitle(e.title)}`));
+      }
+    }
+    // Left today
+    const td = data.todos;
+    if (ok(td)) {
+      const done = td.doneToday && Number.isFinite(td.doneToday.count) ? td.doneToday.count : null;
+      tiles.push(readout('Left today', String(td.items.length), !td.items.length ? 'All clear' : done !== null ? `${done} done so far` : 'on the list'));
+    }
+    // Tonight, else Arsenal
+    const away = nextAway(data.dinner, now);
+    const evening = timed.find((e) => e.s > t && +hm(e.s).slice(0, 2) >= 17 && hm(e.s) !== nextAt);
+    const n = ok(arsenal) && arsenal.next;
+    const k = n ? Date.parse(n.kickoff) : NaN;
+    const awayOn = away && away.date === today && !(away.start && hm(now) >= away.start) && (away.start || '') !== nextAt;
+    if (awayOn) tiles.push(readout('Tonight', away.start || 'Out', placeOf(away.title)));
+    else if (evening) tiles.push(readout('Tonight', hm(evening.s), evening.title));
+    else if (n && ymd(k) <= addDays(today, 6)) {
+      const live = n.live || (k <= t && t - k < 150 * MIN);
+      const kd = ymd(k);
+      tiles.push(readout('Arsenal', live ? 'Live' : kd === today ? hm(k) : kd === addDays(today, 1) ? 'Tomorrow' : DAYS[weekday(kd)],
+        `${live || kd === today ? '' : hm(k) + ' '}${n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`}`));
+    }
+    box.hidden = !tiles.length;
+    setHTML(box, tiles.join(''));
+  }
+
   function renderSay(data, now) {
     const el = document.querySelector('.js-say');
     const s = daySentence(data, now);
@@ -1236,6 +1297,7 @@
     const a = data && data.arsenal;
     const arsenal = a && !ok(a) && arsenalDirect ? arsenalDirect : a;
     renderBand(data, now, arsenal);
+    renderReadouts(data, now, arsenal);
     renderArsenal(arsenal, now);
     renderLift(data && data.lift, now);
     renderHiscores(data && data.hiscores);

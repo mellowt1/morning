@@ -46,8 +46,8 @@
 
   root.MorningSun = { alt, day, dark, HORIZON };
 
-  // Morning is always dark (2026-10-18); the sun still drives the stop beside the date.
+  // Morning is a daylight board (2026-10-19); the sun still drives the stop beside the date.
   if (typeof document !== 'undefined' && document.documentElement) {
-    document.documentElement.dataset.theme = 'dark';
+    document.documentElement.dataset.theme = 'light';
   }
 })(typeof self !== 'undefined' ? self : globalThis);

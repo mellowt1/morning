@@ -1,32 +1,50 @@
-/* Morning Screen, control room: white cards turned dark on a near-black ground, one typeface
- * (Geist). Green only marks what needs Paul (Start with, Your turn, Prepare, a letter that needs
- * him); progress, ticks and links stay neutral. Always dark since 2026-10-18 (Paul picked "B");
+/* Morning Screen, the strip bay (picked 2026-10-19): an air-traffic controller's strip board,
+ * in daylight (a tower's light grey board, picked the same day: easier on the eyes when the page
+ * stays open all day). Racks on a light steel bay; dated things are white strips whose holder
+ * edge says what kind of thing it is (task, event, fact, Arsenal). The one next thing is the
+ * strip in hand: pulled out, bigger, green edge. Green only marks what needs Paul (Start with,
+ * Your turn, Prepare, a letter that needs him). Barlow for words and labels (plain case, no tracking), Barlow Condensed for figures;
  * the PC view is the one that matters. Phone one column, tablet two, PC three with the week
  * under Desk and Read for you. Time words (Tonight, Now, in 12 min) are ink or amber, never green. */
 
 :root,
 :root[data-theme] {
-  --ground: #0B0C0E;
-  --card: #16181B;
-  --inner: #1F2226;
-  --ink: #F1F2F4;
-  --muted: #8E939C;
-  --rule: #24272B;
+  --ground: #CBD1D8;   /* the bay */
+  --card: #E7EAEE;     /* a rack */
+  --inner: #DADFE5;    /* a recess in the rack (week days, Your turn) */
+  --ink: #15181C;
+  --muted: #545E6B;    /* 5.5:1 on a rack */
+  --rule: #CCD2D9;
+  --rack-hi: #F6F7F9;
+  --rack-lo: #B3BCC6;
+  /* the strips */
+  --paper: #FFFFFF;
+  --paper-done: #EEF0F2;
+  --paper-ink: #16181B;
+  --paper-2: #5E5A50;  /* 5.7:1 on paper */
+  --paper-rule: #CFC8B5;
+  --paper-green: #217A4B;
+  --paper-amber: #9A5B00;
+  --h-task: #CFC7B3;
+  --h-event: #7FA6CF;
+  --h-fact: #E2A93B;
+  --h-ars: #D2363C;
+  --h-blank: #BDB6A4;
   --accent: #2E9A63;
-  --accent-text: #5FD497;
+  --accent-text: #217A4B;
   --accent-fill: #247F51; /* behind white text: 5:1 */
   --accent-fill-press: #1C6A42;
   --on-accent: #FFFFFF;
   --arsenal: #F2878A;
   --sun: #D8AE5E;
   --start-press: #25814F;
-  --amber-bg: #3A2E1A;
-  --amber-ink: #F0C27A;
-  --red-bg: #3A1D20;
-  --red-ink: #F5A3A5;
-  --red-row: #2A1A1C;
-  --btn-rule: #33373D;
-  color-scheme: dark;
+  --amber-bg: #F6E7C8;
+  --amber-ink: #8A5300;
+  --red-bg: #F7DADB;
+  --red-ink: #9E2A2E;
+  --red-row: #FAE9EA;
+  --btn-rule: #B9C1CA;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -38,7 +56,7 @@ html, body {
 }
 
 body {
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: 'Barlow', system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
@@ -75,7 +93,9 @@ a:hover { opacity: .8; }
 .clock { display: flex; flex-direction: row; gap: 5px; text-align: right; }
 .clock-label { font-size: 12px; font-weight: 500; color: var(--muted); }
 .clock-time { font-size: 12px; font-weight: 500; color: var(--muted); }
-.clock-here { order: -1; margin-bottom: 5px; font-size: 28px; font-weight: 500; line-height: .9; letter-spacing: -.02em; }
+.clock-home { order: -1; }
+.clock-home .clock-label { display: none; }
+.clock-here { margin-bottom: 5px; font-size: 28px; font-weight: 500; line-height: .9; letter-spacing: -.02em; }
 /* Offline, or the copy is old: one amber line by the clock (the footer says the same, small). */
 .stale { order: 3; margin-top: 6px; padding: 3px 9px; border-radius: 99px; background: var(--amber-bg); color: var(--amber-ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
 
@@ -102,7 +122,7 @@ a:hover { opacity: .8; }
 .card-note:empty { display: none; }
 .card-foot { padding: 4px 0 12px; }
 
-.card-start { gap: 10px; padding: 22px; background: var(--card); color: var(--ink); box-shadow: inset 4px 0 0 var(--accent); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .24s cubic-bezier(.2, .7, .2, 1), background-color .24s ease; }
+.card-start { gap: 10px; padding: 22px; background: var(--card); color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: transform .24s cubic-bezier(.2, .7, .2, 1), background-color .24s ease; }
 a.card-start:hover { opacity: 1; background: var(--inner); }
 a.card-start:active { transform: scale(.985); background: var(--inner); transition-duration: .09s; }
 a.card-start:focus-visible, .card-link:focus-visible, .more-link:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
@@ -391,8 +411,8 @@ details.fold[open] > summary .tag::after { content: ''; }
     rgba(216, 174, 94, .02) 84%,
     rgba(216, 174, 94, 0) 100%);
 }
-/* The page is always dark, so with the sun up the pool is gold at low strength, never a white blob. */
-:root[data-theme="dark"] .date:has(.sun-stop.up)::before {
+/* With the sun up the pool is gold at low strength, never a white blob. */
+:root .date:has(.sun-stop.up)::before {
   background: radial-gradient(closest-side,
     rgba(216, 174, 94, .2) 0%, rgba(216, 174, 94, .12) 40%,
     rgba(216, 174, 94, .04) 75%, rgba(216, 174, 94, 0) 100%);
@@ -567,8 +587,8 @@ details.fold[open] > summary .tag::after { content: ''; }
 .card-hiscores[hidden] { display: none; }
 .card-hiscores:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .hs-up { color: var(--ink); font-weight: 600; }
-.hs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 8px; padding: 4px; border-radius: 6px; background: #2a2620; box-shadow: inset 1px 1px 0 #3d372e, inset -1px -1px 0 #16130f; }
-.hs-slot { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 10px 0 8px; background: linear-gradient(180deg, #3b352c 0%, #332e26 45%, #29251f 100%); box-shadow: inset 1px 1px 0 #4a4337, inset -1px -1px 0 #1b1813; }
+.hs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 8px; padding: 4px; border-radius: 6px; background: #3e3529; box-shadow: inset 1px 1px 0 #5d5242, inset -1px -1px 0 #221d16; }
+.hs-slot { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 10px 0 8px; background: linear-gradient(180deg, #554a3b 0%, #4a4033 45%, #3a3128 100%); box-shadow: inset 1px 1px 0 #6b5f4c, inset -1px -1px 0 #29231a; }
 .hs-slot img { image-rendering: pixelated; }
 .hs-slot b, .hs-slot small { font-family: "RS Small", monospace; font-weight: normal; color: #ff0; text-shadow: 1px 1px 0 #000; -webkit-font-smoothing: none; }
 .hs-slot b { font-size: 16px; }
@@ -577,7 +597,7 @@ details.fold[open] > summary .tag::after { content: ''; }
 .hs-slot.up { animation: hs-glow 1.6s steps(2) 2; outline: 1px solid rgba(255, 255, 0, .4); outline-offset: -1px; }
 @keyframes hs-glow { 50% { filter: brightness(1.45); } }
 .hs-total { justify-content: center; gap: 6px; }
-.card-hiscores:hover .hs-grid { box-shadow: inset 1px 1px 0 #3d372e, inset -1px -1px 0 #16130f, 0 0 0 2px var(--muted); }
+.card-hiscores:hover .hs-grid { box-shadow: inset 1px 1px 0 #5d5242, inset -1px -1px 0 #221d16, 0 0 0 2px var(--muted); }
 @media (prefers-reduced-motion: reduce) { .hs-slot.up { animation: none; } }
 
 /* ---------- Footer ---------- */
@@ -595,7 +615,9 @@ details.fold[open] > summary .tag::after { content: ''; }
   .clock { flex-direction: column; gap: 2px; }
   .clock-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
   .clock-time { font-size: 20px; }
-  .clock-here { order: 0; margin: 0; font-size: 36px; letter-spacing: -.03em; }
+  .clock-home { order: 0; }
+  .clock-home .clock-label { display: block; text-align: right; }
+  .clock-here { margin: 0; font-size: 40px; letter-spacing: 0; }
   .clocks { flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; row-gap: 8px; }
   .stale { flex-basis: 100%; margin: 0; padding: 0; background: none; text-align: right; }
   .say { padding: 0 6px; font-size: 19px; }
@@ -629,11 +651,12 @@ details.fold[open] > summary .tag::after { content: ''; }
 
 @media (min-width: 1100px) {
   .page { max-width: 1320px; padding: 44px 48px 32px; gap: 28px; }
-  .date { font-size: 56px; }
+  .date { font-size: 60px; }
   .say { font-size: 20px; margin-top: -10px; }
+  .clock-here { font-size: 58px; }
   /* Start with is the loudest thing on the page: the one next thing. */
   .card-start { padding: 28px 30px 30px; gap: 14px; }
-  .start-text { font-size: 44px; line-height: 1.05; letter-spacing: -.03em; }
+  .start-text { font-size: 48px; line-height: 1; letter-spacing: 0; }
   /* Left: now (Start, Today, Gym, Parked), the full height. Right: Desk and Read for you, the
    * week under them, then Projects and Arsenal, Lately and Hiscores. The last row takes the
    * slack, so the week sits right under the top cards however long the left column runs. */
@@ -680,3 +703,155 @@ details.fold[open] > summary .tag::after { content: ''; }
   .bi.is-new::before { left: -9px; top: 1px; margin-top: 0; }
   .bd:first-child .bi.is-new::before { left: -12px; }
 }
+
+/* ===================== The strip bay =====================
+ * Everything above lays the page out; this layer dresses it. Racks hold strips; a strip is
+ * paper with a coloured holder edge and, where it has one, a time field ruled off on the left.
+ * Labels speak in Barlow Condensed caps, words in Barlow. */
+/* Labels read as words: plain case, no tracking. Condensed is kept for figures and buttons. */
+.tprog-done, .pill, .pbtn, .bi-time, .tmeta, .card-link, .seg button, .wk-more {
+  font-family: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
+}
+.num, .sub-head, .clock-label, .bd-wd, .tile-label, .read-kind, .fold-from, .start-go, .more-link, .eyebrow {
+  font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none;
+}
+.tile-label, .sub-head, .fold-from, .read-kind { font-size: 14px; }
+.card-note, .feed-when, .read-when, .park-oldest { font-size: 14px; letter-spacing: 0; }
+.card-link { font-size: 15px; font-weight: 600; letter-spacing: .01em; color: var(--muted); }
+.card-link:hover { color: var(--ink); opacity: 1; }
+
+/* The tower: the date in big condensed figures, the clocks by city. */
+.date { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 700; letter-spacing: 0; line-height: .86; }
+.eyebrow { color: var(--muted); }
+.clock-here, .clock-time { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 600; }
+.clock-time { font-size: 15px; }
+@media (min-width: 720px) { .clock-time { font-size: 26px; } }
+.say { font-weight: 500; }
+
+/* The apps row: rack-coloured tabs. */
+.app-link { height: 38px; background: var(--card); border-radius: 3px; font-size: 15px; font-weight: 600; box-shadow: inset 0 1px 0 var(--rack-hi), 0 1px 0 var(--rack-lo); }
+.app-link:hover { background: #F2F4F6; }
+
+/* Racks. */
+.card { border-radius: 6px; box-shadow: inset 0 1px 0 var(--rack-hi), inset 0 -2px 0 var(--rack-lo); }
+
+/* The strip in hand: Start with, pulled out of the rack. */
+.card-start { background: var(--paper); color: var(--paper-ink); border-radius: 2px; border-left: 14px solid var(--accent); box-shadow: 0 8px 20px rgba(30, 40, 55, .18); transform: rotate(-.4deg); }
+a.card-start:hover { background: #F7F8F9; }
+a.card-start:active { background: #F7F8F9; transform: rotate(-.4deg) scale(.985); }
+.card-start .num { color: var(--paper-green); }
+.start-text { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 700; letter-spacing: 0; }
+@media (min-width: 1100px) { .card-start { margin-left: -14px; } }
+
+/* Lists in a rack (to-dos, today's events, letters) are calm rows on the rack, each with a short
+ * holder tick in its kind's colour. Paper is kept for what is dated or needs Paul: Start with,
+ * the fact strips, the week and Desk's prepared rows (picked 2026-10-19 over full strips). */
+.desk-act { background: var(--paper); color: var(--paper-ink); border-left: 10px solid var(--h-blank); border-radius: 2px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+.row.task, .read-row { position: relative; }
+.row.task { padding: 11px 0 11px 16px; font-size: 17px; }
+.row.task::before, .read-row::before { content: ''; position: absolute; left: 0; top: 50%; width: 5px; height: 18px; margin-top: -9px; border-radius: 1px; background: var(--h-task); }
+.read-needs::before { background: var(--accent); }
+.task-name { font-weight: 500; }
+.tmeta { padding: 0; background: none; color: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+.tmeta-near { background: none; color: var(--amber-ink); }
+.rows-done { margin-top: 0; }
+.row.task.task-done { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
+.row.task.task-done::before { background: #B3BBC4; }
+.task-done .tick { display: none; }
+.row.evt { font-size: 17px; }
+.tile .soon-text, .bi .soon-text { color: var(--paper-ink); }
+.tile .near-text, .bi .near-text { color: var(--paper-amber); }
+.bi .nd { border-color: var(--paper-2); }
+.bi .nd.next, .bi .nd.on { background: var(--paper-ink); border-color: var(--paper-ink); }
+.bi .nd.next::after { border-color: var(--paper-ink); }
+.more-link { min-height: 40px; border-top: 0; color: var(--muted); }
+.sub-head { padding-bottom: 6px; }
+.sub-count { opacity: 1; color: var(--muted); }
+
+/* Today's count: the number left, and one tick per thing on today's list (done ones filled). */
+.tprog { padding: 16px 2px 12px; }
+.tprog-big { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 44px; font-weight: 700; letter-spacing: 0; }
+.tprog-done { font-size: 16px; letter-spacing: .02em; }
+.tticks { display: grid; grid-template-columns: repeat(var(--n, 10), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.tticks i { height: 5px; border-radius: 1px; background: #C4CBD3; }
+.tticks i.on { background: var(--ink); }
+
+/* Fact strips (dinner, eating out, bins, cleaning, yesterday): short strips, amber holder. */
+.tiles { gap: 5px; }
+.tile { background: var(--paper); color: var(--paper-ink); border-radius: 2px; border-left: 6px solid var(--h-fact); padding: 9px 12px 10px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+.tile-label, .tile-sub { color: var(--paper-2); }
+.tile .accent-text { color: var(--paper-green); }
+.wins i { background: var(--paper-2); }
+.wins b { color: var(--paper-2); }
+
+/* Read for you: one row per letter, the kind in condensed caps; a letter that needs Paul gets
+ * the green tick and green words. */
+.read-rows { padding: 4px 0 10px; }
+.read-row { padding: 11px 0 11px 16px; font-size: 16px; }
+.read-kind { width: 52px; color: var(--muted); }
+.read-needs { margin: 0; background: none; border-radius: 0; }
+.rows > * + .read-needs, .rows > .read-needs + * { border-top: 1px solid var(--rule); }
+.read-needs .read-kind, .read-needs .read-when { color: var(--accent-text); }
+
+/* Desk: a blank strip to write on. */
+.desk-input { min-height: 50px; padding: 0 14px; border: 0; border-left: 10px solid var(--h-blank); border-radius: 2px; background: #FFFFFF; color: var(--paper-ink); font-size: 16px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+.desk-input::placeholder { color: #6E6957; }
+.desk-input:focus { background: #FFFFFF; outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.desk-form { align-items: center; }
+.pbtn { border-radius: 3px; font-size: 15px; letter-spacing: .02em; }
+.desk-act { padding: 12px 14px; border-left-color: var(--h-blank); background: var(--paper); }
+.desk-act .fold-from, .desk-said { color: var(--paper-2); }
+.desk-act .pbtn-done { color: var(--paper-ink); border-color: var(--h-blank); }
+.desk-act .pbtn-drop { color: var(--paper-2); }
+.desk-act .desk-state { color: var(--paper-ink); }
+.desk-act.is-done { background: none; border-left-color: transparent; box-shadow: none; color: var(--ink); }
+.desk-act.is-done .fold-from { color: var(--muted); }
+.desk-edit { background: #FFFFFF; color: var(--paper-ink); border-color: var(--h-blank); }
+.desk-said { color: var(--muted); }
+
+/* Projects and Lately stay on the rack: icon, name, time. */
+.pill { font-size: 13px; letter-spacing: .06em; border-radius: 3px; background: var(--accent-fill); }
+.proj-turn { background: var(--inner); border-radius: 3px; }
+.fx-next { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: .01em; }
+.feed-row, .chip { font-size: 15px; }
+
+/* The week: seven bays, the day's strips standing in each. Today's bay is lit. */
+@media (min-width: 1100px) {
+  .band-days { gap: 6px; }
+  .bd { padding: 8px 7px 10px; border-radius: 3px; background: var(--inner); }
+  .bd:first-child { padding-left: 7px; }
+  .bd:last-child { padding-right: 7px; }
+  .bd + .bd { border-left: 0; }
+  .bd.today { background: #F6F7F9; box-shadow: inset 0 0 0 1px #A9B2BC; }
+  .bd-head { flex-direction: row; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .bd-num { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 26px; font-weight: 700; letter-spacing: 0; color: var(--ink); }
+  .bd.today .bd-num { text-decoration: none; }
+  .bd-items { gap: 5px; }
+  .bi { padding: 6px 6px 7px; background: var(--paper); color: var(--paper-ink); border-left: 6px solid var(--h-event); border-radius: 2px; font-size: 13px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+  .bi-time { color: var(--paper-2); font-size: 14px; font-weight: 600; letter-spacing: .02em; }
+  .bi-place { color: var(--paper-2); }
+  /* Condensed in the narrow bays, so a word fits its strip instead of breaking in two. */
+  .bi-title { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 15px; font-weight: 500; line-height: 1.2; overflow-wrap: break-word; hyphens: auto; }
+  .bi-fact, .bi-bday { border-left-color: var(--h-fact); }
+  .bi-fact .bi-title { color: var(--paper-ink); }
+  .bi-arsenal { border-left-color: var(--h-ars); }
+  .bi-live { color: #B3202A; }
+  .bi:has(.nd.next) { box-shadow: 0 0 0 2px var(--ink); }
+  .bi.bi-more { padding: 2px 2px 0; background: none; border: 0; box-shadow: none; color: var(--muted); }
+}
+
+/* ---------- The read-outs (PC): next thing, left today, tonight, between the date and the clocks ----------
+ * Tower read-outs: a small label, one big condensed figure, one line under it. Next turns amber in
+ * its last ten minutes. On the PC they replace the sentence under the date, which says the same. */
+.readouts { display: none; }
+@media (min-width: 1100px) {
+  .readouts { flex: 1; min-width: 0; max-width: 700px; margin: 0 40px 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-self: center; }
+  .readouts[hidden] { display: none; }
+  .page:has(#readouts:not([hidden])) .say { display: none; }
+  .head { align-items: center; }
+}
+.ro { min-width: 0; padding: 12px 16px 14px; background: var(--card); border-radius: 3px; box-shadow: inset 0 1px 0 var(--rack-hi), 0 1px 0 var(--rack-lo); }
+.ro-k { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }
+.ro-v { display: block; margin-top: 2px; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 36px; font-weight: 700; line-height: 1; letter-spacing: 0; }
+.ro-s { display: block; margin-top: 5px; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ro-near .ro-v { color: var(--amber-ink); }
