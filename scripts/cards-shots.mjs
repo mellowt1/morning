@@ -119,7 +119,7 @@ console.log(r);
 check(r.theme === 'dark', 'always dark');
 check(r.apps.length === 2 && r.apps[1] === 'Kitchen https://example.com/kitchen/', 'apps row: two https links, javascript: dropped: ' + r.apps);
 check(r.repos.length === 2 && r.repos[0] === 'photo-archive No remote yet', 'not pushed: ' + r.repos);
-check(/^\d{2}\.\d{2}$/.test(r.date), 'date as 24.09');
+check(/^\d{1,2} [A-Z][a-z]+$/.test(r.date), 'the date reads "19 October" to a screen reader: ' + r.date);
 check(r.start === 'Email the landlord about the heating', 'start with');
 check(r.tasks.length === 2, 'two to-dos after Start with');
 check(/^Good afternoon · \w+day$/.test(r.eyebrow), 'greeting and weekday');
@@ -128,14 +128,15 @@ check(/\bup\b/.test(r.sun), 'sun up at 13:00');
 check(/^\.\.\/todo\/\?c=/.test(r.href), 'Start with opens the to-do app');
 check(r.agenda.length === 1 && /^23:00 Quiz night$/.test(r.agenda[0]) && r.nextDot === 1, 'today holds today: ' + r.agenda);
 check(r.tiles.length === 6, 'tiles: dinner, bins, birthday, countdown, cleaning, yesterday');
-// Out for dinner (the hub's dinner.away from Day): one tile per date, the title, on both widths.
+// Out for dinner (the hub's dinner.away from Day): the next night out only, on both widths.
+// On that night the Dinner tile gives way; the dough still shows when it needs mixing.
 {
-  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(day(2) + 'T12:00:00').getDay()];
   const dinner = { away: [{ date: day(0), title: 'dinner with a friend', start: '19:30' }, { date: day(2), title: 'Team dinner', start: '18:30' }] };
   for (const [vp, name] of [[phone, 'cards-phone-away'], [laptop, 'cards-laptop-away']]) {
     const a = await shoot(answer({ dinner }), vp, name);
     const out = a.tiles.filter((t) => /^eating out/i.test(t)).map((t) => t.replace(/^eating out /i, ''));
-    check(out.length === 2 && out[0] === 'Dinner with a friend Tonight 19:30' && out[1] === `Team dinner ${wd} 18:30`, name + ': ' + out);
+    check(out.length === 1 && out[0] === 'Dinner with a friend Tonight 19:30', name + ': ' + out);
+    check(!a.tiles.some((t) => /^dinner /i.test(t)) && a.tiles.some((t) => /^dough mix the dough today/i.test(t)), name + ': no Dinner tile on a night out: ' + a.tiles);
   }
   const place = await shoot(answer({ dinner: { away: [{ date: day(1), title: 'Harbour Cafe - Table 4', start: '20:00' }] } }), laptop, '');
   check(place.tiles.some((t) => t === 'EATING OUT Harbour Cafe Tomorrow 20:00' || t === 'Eating out Harbour Cafe Tomorrow 20:00'), 'eating out shows the place only: ' + place.tiles);
@@ -178,6 +179,49 @@ check(r.agendaShown === 0 && r.week === 4 && !r.tiles.some((x) => /^Birthday/i.t
 check(r.tiles.some((x) => /^Bins Tomorrow/i.test(x)) && r.tiles.some((x) => /^Countdown/i.test(x)), 'bins out tomorrow and a countdown 12 days off stay in Today');
 await shoot(answer({ dark: true }), laptop, 'cards-laptop-dark', null, at(0, '23:30'));
 await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
+
+// Today: the next three to-dos, then "+N more" into the to-do app.
+{
+  const items = ['One', 'Two', 'Three', 'Four', 'Five', 'Six'].map((text) => ({ text }));
+  let more = '';
+  const m = await shoot(answer({ todos: { items, updated: null, yesterday: { count: 0, items: [] } } }), laptop, '', async (page) => {
+    more = await page.evaluate(() => { const a = document.querySelector('#todayList .more-link'); return a ? a.textContent + ' ' + a.getAttribute('href') : ''; });
+  });
+  check(m.tasks.length === 3 && /^\+2 more \.\.\/todo\/\?c=/.test(more), 'three to-dos and +2 more: ' + m.tasks + ' / ' + more);
+}
+// Projects: Live leaves out what the apps row already has. Lately leaves out what the page shows.
+{
+  const p = answer().projects;
+  const d = await shoot(answer({
+    projects: { ...p, projects: [...p.projects, { name: 'Kitchen', status: 'live', next: '' }] },
+    events: { events: [
+      { id: 'a', source: 'feeling', kind: 'checkin', text: 'Nick checked in', at: new Date(Date.now() - 6e5).toISOString() },
+      { id: 'b', source: 'day', kind: 'dinner', text: 'Out for dinner Mon 26 Oct', at: new Date(Date.now() - 7e5).toISOString() },
+      { id: 'c', source: 'pc', kind: 'job', text: 'Projects list refreshed', at: new Date(Date.now() - 8e5).toISOString() },
+    ] },
+  }), laptop, '');
+  check(d.chips === 2, 'live chips leave out Kitchen (in the apps row): ' + d.chips);
+  check(d.feed.length === 1 && /^Nick checked in/.test(d.feed[0]), 'lately leaves out dinner and the projects refresh: ' + d.feed);
+}
+// No hub and nothing kept: Retry on the cards, Offline by the clock, no empty week band.
+{
+  const ctx = await browser.newContext({ viewport: laptop });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.clock.setFixedTime(new Date(NOON));
+  await page.route('**/api/**', (r) => r.abort());
+  await page.goto(BASE + '?c=' + CODE);
+  await page.waitForFunction(() => /No connection/.test(document.getElementById('asOf').textContent));
+  const o = await page.evaluate(() => ({
+    retry: document.querySelectorAll('[data-retry]').length,
+    stale: document.getElementById('stale').hidden ? '' : document.getElementById('stale').textContent,
+    band: document.getElementById('weekBand').hidden,
+    loading: /Loading/.test(document.getElementById('todayList').textContent),
+  }));
+  check(o.retry >= 2 && o.stale === 'Offline' && o.band && !o.loading, 'offline: ' + JSON.stringify(o));
+  await page.screenshot({ path: file('cards-offline'), fullPage: true });
+  await ctx.close();
+}
 
 // Empty and broken states.
 r = await shoot(answer({ projects: null, intake: null, events: null, status: null, kitchen: null, bins: { collections: [] }, birthdays: { birthdays: [] }, fixed: { events: [], countdowns: [] }, todos: { items: [], updated: null, yesterday: { count: 0, items: [] } } }), phone, 'cards-empty');

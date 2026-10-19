@@ -39,6 +39,7 @@
       <div class="clock clock-far"><span class="clock-label">Miami</span><span class="clock-time" data-clock="miami"></span></div>
       <div class="clock clock-far"><span class="clock-label">Ecuador</span><span class="clock-time" data-clock="ecuador"></span></div>
       <span class="clock-here" data-clock="here"></span>
+      <span id="stale" class="stale" role="status" hidden></span>
     </div>
   </header>
   <p class="say js-say" aria-live="polite"></p>
@@ -56,12 +57,12 @@
   <div id="weekView" class="week-view" hidden>
     <!-- Three sentences Claude writes once each Sunday morning from the cards below. Hidden until written. -->
     <section id="wkParaCard" class="card card-para" aria-label="Your week" style="--i:0" hidden>
-      <div class="card-head"><span class="num">Your week</span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">Your week</span></div>
       <p id="wkPara" class="wk-para"></p>
     </section>
     <!-- The Mirror: one thing Paul's own apps show about his days, this week's experiment, last week's result. -->
     <section id="wkMirrorCard" class="card card-para card-mirror" aria-label="The mirror" style="--i:0" hidden>
-      <div class="card-head"><span class="num">The mirror</span><span id="wkMirrorNote" class="card-note"></span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">The mirror</span><span id="wkMirrorNote" class="card-note"></span></div>
       <p id="wkMirror" class="wk-para"></p>
       <p id="wkMirrorNums" class="mirror-nums"></p>
       <div id="wkMirrorTry" class="mirror-row"><span class="mirror-k">This week</span><span id="wkMirrorTryText"></span></div>
@@ -69,31 +70,31 @@
     </section>
     <!-- What Claude learned: short rules from Paul's corrections of Desk and Tidy. He keeps or drops each; kept ones go into their prompts. -->
     <section id="wkLessonsCard" class="card card-para card-lessons" aria-label="What Claude learned" style="--i:0" hidden>
-      <div class="card-head"><span class="num">What Claude learned</span><span id="wkLessonsNote" class="card-note"></span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">What Claude learned</span><span id="wkLessonsNote" class="card-note"></span></div>
       <div id="wkLessons"></div>
       <div id="lsToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
     </section>
     <section class="card" aria-label="Done this week" style="--i:1">
-      <div class="card-head"><span class="num">01 Done this week</span><span id="wkDoneNote" class="card-note"></span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">01 Done this week</span><span id="wkDoneNote" class="card-note"></span></div>
       <div id="wkDone"></div>
     </section>
     <section class="card" aria-label="Gone quiet" style="--i:2">
-      <div class="card-head"><span class="num">02 Gone quiet</span><span id="wkQuietNote" class="card-note"></span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">02 Gone quiet</span><span id="wkQuietNote" class="card-note"></span></div>
       <div id="wkQuiet"></div>
       <div id="wkToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
     </section>
     <section class="card" aria-label="New vacancies" style="--i:3">
-      <div class="card-head"><span class="num">03 New vacancies</span><span id="wkVacNote" class="card-note"></span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">03 New vacancies</span><span id="wkVacNote" class="card-note"></span></div>
       <div id="wkVac"></div>
     </section>
     <section class="card" aria-label="Next week" style="--i:4">
-      <div class="card-head"><span class="num">04 Next week</span><span id="wkNextNote" class="card-note"></span></div>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">04 Next week</span><span id="wkNextNote" class="card-note"></span></div>
       <div id="wkNext"></div>
       <span id="wkCalNote" class="card-note card-foot"></span>
     </section>
   </div>
 
-  <div class="cols">
+  <main class="cols">
     <div class="col col-a">
       <a id="start" class="card card-start" href="../todo/" style="--i:0" hidden>
         <span class="num"><span>Start with</span><span class="start-go" aria-hidden="true">Open ›</span></span>
@@ -102,7 +103,7 @@
 
       <section class="card card-today" aria-label="Today" style="--i:1">
         <div class="card-head">
-          <span class="num"><img class="head-ico" src="icons/apps/todo.png" alt="">Today</span>
+          <span class="num" role="heading" aria-level="2"><img class="head-ico" src="icons/apps/todo.png" alt="">Today</span>
           <a id="todoLink" class="card-link" href="../todo/">Open to-do app</a>
         </div>
         <div id="todayList"></div>
@@ -111,7 +112,7 @@
       <!-- Gym: the routine due next in Lift (paul-hub src/lift.js). Opens Lift. Hidden until Lift has sent once. -->
       <a id="lift" class="card card-lift" href="https://mellowt1.github.io/lift/" aria-label="Gym, opens Lift" style="--i:4" hidden>
         <div class="card-head">
-          <span class="num"><img class="head-ico" src="icons/apps/lift.png" alt="">Gym</span>
+          <span class="num" role="heading" aria-level="2"><img class="head-ico" src="icons/apps/lift.png" alt="">Gym</span>
           <span id="liftNote" class="card-note"></span>
         </div>
         <div id="liftBody" class="fx"></div>
@@ -127,28 +128,20 @@
     <div class="col col-b">
       <!-- Desk: type one line, Claude prepares tasks and drafts, Paul approves each. PC only. -->
       <section id="desk" class="card card-desk" aria-label="Desk" style="--i:2">
-        <div class="card-head"><span class="num">Desk</span><span id="deskNote" class="card-note"></span></div>
+        <div class="card-head"><span class="num" role="heading" aria-level="2">Desk</span><span id="deskNote" class="card-note"></span></div>
         <form id="deskForm" class="desk-form" autocomplete="off">
-          <input id="deskInput" class="desk-input" type="text" maxlength="1000" placeholder="Type a task, a message to write, or a question" aria-label="Type one line for Desk">
+          <input id="deskInput" class="desk-input" type="text" maxlength="1000" placeholder="Task, message or question" aria-label="Type one line for Desk" aria-keyshortcuts="/">
           <button id="deskGo" class="pbtn pbtn-today" type="submit">Prepare</button>
         </form>
         <p id="deskBusy" class="desk-busy" role="status" hidden>Preparing…</p>
         <div id="deskList"></div>
         <div id="deskToast" class="park-toast" role="status" hidden><span></span><button type="button">Undo</button></div>
       </section>
-
-      <section id="projects" class="card" aria-label="Projects" style="--i:2" hidden>
-        <div class="card-head">
-          <span class="num">Projects</span>
-          <span id="projUpdated" class="card-note"></span>
-        </div>
-        <div id="projList"></div>
-      </section>
     </div>
 
     <div class="col col-c">
       <section id="coming" class="card" aria-label="Coming up" style="--i:3">
-        <span class="num">Coming up</span>
+        <span class="num" role="heading" aria-level="2">Coming up</span>
         <div id="days" class="rows"></div>
         <span id="calNote" class="card-note card-foot"></span>
       </section>
@@ -156,46 +149,58 @@
       <!-- What the paper-clip in the to-do app read lately. Hidden until the first letter. -->
       <section id="intake" class="card" aria-label="Read for you" style="--i:3" hidden>
         <div class="card-head">
-          <span class="num">Read for you</span>
+          <span class="num" role="heading" aria-level="2">Read for you</span>
           <span id="intakeNote" class="card-note"></span>
         </div>
         <div id="intakeList"></div>
       </section>
+    </div>
 
-      <!-- The hub's feed: one line per thing that happened in the other apps. Hidden until the first. -->
-      <section id="feed" class="card" aria-label="Lately" style="--i:4" hidden>
+    <!-- PC only (1100 px and up): the week under Desk and Read for you, one column per day. -->
+    <section id="weekBand" class="card week-band" aria-label="Week" style="--i:5">
+      <div class="card-head">
+        <span class="num" role="heading" aria-level="2">Week</span>
+        <span id="bandNote" class="card-note"></span>
+      </div>
+      <div id="bandDays" class="band-days"></div>
+    </section>
+
+    <!-- Under the week band: Projects and Arsenal under Desk, Lately and Hiscores under Read for you. -->
+    <div class="col col-d">
+      <section id="projects" class="card" aria-label="Projects" style="--i:6" hidden>
         <div class="card-head">
-          <span class="num">Lately</span>
+          <span class="num" role="heading" aria-level="2">Projects</span>
+          <span id="projUpdated" class="card-note"></span>
+        </div>
+        <div id="projList"></div>
+      </section>
+
+      <section id="arsenal" class="card card-row card-arsenal" aria-label="Arsenal" style="--i:7">
+        <img class="fx-crest" src="https://a.espncdn.com/i/teamlogos/soccer/500/359.png" alt="" width="40" height="40" decoding="async" onerror="this.remove()">
+        <div id="arsenalBody" class="fx"></div>
+      </section>
+    </div>
+
+    <div class="col col-e">
+      <!-- The hub's feed: one line per thing that happened in the other apps. Hidden until the first. -->
+      <section id="feed" class="card" aria-label="Lately" style="--i:6" hidden>
+        <div class="card-head">
+          <span class="num" role="heading" aria-level="2">Lately</span>
           <span id="feedNote" class="card-note"></span>
         </div>
         <div id="feedList"></div>
       </section>
 
-      <section id="arsenal" class="card card-row card-arsenal" aria-label="Arsenal" style="--i:4">
-        <img class="fx-crest" src="https://a.espncdn.com/i/teamlogos/soccer/500/359.png" alt="" width="40" height="40" decoding="async" onerror="this.remove()">
-        <div id="arsenalBody" class="fx"></div>
-      </section>
-
-
       <!-- Hiscores: Paul's life as OSRS skills (paul-hub src/hiscores.js). Opens hiscores/. Hidden until the first answer. -->
-      <a id="hiscores" class="card card-hiscores" href="hiscores/" aria-label="Hiscores" style="--i:4" hidden>
+      <a id="hiscores" class="card card-hiscores" href="hiscores/" aria-label="Hiscores" style="--i:7" hidden>
         <div class="card-head">
-          <span class="num"><img class="head-ico" src="icons/apps/hiscores.png" alt="">Hiscores</span>
+          <span class="num" role="heading" aria-level="2"><img class="head-ico" src="icons/apps/hiscores.png" alt="">Hiscores</span>
           <span id="hsNote" class="card-note"></span>
         </div>
         <div id="hsGrid" class="hs-grid"></div>
       </a>
     </div>
-  </div>
-
-  <!-- PC only (1100 px and up): the week across the bottom, one column per day. -->
-  <section id="weekBand" class="card week-band" aria-label="Week" style="--i:5">
-    <div class="card-head">
-      <span class="num">Week</span>
-      <span id="bandNote" class="card-note"></span>
-    </div>
-    <div id="bandDays" class="band-days"></div>
-  </section>
+  </main>
 
   <footer class="foot">
     <span id="asOf" class="as-of"></span>

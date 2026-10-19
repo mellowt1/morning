@@ -6,8 +6,8 @@
  * while open. All times are shown in The Hague's time, whatever the device says.
  *
  * Layout: a greeting, the date with the sun as its full stop, one sentence about the day,
- * then numbered cards. 01 Start with, 02 Today (fact tiles, today's events, to-dos),
- * 03 Projects, 04 Coming up (from tomorrow), then Arsenal.
+ * then the cards. Start with (the loudest thing), Today (fact tiles, the next three to-dos),
+ * Desk and Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores.
  *
  * Motion ("Alive", approved 27 Sept 2026 through the prototype): the clock rolls on the
  * minute, the sun's full stop climbs with the real sun and breathes light while it is up,
@@ -84,6 +84,8 @@
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ok = (b) => b && typeof b === 'object' && !b.error;
+  const retryRow = (what = "Can't reach the hub.") =>
+    `<div class="retry"><span>${esc(what)}</span><button type="button" class="pbtn pbtn-done" data-retry>Retry</button></div>`;
   const row = (left, side, cls = '') => `<li class="row${cls ? ' ' + cls : ''}"><span>${left}</span>${side ? `<span class="side">${side}</span>` : ''}</li>`;
 
   /* ---------- The sun (app/sun.js works it out on the device) ---------- */
@@ -127,7 +129,7 @@
     if (shownDay !== today) {
       // Rebuilt only when the day changes, so the sun's own animations run on undisturbed.
       shownDay = today;
-      date.setAttribute('aria-label', dotDate(today));
+      date.setAttribute('aria-label', `${+today.slice(8, 10)} ${MONTHS[+today.slice(5, 7) - 1]}`);
       date.innerHTML = `${today.slice(8, 10)}<span class="sun-stop" aria-hidden="true"></span>${today.slice(5, 7)}`;
     }
     document.querySelector('.js-eyebrow').textContent = greeting(now) + ' · ' + DAYS[weekday(today)];
@@ -283,10 +285,10 @@
   }
 
   /* The kitchen's tile. The Worker reads the kitchen with its own code; this page never sees it. */
-  function dinnerTile(k) {
-    if (!ok(k) || (!k.tonight && !k.mixToday)) return '';
+  function dinnerTile(k, out) {
+    if (!ok(k) || ((!k.tonight || out) && !k.mixToday)) return '';
     const mix = k.mixToday ? '<span class="accent-text">Mix the dough today</span>' : '';
-    if (!k.tonight) {
+    if (!k.tonight || out) {
       const on = k.pizzaOn && /^\d{4}-\d{2}-\d{2}$/.test(k.pizzaOn) ? DAYS[weekday(k.pizzaOn)] : '';
       return tile('Dough', mix, on ? 'For ' + esc(on) : '');
     }
@@ -295,18 +297,17 @@
 
   /* Out for dinner: the hub's dinner.away from Day, with the event's title (Kitchen shows only
    * "Paul out"). On both widths: the band already shows the event itself, this says what it means. */
+  const nextAway = (d, now) => (ok(d) && Array.isArray(d.away) ? d.away.filter((x) => x.date >= ymd(now)).sort((a, b) => (a.date < b.date ? -1 : 1))[0] : null) || null;
   function awayTiles(d, now) {
-    if (!ok(d) || !Array.isArray(d.away)) return '';
-    const today = ymd(now);
-    return d.away.map((x) => {
-      const days = daysFrom(today, x.date);
-      if (days < 0) return '';
-      // The place only ("Harbour Cafe - Table 4" → "Harbour Cafe"), the day and time under it.
-      const at = x.start ? ' ' + esc(x.start) : '';
-      const when = days === 0 ? `<span class="accent-text">Tonight</span>${at}` : (days === 1 ? 'Tomorrow' : SHORT[weekday(x.date)]) + at;
-      const place = cap(String(x.title || 'Out').split(/\s+[-–—:]\s+/)[0].trim());
-      return tile('Eating out', esc(place), when, [cap(x.title || ''), plain(when)].filter(Boolean).join(' · '));
-    }).join('');
+    // Only the next night out: the band and Day show the rest.
+    const x = nextAway(d, now);
+    if (!x) return '';
+    const days = daysFrom(ymd(now), x.date);
+    // The place only ("Harbour Cafe - Table 4" → "Harbour Cafe"), the day and time under it.
+    const at = x.start ? ' ' + esc(x.start) : '';
+    const when = days === 0 ? `<span class="soon-text">Tonight</span>${at}` : (days === 1 ? 'Tomorrow' : days < 7 ? SHORT[weekday(x.date)] : shortDate(x.date)) + at;
+    const place = cap(String(x.title || 'Out').split(/\s+[-–—:]\s+/)[0].trim());
+    return tile('Eating out', esc(place), when, [cap(x.title || ''), plain(when)].filter(Boolean).join(' · '));
   }
 
   function birthdayTiles(b, now, skip = () => false) {
@@ -316,7 +317,7 @@
       const days = daysFrom(today, x.date);
       if (days < 0 || days > 14 || skip(x.date)) return '';
       const who = esc(x.name) + (x.age ? ' turns ' + esc(x.age) : '');
-      const when = days === 0 ? '<span class="accent-text">Today</span>' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days';
+      const when = days === 0 ? '<span class="soon-text">Today</span>' : days === 1 ? 'Tomorrow' : 'In ' + days + ' days';
       return tile('Birthday', who, when);
     }).join('');
   }
@@ -327,7 +328,7 @@
     return cds.map((c) => {
       const days = daysFrom(today, c.date);
       if (days < 0 || skip(c.date)) return '';
-      return tile('Countdown', esc(cap(c.what)), days === 0 ? '<span class="accent-text">Today</span>' : days + (days === 1 ? ' day' : ' days'));
+      return tile('Countdown', esc(cap(c.what)), days === 0 ? '<span class="soon-text">Today</span>' : days + (days === 1 ? ' day' : ' days'));
     }).join('');
   }
 
@@ -339,7 +340,7 @@
       if (skip(x.date)) return '';
       const days = daysFrom(today, x.date);
       const weekend = weekday(x.date) === 6;
-      const when = days <= 0 ? `<span class="accent-text">${weekend ? 'This weekend' : 'Now'}</span>`
+      const when = days <= 0 ? `<span class="soon-text">${weekend ? 'This weekend' : 'Now'}</span>`
         : days < 7 ? (weekend ? 'This weekend' : DAYS[weekday(x.date)]) : shortDate(x.date);
       return tile(cap(x.what), esc(cap(x.who)), when, x.then ? 'Then: ' + cap(x.then) : '');
     }).join('');
@@ -366,9 +367,9 @@
       const on = !e.allDay && e.s <= t;
       const next = e === nextUp;
       let side = '';
-      if (on && e.en > e.s) side = `<span class="accent-text">until ${esc(timeOf(e.end))}</span>`;
-      else if (on) side = '<span class="accent-text">Now</span>';
-      else if (next && e.s - t <= 60 * MIN) side = `<span class="accent-text">in ${Math.max(1, Math.ceil((e.s - t) / MIN))} min</span>`;
+      if (on && e.en > e.s) side = `<span class="soon-text">until ${esc(timeOf(e.end))}</span>`;
+      else if (on) side = '<span class="soon-text">Now</span>';
+      else if (next && e.s - t <= 60 * MIN) side = `<span class="near-text">in ${Math.max(1, Math.ceil((e.s - t) / MIN))} min</span>`;
       return `<li class="row evt${isNew(e.key)}"><span class="dotc"><span class="nd${next ? ' next' : on ? ' on' : ''}"></span></span>` +
         `<span class="evt-main"><span class="evt-time">${esc(e.allDay ? 'All day' : e.time)}</span> ${esc(e.title)}` +
         `${e.location ? `<span class="place">, ${esc(e.location)}</span>` : ''}</span>${side ? `<span class="side">${side}</span>` : ''}</li>`;
@@ -385,10 +386,11 @@
     const inBand = (date) => wide && daysFrom(ymd(now), date) <= 6;
     let tiles = '';
     if (data) {
-      tiles += dinnerTile(data.kitchen);
+      const away = nextAway(data.dinner, now);
+      tiles += dinnerTile(data.kitchen, !!away && away.date === ymd(now));
       tiles += awayTiles(data.dinner, now);
       const bin = binLine(data.bins, now);
-      if (bin && (bin.soon || !wide)) tiles += tile('Bins', bin.soon ? `<span class="accent-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
+      if (bin && (bin.soon || !wide)) tiles += tile('Bins', bin.soon ? `<span class="soon-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
       tiles += birthdayTiles(data.birthdays, now, inBand);
       tiles += countdownTiles(data.fixed, now, inBand);
       tiles += rotaTiles(data.rotas, now, inBand);
@@ -397,21 +399,24 @@
     let html = tiles ? `<div class="tiles">${tiles}</div>` : '';
     const agenda = data && !wide ? agendaRows(data, now) : '';
     if (agenda) html += subHead('On today') + `<ul class="rows">${agenda}</ul>`;
-    if (!t) html += `<ul class="rows">${row('Loading', '', 'empty')}</ul>`;
+    if (!t) html += failed ? retryRow() : `<ul class="rows">${row('Loading…', '', 'empty')}</ul>`;
     else if (!ok(t)) html += `<ul class="rows">${row("To-dos can't load right now.", '', 'empty')}</ul>`;
     else {
       const rest = t.items.slice(1);
+      const shown = rest.slice(0, TODO_SHOWN);
       html += todoProgress(t);
-      html += subHead('To do', rest.length);
       html += `<ul class="rows">${rest.length
-        ? rest.map((i) => todoRow(i.text, now)).join('')
+        ? shown.map((i) => todoRow(i.text, now)).join('')
         : row(t.items.length ? 'Nothing else on the list.' : 'Nothing for today.', '', 'empty')}</ul>`;
+      if (rest.length > shown.length) html += `<a class="more-link" href="../todo/?c=${encodeURIComponent(code)}">+${rest.length - shown.length} more</a>`;
       // What was ticked off today stays in sight, struck through, so the card moves through the day.
       const won = t.doneToday && Array.isArray(t.doneToday.items) ? t.doneToday.items.slice(0, 3) : [];
       if (won.length) html += `<ul class="rows rows-done">${won.map((x) => `<li class="row task task-done"><span class="tick" aria-hidden="true"></span><span>${esc(taskName(x).name)}</span></li>`).join('')}</ul>`;
     }
     setHTML($('todayList'), html);
   }
+
+  const TODO_SHOWN = 3;
 
   /* The day's progress: how many are left (the big number) and a bar of what is done today. */
   function todoProgress(t) {
@@ -450,7 +455,7 @@
     [/^arsenal ticket/i, 'Ticket watch'], [/^heartbeat/i, 'Heartbeat']];
   const chipName = (name) => (CHIP_NAMES.find(([re]) => re.test(name)) || [, name])[1];
 
-  function renderProjects(p, now, repos) {
+  function renderProjects(p, now, repos, links) {
     const box = $('projects');
     if (!p) { box.hidden = true; return; }
     box.hidden = false;
@@ -477,7 +482,9 @@
     if (of('active').length) html += subHead('Building', of('active').length) + rows(of('active'));
     if (of('next').length) html += subHead('Up next', of('next').length) + rows(of('next'));
     // Apps with an icon first, the rest after, so the grid reads as one block.
-    const live = of('live').sort((a, b) => !appIcon(a.name) - !appIcon(b.name));
+    // Live: apps with an icon first. The ones already in the apps row up top are left out.
+    const inRow = new Set((links && ok(links) && Array.isArray(links.links) ? links.links : []).map((l) => String(l.name).toLowerCase()));
+    const live = of('live').filter((x) => !inRow.has(chipName(x.name).toLowerCase())).sort((a, b) => !appIcon(a.name) - !appIcon(b.name));
     if (live.length) {
       html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
         `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || noIcon}<span class="chip-name">${esc(chipName(x.name))}</span></span>`).join('')}</div>`;
@@ -530,6 +537,8 @@
   // Feed sources that are part of another app show that app's icon.
   const SOURCE_ICON = { intake: 'todo', 'arsenal-watch': 'arsenal', 'defence-digest': 'defence' };
   const FEED_SHOWN = 4;
+  // Already on the page: a night out is the Eating out tile and the band; Projects says "Updated today".
+  const onPage = (e) => e.kind === 'dinner' || /^projects list refreshed/i.test(e.text);
   function renderFeed(b, now) {
     const box = $('feed');
     if (!b) { box.hidden = true; return; }
@@ -541,7 +550,7 @@
       return;
     }
     const all = (Array.isArray(b.events) ? b.events : [])
-      .filter((e) => e && e.text && Number.isFinite(Date.parse(e.at)) && !OFF_SOURCES.has(e.source));
+      .filter((e) => e && e.text && Number.isFinite(Date.parse(e.at)) && !OFF_SOURCES.has(e.source) && !onPage(e));
     const today = ymd(now), yesterday = ymd(now - 864e5);
     const todayCount = all.filter((e) => ymd(Date.parse(e.at)) === today).length;
     $('feedNote').textContent = todayCount ? `${todayCount} today` : '';
@@ -1003,7 +1012,7 @@
   function renderCalendar(data, now) {
     const box = $('days');
     const note = $('calNote');
-    if (!data) { setHTML(box, '<div class="row empty"><span>Loading</span></div>'); note.textContent = ''; return; }
+    if (!data) { setHTML(box, failed ? retryRow() : '<div class="row empty"><span>Loading…</span></div>'); note.textContent = ''; return; }
     // Today's events live in 02 Today; this card starts tomorrow.
     const today = ymd(now);
     const tomorrow = addDays(today, 1);
@@ -1040,7 +1049,7 @@
   function renderBand(data, now, arsenal) {
     const box = $('bandDays');
     if (!WIDE.matches) return; // hidden below 1100 px; nothing to keep up to date
-    if (!data) { setHTML(box, ''); return; }
+    if (!data) { setHTML(box, ''); $('weekBand').hidden = true; return; }
     const today = ymd(now);
     const t = now.valueOf();
     const hour = +hm(now).slice(0, 2);
@@ -1085,7 +1094,7 @@
           let side = '';
           if (on && e.en > e.s) side = `until ${timeOf(e.end)}`;
           else if (next && e.s - t <= 60 * MIN) side = `in ${Math.max(1, Math.ceil((e.s - t) / MIN))} min`;
-          time = `<span class="nd${next ? ' next' : on ? ' on' : ''}"></span>${time}${side ? ` <span class="accent-text">${esc(side)}</span>` : ''}`;
+          time = `<span class="nd${next ? ' next' : on ? ' on' : ''}"></span>${time}${side ? ` <span class="${on ? 'soon-text' : 'near-text'}">${esc(side)}</span>` : ''}`;
         }
         items.push({ sort: e.sort, html: item('', time, esc(e.title), e.location, e.key) });
       }
@@ -1108,7 +1117,7 @@
   /* ---------- Arsenal ---------- */
   function renderArsenal(a, now) {
     const body = $('arsenalBody');
-    if (!a) { body.innerHTML = '<span class="fx-error">Loading</span>'; return; }
+    if (!a) { setHTML(body, failed ? retryRow("Can't reach the hub.") : '<span class="fx-error">Loading…</span>'); return; }
     if (!ok(a)) { body.innerHTML = `<span class="fx-error">Arsenal can't load right now</span>`; return; }
     const n = a.next;
     const l = a.last;
@@ -1182,10 +1191,18 @@
   /* ---------- Footer ---------- */
   function renderAsOf(now) {
     const el = $('asOf');
-    if (!last) { el.textContent = failed ? 'No connection yet. Try again when you have signal.' : 'Loading'; return; }
+    const st = $('stale');
+    if (!last) {
+      el.textContent = failed ? 'No connection yet. Try again when you have signal.' : 'Loading';
+      st.textContent = 'Offline';
+      st.hidden = !failed;
+      return;
+    }
     const at = last.at;
     const when = (ymd(at) === ymd(now) ? '' : SHORT[weekday(ymd(at))] + ' ') + hm(at);
     el.textContent = failed ? `As of ${when}. No connection, showing the last copy.` : `As of ${when}`;
+    st.textContent = `Offline · as of ${when}`;
+    st.hidden = !failed;
   }
 
   /* `roll` is set only by the minute tick: then the clock's changed digits roll and the sun
@@ -1211,7 +1228,7 @@
     renderStart(data && data.todos);
     renderToday(data, now);
     renderApps(data && data.links);
-    renderProjects(data && data.projects, now, data && data.repos);
+    renderProjects(data && data.projects, now, data && data.repos, data && data.links);
     renderIntake(data && data.intake, now);
     renderFeed(data && data.events, now);
     renderParked(data && data.projects, now);
@@ -1265,11 +1282,11 @@
     const seen = store.get('hiscores.seen.' + code) || {};
     const up = h.skills.filter((s) => s.level > (Number(seen[s.id]) || 1));
     const today = h.skills.reduce((n, s) => n + (s.today || 0), 0);
-    const note = up.length ? `Level up waiting: ${up[0].name}${up.length > 1 ? ` +${up.length - 1}` : ''}` : today ? `+${today.toLocaleString('en-GB')} XP today` : `Total ${h.total}`;
+    const note = up.length === 1 ? `Level up waiting: ${up[0].name}` : up.length ? `${up.length} level-ups waiting` : today ? `+${today.toLocaleString('en-GB')} XP today` : `Total ${h.total}`;
     if ($('hsNote').textContent !== note) $('hsNote').textContent = note;
     $('hsNote').classList.toggle('hs-up', up.length > 0);
     let html = '';
-    for (const s of h.skills) html += `<span class="hs-slot${up.includes(s) ? ' up' : ''}" title="${esc(s.name)}: ${s.xp.toLocaleString('en-GB')} XP"><img src="hiscores/assets/${esc(s.id)}.png" alt="" style="max-height:22px"><b>${s.level}</b></span>`;
+    for (const s of h.skills) html += `<span class="hs-slot${up.includes(s) ? ' up' : ''}" title="${esc(s.name)}: ${s.xp.toLocaleString('en-GB')} XP"><img src="hiscores/assets/${esc(s.id)}.png" alt="${esc(s.name)}" style="max-height:22px"><b>${s.level}</b></span>`;
     html += `<span class="hs-slot hs-total"><small>Total</small><b>${h.total}</b></span>`;
     setHTML($('hsGrid'), html);
   }
@@ -1447,6 +1464,24 @@
   });
 
   loadDesk();
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-retry]');
+    if (!b) return;
+    b.disabled = true;
+    b.textContent = 'Trying…';
+    load();
+  });
+  // "/" puts the cursor in Desk (PC), unless a box already has it.
+  addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const input = $('deskInput');
+    if (!input.offsetParent) return;
+    e.preventDefault();
+    input.focus();
+  });
 
   /* ---------- Loading ---------- */
   let loading = false;
