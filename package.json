@@ -11,7 +11,6 @@
     "cards-shots": "node scripts/cards-shots.mjs",
     "parked-check": "node scripts/parked-check.mjs",
     "week-check": "node scripts/week-check.mjs",
-    "desk-check": "node scripts/desk-check.mjs",
     "hiscores-check": "node scripts/hiscores-check.mjs",
     "lift-check": "node scripts/lift-check.mjs"
   },

@@ -7,7 +7,7 @@
  *
  * Layout: a greeting, the date with the sun as its full stop, one sentence about the day,
  * then the cards. Start with (the loudest thing), Today (fact tiles, the next three to-dos),
- * Desk and Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores.
+ * Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores. (Desk moved into To-do, 2026-10-19.)
  *
  * Motion ("Alive", approved 27 Sept 2026 through the prototype): the clock rolls on the
  * minute, the sun's full stop climbs with the real sun and breathes light while it is up,
@@ -803,11 +803,11 @@
     return w;
   }
 
-  /* What Claude learned (paul-hub src/lessons.js): each Sunday Claude reads how Paul corrected Desk
-   * and Tidy that week and proposes a few short rules. Keep puts a rule into their prompts from the
+  /* What Claude learned (paul-hub src/lessons.js): each Sunday Claude reads how Paul corrected Claude
+   * in To-do (Tidy, answers, letters) and Lift that week and proposes a few short rules. Keep puts a rule into their prompts from the
    * next call on; Drop throws it away. Kept rules sit under a fold, each with its own Drop. Both
    * buttons have Undo, which puts the rule back to wait. POST /api/morning/:code/lesson. */
-  const LS_APP = { desk: 'Desk', tidy: 'Tidy' };
+  const LS_APP = { desk: 'Claude answers', tidy: 'Tidy', intake: 'Letters', lift: 'Lift' };
   const lsHiding = new Set();
   const lsInflight = new Map();
   function renderLessons(w) {
@@ -1355,177 +1355,6 @@
   // Crossing 1100 px moves this week's facts between Today and the band.
   if (WIDE.addEventListener) WIDE.addEventListener('change', () => render());
 
-  /* ---------- Desk: one line in, prepared rows out ----------
-   * Paul types a task, a message to write or a question. The Worker asks Claude
-   * (POST /api/desk/:code) and keeps what comes back; nothing happens until he presses a
-   * button. Approve puts a task on the to-do list with a few seconds of Undo, like Parked.
-   * Copy puts a draft on the clipboard; nothing is ever sent. Skip only notes it.
-   * Its own fetches, apart from the Morning block. Hidden on the phone (CSS). */
-  const DESK_SECTIONS = { today: 'Today', soon: 'Soon', someday: 'Someday' };
-  const DESK_LANGS = { nl: 'Dutch', en: 'English', es: 'Spanish' };
-  const DESK_SHOWN = 5;
-  const DESK_FRESH = 10 * 60e3;
-  let deskItems = [];
-  const deskEditing = new Set(); // "id:idx" rows open for editing
-  const deskBusyRows = new Set(); // "id:idx" rows waiting on the Worker
-  let deskToastT = 0;
-  let deskUndo = null; // { id, idx, req }
-
-  function deskToast(words, undo) {
-    const el = $('deskToast');
-    clearTimeout(deskToastT);
-    deskUndo = undo || null;
-    el.firstChild.textContent = words;
-    el.lastChild.hidden = !undo;
-    el.hidden = false;
-    deskToastT = setTimeout(() => { el.hidden = true; deskUndo = null; }, 6000);
-  }
-
-  function deskPut(item) {
-    const i = deskItems.findIndex((x) => x.id === item.id);
-    if (i >= 0) deskItems[i] = item; else deskItems.unshift(item);
-  }
-
-  function deskActHTML(item, a, idx) {
-    const key = item.id + ':' + idx;
-    const busy = deskBusyRows.has(key) ? ' disabled' : '';
-    const data = `data-id="${esc(item.id)}" data-idx="${idx}"`;
-    const label = a.kind === 'todo'
-      ? `<span>Task</span><span>· ${esc(DESK_SECTIONS[a.section] || 'Soon')}</span>`
-      : `<span>Draft${a.to ? ' to ' + esc(a.to) : ''}</span><span>· ${esc(DESK_LANGS[a.lang] || 'English')}</span>`;
-    if (a.state !== 'ready') {
-      const words = a.state === 'approved' ? 'On the to-do list' : a.state === 'copied' ? 'Copied' : 'Skipped';
-      return `<div class="desk-act is-done is-${esc(a.state)}"><span class="fold-from">${label}</span>
-        <span class="desk-what">${esc(a.text)}</span><span class="desk-state">${words}</span></div>`;
-    }
-    const editing = deskEditing.has(key);
-    const what = editing
-      ? `<textarea class="desk-edit" ${data} rows="${a.kind === 'draft' ? 4 : 2}" aria-label="Edit">${esc(a.text)}</textarea>`
-      : `<span class="desk-what">${esc(a.text)}</span>`;
-    const main = a.kind === 'todo'
-      ? `<button type="button" class="pbtn pbtn-today" data-desk="approve" ${data}${busy}>Approve</button>`
-      : `<button type="button" class="pbtn pbtn-today" data-desk="copy" ${data}${busy}>Copy</button>`;
-    return `<div class="desk-act"><span class="fold-from">${label}</span>${what}
-      <div class="park-btns">${main}
-        ${editing ? '' : `<button type="button" class="pbtn pbtn-done" data-desk="edit" ${data}${busy}>Edit</button>`}
-        <button type="button" class="pbtn pbtn-drop" data-desk="skip" ${data}${busy}>Skip</button>
-      </div></div>`;
-  }
-
-  function renderDesk() {
-    // Only what waits for Paul: actions to approve, and a fresh answer for a few minutes.
-    // Done, copied and skipped actions leave the card at once (the toast has the Undo).
-    const fresh = (x) => Date.now() - (Date.parse(x.at) || 0) < DESK_FRESH;
-    const ready = (x) => x.actions.some((a) => a.state === 'ready');
-    const shown = deskItems.slice(0, DESK_SHOWN).filter((x) => ready(x) || (x.answer && fresh(x)));
-    setHTML($('deskList'), shown.map((item) => `<div class="desk-entry">
-        ${item.answer && fresh(item) ? `<p class="desk-answer">${esc(item.answer)}</p>` : ''}
-        ${item.actions.map((a, idx) => (a.state === 'ready' ? deskActHTML(item, a, idx) : '')).join('')}
-      </div>`).join(''));
-  }
-
-  async function deskFetch(path, body) {
-    const r = await fetch(API + '/api/desk/' + code + path, body === undefined ? { cache: 'no-store' } : {
-      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
-    const out = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(out.error || 'status ' + r.status);
-    return out;
-  }
-
-  async function loadDesk() {
-    try {
-      deskItems = (await deskFetch('')).items || [];
-      renderDesk();
-    } catch (e) { /* the card still takes a line */ }
-  }
-
-  $('deskForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const input = $('deskInput');
-    const text = input.value.trim();
-    if (!text || !$('deskBusy').hidden) return;
-    $('deskBusy').textContent = 'Preparing…';
-    $('deskBusy').hidden = false;
-    $('deskGo').disabled = true;
-    try {
-      const { item } = await deskFetch('', { text });
-      deskPut(item);
-      input.value = '';
-      if (!item.answer && !item.actions.length) deskToast('Nothing to prepare from that.');
-      renderDesk();
-    } catch (err) {
-      deskToast('Couldn’t prepare that: ' + err.message + '. Your line is still in the box.');
-    }
-    $('deskBusy').hidden = true;
-    $('deskGo').disabled = false;
-  });
-
-  async function deskAct(id, idx, action, edit) {
-    const key = id + ':' + idx;
-    deskBusyRows.add(key);
-    renderDesk();
-    try {
-      const { item } = await deskFetch('/act', { id, idx, action, ...(edit ? { edit } : {}) });
-      deskEditing.delete(key);
-      deskPut(item);
-      return item;
-    } finally {
-      deskBusyRows.delete(key);
-      renderDesk();
-    }
-  }
-
-  $('deskList').addEventListener('click', async (e) => {
-    const b = e.target.closest('button[data-desk]');
-    if (!b || b.disabled) return;
-    const id = b.dataset.id;
-    const idx = Number(b.dataset.idx);
-    const key = id + ':' + idx;
-    const item = deskItems.find((x) => x.id === id);
-    const a = item && item.actions[idx];
-    if (!a) return;
-    const box = $('deskList').querySelector(`textarea[data-id="${id}"][data-idx="${idx}"]`);
-    const edit = box && box.value.trim() && box.value.trim() !== a.text ? { text: box.value.trim() } : null;
-    const act = b.dataset.desk;
-    if (act === 'edit') {
-      deskEditing.add(key);
-      renderDesk();
-      const t = $('deskList').querySelector(`textarea[data-id="${id}"][data-idx="${idx}"]`);
-      if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
-      return;
-    }
-    try {
-      if (act === 'copy') {
-        await navigator.clipboard.writeText(edit ? edit.text : a.text);
-        deskToast('Copied. Paste it where you send it.');
-        await deskAct(id, idx, 'copied', edit);
-      } else if (act === 'approve') {
-        const req = deskAct(id, idx, 'approve', edit);
-        deskToast(a.section === 'today' ? 'On today’s to-do list' : 'On the to-do list, in ' + (DESK_SECTIONS[a.section] || 'Soon'), { id, idx, req });
-        await req;
-      } else if (act === 'skip') {
-        await deskAct(id, idx, 'skip');
-      }
-    } catch (err) {
-      deskToast('Couldn’t save that. Try again.');
-    }
-  });
-
-  $('deskToast').lastChild.addEventListener('click', async () => {
-    const u = deskUndo;
-    if (!u) return;
-    $('deskToast').hidden = true;
-    deskUndo = null;
-    try {
-      await u.req.catch(() => {});
-      await deskAct(u.id, u.idx, 'undo');
-    } catch (err) {
-      deskToast('Couldn’t undo that. Try again.');
-    }
-  });
-
-  loadDesk();
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-retry]');
@@ -1534,17 +1363,6 @@
     b.textContent = 'Trying…';
     load();
   });
-  // "/" puts the cursor in Desk (PC), unless a box already has it.
-  addEventListener('keydown', (e) => {
-    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
-    const t = e.target;
-    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-    const input = $('deskInput');
-    if (!input.offsetParent) return;
-    e.preventDefault();
-    input.focus();
-  });
-
   /* ---------- Loading ---------- */
   let loading = false;
   async function load() {

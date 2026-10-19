@@ -108,7 +108,7 @@ a:hover { opacity: .8; }
 /* Phone: one column in reading order; the columns only group the cards on wider screens. */
 @media (max-width: 719.98px) {
   .col { display: contents; }
-  #start { order: 1; } .card-today, #lift { order: 2; } #desk { order: 3; } #projects { order: 4; }
+  #start { order: 1; } .card-today, #lift { order: 2; } #projects { order: 4; }
   #coming { order: 5; } #parked { order: 6; } #intake { order: 7; } #feed { order: 8; } #arsenal { order: 9; } #hiscores { order: 10; }
 }
 
@@ -252,28 +252,6 @@ details.fold[open] > summary .tag::after { content: ''; }
 .park-toast button[hidden] { display: none; }
 
 /* ---------- Desk: one line in, prepared rows out (PC and tablet only) ---------- */
-.card-desk { display: none; }
-@media (min-width: 720px) { .card-desk { display: flex; } }
-.desk-form { display: flex; gap: 8px; padding: 6px 0 10px; }
-.desk-input { flex: 1; min-width: 0; min-height: 44px; padding: 0 16px; border: 1px solid var(--btn-rule); border-radius: 99px; background: var(--inner); color: var(--ink); font: inherit; font-size: 15px; }
-.desk-input:focus { outline: 2px solid var(--accent-text); outline-offset: 1px; background: var(--card); }
-.desk-input::placeholder { color: var(--muted); }
-.desk-busy { margin: 0 0 10px; font-size: 13px; color: var(--muted); animation: fade .2s ease-out both; }
-.desk-busy[hidden] { display: none; }
-.desk-entry { padding: 10px 0 12px; border-top: 1px solid var(--rule); }
-.desk-said { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.desk-answer { margin: 6px 0 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
-.desk-act { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "from" "what" "state" "btns"; row-gap: 3px; margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: var(--inner); }
-.desk-act .fold-from { grid-area: from; display: flex; gap: 6px; }
-.desk-act .desk-what, .desk-act .desk-edit { grid-area: what; }
-.desk-act .desk-state { grid-area: state; }
-.desk-what { font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
-.desk-edit { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--btn-rule); border-radius: 10px; background: var(--card); color: var(--ink); font: inherit; font-size: 15px; line-height: 1.4; resize: vertical; }
-.desk-act.is-done { background: transparent; padding: 6px 0 0; }
-.desk-act.is-done .desk-what { color: var(--muted); }
-.desk-state { font-size: 12px; font-weight: 600; color: var(--ink); }
-.desk-act.is-skipped .desk-state { color: var(--muted); }
-.desk-act .park-btns { flex-wrap: wrap; }
 
 /* ---------- Projects ---------- */
 .proj { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; }
@@ -517,7 +495,7 @@ details.fold[open] > summary .tag::after { content: ''; }
   /* Light without breath: while the sun is up the paper round the date holds a still warm
      light; no warmth on the ink, no corona, no ring, no rolls. The ember is still anyway. */
   .date::before, .sun-stop, .sun-stop::before, .sun-stop::after, .nd.next::after,
-  .r-new, .is-new::before, .pill.pop, .card-start, .park-toast, .pbtn, .desk-busy { animation: none !important; transition: none !important; }
+  .r-new, .is-new::before, .pill.pop, .card-start, .park-toast, .pbtn { animation: none !important; transition: none !important; }
   .r-old { display: none; }
   .date:has(.sun-stop.up)::before { opacity: .6; transform: scale(.93); will-change: auto; }
   .sun-stop.up::before, .sun-stop.up::after, .nd.next::after { opacity: 0; }
@@ -657,23 +635,24 @@ details.fold[open] > summary .tag::after { content: ''; }
   /* Start with is the loudest thing on the page: the one next thing. */
   .card-start { padding: 28px 30px 30px; gap: 14px; }
   .start-text { font-size: 48px; line-height: 1; letter-spacing: 0; }
-  /* Left: now (Start, Today, Gym, Parked), the full height. Right: Desk and Read for you, the
-   * week under them, then Projects and Arsenal, Lately and Hiscores. The last row takes the
+  /* Left: now (Start, Today, Gym, Parked), the full height. Right: Read for you across both
+   * columns (hidden with nothing read: the week moves up), the week under it, then Projects and Arsenal, Lately and Hiscores. The last row takes the
    * slack, so the week sits right under the top cards however long the left column runs. */
   .page { max-width: 1400px; }
   .cols { display: grid; columns: auto; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "a b c" "a w w" "a d e"; grid-template-rows: auto auto 1fr; gap: 20px; align-items: start; }
+    grid-template-areas: "a c c" "a w w" "a d e"; grid-template-rows: auto auto 1fr; gap: 20px; align-items: start; }
   .col { display: flex; gap: 20px; }
   .cols > .col > .card, .cols > .card { margin-bottom: 0; }
   .col-a { grid-area: a; }
-  .col-b { grid-area: b; }
   .col-c { grid-area: c; }
   .col-d { grid-area: d; }
   .col-e { grid-area: e; }
   .week-band { grid-area: w; }
-  /* Desk and Read for you end on one line, so the week starts level under both. */
-  .col-b, .col-c { align-self: stretch; }
-  .col-b > .card:last-child, .col-c > .card:last-of-type { flex: 1; }
+  .col-c { align-self: stretch; }
+  .col-c > .card:last-of-type { flex: 1; }
+  /* Nothing read lately: no empty row above the week. */
+  .cols:has(#intake[hidden]) { grid-template-areas: "a w w" "a d e"; grid-template-rows: auto 1fr; }
+  .cols:has(#intake[hidden]) > .col-c { display: none; }
   #coming { display: none; }
   .tiles { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
   .park { grid-template-areas: "from age" "what what" "btns btns"; }
@@ -745,8 +724,7 @@ a.card-start:active { background: #F7F8F9; transform: rotate(-.4deg) scale(.985)
 
 /* Lists in a rack (to-dos, today's events, letters) are calm rows on the rack, each with a short
  * holder tick in its kind's colour. Paper is kept for what is dated or needs Paul: Start with,
- * the fact strips, the week and Desk's prepared rows (picked 2026-10-19 over full strips). */
-.desk-act { background: var(--paper); color: var(--paper-ink); border-left: 10px solid var(--h-blank); border-radius: 2px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+ * the fact strips and the week (picked 2026-10-19 over full strips). */
 .row.task, .read-row { position: relative; }
 .row.task { padding: 11px 0 11px 16px; font-size: 17px; }
 .row.task::before, .read-row::before { content: ''; position: absolute; left: 0; top: 50%; width: 5px; height: 18px; margin-top: -9px; border-radius: 1px; background: var(--h-task); }
@@ -793,21 +771,7 @@ a.card-start:active { background: #F7F8F9; transform: rotate(-.4deg) scale(.985)
 .rows > * + .read-needs, .rows > .read-needs + * { border-top: 1px solid var(--rule); }
 .read-needs .read-kind, .read-needs .read-when { color: var(--accent-text); }
 
-/* Desk: a blank strip to write on. */
-.desk-input { min-height: 50px; padding: 0 14px; border: 0; border-left: 10px solid var(--h-blank); border-radius: 2px; background: #FFFFFF; color: var(--paper-ink); font-size: 16px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
-.desk-input::placeholder { color: #6E6957; }
-.desk-input:focus { background: #FFFFFF; outline: 2px solid var(--accent-text); outline-offset: 2px; }
-.desk-form { align-items: center; }
 .pbtn { border-radius: 3px; font-size: 15px; letter-spacing: .02em; }
-.desk-act { padding: 12px 14px; border-left-color: var(--h-blank); background: var(--paper); }
-.desk-act .fold-from, .desk-said { color: var(--paper-2); }
-.desk-act .pbtn-done { color: var(--paper-ink); border-color: var(--h-blank); }
-.desk-act .pbtn-drop { color: var(--paper-2); }
-.desk-act .desk-state { color: var(--paper-ink); }
-.desk-act.is-done { background: none; border-left-color: transparent; box-shadow: none; color: var(--ink); }
-.desk-act.is-done .fold-from { color: var(--muted); }
-.desk-edit { background: #FFFFFF; color: var(--paper-ink); border-color: var(--h-blank); }
-.desk-said { color: var(--muted); }
 
 /* Projects and Lately stay on the rack: icon, name, time. */
 .pill { font-size: 13px; letter-spacing: .06em; border-radius: 3px; background: var(--accent-fill); }
