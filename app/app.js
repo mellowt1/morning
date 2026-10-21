@@ -7,7 +7,7 @@
  *
  * Layout: a greeting, the date with the sun as its full stop, one sentence about the day,
  * then the cards. Start with (the loudest thing), Today (fact tiles, the next three to-dos),
- * Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores. (Desk moved into To-do, 2026-10-19.)
+ * Waiting on, Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores. (Desk moved into To-do, 2026-10-19.)
  *
  * Motion ("Alive", approved 27 Sept 2026 through the prototype): the clock rolls on the
  * minute, the sun's full stop climbs with the real sun and breathes light while it is up,
@@ -461,6 +461,15 @@
     return tile('Eating out', esc(place), when, [cap(x.title || ''), plain(when)].filter(Boolean).join(' · '));
   }
 
+  /* Chases due (Waiting on): how many, and whose (the hub sends up to three names, oldest first).
+   * On both widths: the band has no place for it. Hidden when nothing is due. */
+  function chaseTile(wt) {
+    if (!ok(wt) || !(wt.due > 0)) return '';
+    const names = (Array.isArray(wt.dueWho) ? wt.dueWho : []).map((n) => cap(String(n)));
+    const extra = wt.due - names.length;
+    return tile('Chases due', esc(wt.due), esc(names.join(', ')) + (extra > 0 ? ` +${esc(extra)}` : ''));
+  }
+
   function birthdayTiles(b, now, skip = () => false) {
     if (!ok(b) || !Array.isArray(b.birthdays)) return '';
     const today = ymd(now);
@@ -537,6 +546,7 @@
     const inBand = (date) => wide && daysFrom(ymd(now), date) <= 6;
     let tiles = '';
     if (data) {
+      tiles += chaseTile(data.waiting);
       const away = nextAway(data.dinner, now);
       tiles += dinnerTile(data.kitchen, !!away && away.date === ymd(now));
       tiles += awayTiles(data.dinner, now);
@@ -837,6 +847,142 @@
     render();
   });
 
+  /* ---------- Waiting on (approved 2026-10-21) ----------
+   * What Paul sent and is waiting to hear back about, from the hub's `waiting` block (paul-hub
+   * src/waiting.js): oldest first, "Chase due" in amber once the chase day has come. No buttons on
+   * the rows: answering and snoozing happen in To-do and on Sunday. Add opens a form that POSTs
+   * /api/waiting/:code; the answer's item goes straight in, then the page asks the hub again.
+   * The form is plain DOM that render() never touches, so a draft survives refreshes and failures. */
+  const CHANNEL_NAME = { email: 'Email', phone: 'Phone', letter: 'Letter', 'in-person': 'In person' };
+  const WAIT_SHOWN = 5;
+  const waitOf = (data) => (data && ok(data.waiting) && Array.isArray(data.waiting.items) ? data.waiting : null);
+  const waitItems = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.id && x.who && x.what);
+  /* "<b>Defensie</b> about the application · for Nick" */
+  const waitWhat = (x) => `<b>${esc(x.who)}</b> about ${esc(x.what)}${x.forWhom ? `<span class="wait-for"> · for ${esc(x.forWhom)}</span>` : ''}`;
+  const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+
+  function renderWaiting(wt, now) {
+    const box = $('waiting');
+    box.hidden = !wt;
+    if (!wt) return;
+    const items = waitItems(wt.items);
+    const open = Math.max(Number(wt.open) || 0, items.length);
+    const count = open ? `${open} open` : '';
+    if ($('waitCount').textContent !== count) $('waitCount').textContent = count;
+    const today = ymd(now);
+    const shown = items.slice(0, WAIT_SHOWN);
+    const rows = shown.map((x) => {
+      const side = x.chaseDue ? '<span class="tmeta tmeta-near">Chase due</span>'
+        : isDate(x.since) ? `<span class="tmeta">since ${esc(x.since === today ? 'today' : dm(x.since))}</span>` : '';
+      return `<li class="row task wait-row${x.chaseDue ? ' due' : ''}"><span class="task-name">${waitWhat(x)}</span>${side}</li>`;
+    }).join('');
+    let html = rows ? `<ul class="rows wait-rows">${rows}</ul>` : '';
+    if (open > shown.length) html += `<a class="more-link" href="../todo/?c=${encodeURIComponent(code)}">+${open - shown.length} more</a>`;
+    setHTML($('waitList'), html);
+  }
+
+  const wf = { channel: 'email', days: 7 };
+  let wfBusy = false;
+
+  function wfSync() {
+    for (const seg of $('waitForm').querySelectorAll('[data-wf]')) {
+      for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(wf[seg.dataset.wf])));
+    }
+  }
+  function wfError(words) {
+    $('wfErr').textContent = words;
+    $('wfErr').hidden = !words;
+  }
+  function wfOpen(on) {
+    $('waitForm').hidden = !on;
+    $('waitAdd').hidden = on;
+    $('waitAdd').setAttribute('aria-expanded', String(on));
+    if (on) $('wfWho').focus();
+    else { wfError(''); $('waitAdd').focus(); }
+  }
+
+  /* Put the hub's new item into the copy on this device, oldest first, so it shows at once. */
+  function waitInsert(item) {
+    const wt = waitOf(last && last.data);
+    if (!wt || !item || !item.id || wt.items.some((x) => x.id === item.id)) return;
+    wt.items.push(item);
+    wt.items.sort((a, b) => (a.since < b.since ? -1 : a.since > b.since ? 1 : 0));
+    wt.open = (Number(wt.open) || 0) + 1;
+    if (item.chaseDue) {
+      wt.due = (Number(wt.due) || 0) + 1;
+      wt.dueWho = wt.items.filter((x) => x.chaseDue).slice(0, 3).map((x) => x.who);
+    }
+    store.set(KEY, last);
+  }
+
+  $('waitAdd').addEventListener('click', () => wfOpen(true));
+  $('wfCancel').addEventListener('click', () => wfOpen(false)); // the draft stays for next time
+  $('waitForm').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); wfOpen(false); } });
+  $('waitForm').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wf] button');
+    if (!b) return;
+    const k = b.closest('[data-wf]').dataset.wf;
+    wf[k] = k === 'days' ? Number(b.dataset.v) : b.dataset.v;
+    wfSync();
+  });
+  for (const id of ['wfWho', 'wfWhat']) {
+    $(id).addEventListener('input', () => {
+      if (!$(id).value.trim()) return;
+      $(id).removeAttribute('aria-invalid');
+      if (!$('waitForm').querySelector('[aria-invalid="true"]')) wfError(''); // what was missing is there now
+    });
+  }
+
+  $('waitForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (wfBusy) return; // a second tap or Enter while the first is out sends nothing
+    const who = $('wfWho').value.trim();
+    const what = $('wfWhat').value.trim();
+    const forWhom = $('wfFor').value.trim();
+    const missing = [];
+    if (!who) missing.push($('wfWho'));
+    if (!what) missing.push($('wfWhat'));
+    for (const el of [$('wfWho'), $('wfWhat')]) {
+      if (missing.includes(el)) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+    }
+    if (missing.length) {
+      wfError(missing.length === 2 ? 'Who and About are needed.' : !who ? 'Who is needed.' : 'About is needed.');
+      missing[0].focus();
+      return;
+    }
+    const body = { who, what, channel: wf.channel, chaseDays: wf.days, source: 'morning' };
+    if (forWhom) body.forWhom = forWhom;
+    const send = $('wfSend');
+    wfBusy = true;
+    send.disabled = true;
+    send.textContent = 'Adding…';
+    wfError('');
+    let item = null;
+    try {
+      const r = await fetch(API + '/api/waiting/' + code, {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      let out = null;
+      try { out = await r.json(); } catch (err) { /* not JSON */ }
+      if (r.ok && out && out.item) item = out.item;
+      else wfError(out && typeof out.error === 'string' && out.error ? `Not added: ${out.error}` : 'Not added. Try again.');
+    } catch (err) {
+      wfError('Can’t reach the hub. Nothing was added, try again.');
+    }
+    wfBusy = false;
+    send.disabled = false;
+    send.textContent = 'Add';
+    if (!item) return; // what was typed stays
+    waitInsert(item);
+    $('waitForm').reset();
+    wf.channel = 'email';
+    wf.days = 7;
+    wfSync();
+    wfOpen(false);
+    render();
+    load();
+  });
+
   /* ---------- Sundays: the Week view (the Sunday reset) ----------
    * The Worker sends `week` on Sundays only. The page then opens on it; the switch under the
    * sentence goes to the usual Today and back. Four cards, each with a short line when empty and
@@ -893,6 +1039,7 @@
     }
 
     renderEnergyWeek(w.energy);
+    renderWaitWeek(w.waiting && typeof w.waiting === 'object' ? w.waiting : null, now);
     renderLessons(w);
 
     // 01 Done this week, grouped by section, newest first in each
@@ -1014,6 +1161,116 @@
     }
     setHTML($('wkEnergyFacts'), facts.map((f) => `<span>${esc(f)}</span>`).join(''));
   }
+
+  /* Waiting on (Sundays): every open item, oldest first, with Answered and Snooze
+   * (POST /api/waiting/:code/:id). Answered takes the row off (the hub ticks its chase task off);
+   * a snoozed row stays, still open, with its next chase date and the amber edge gone. Neither has
+   * an Undo: the hub has no undo for them. Footer: resolved and chased this week. */
+  const SNOOZE = [[3, '3 days'], [7, '1 week'], [14, '2 weeks']];
+  const waitHiding = new Set(); // answered on this screen while the hub answers
+  const waitBusy = new Set(); // a request is out for this id: its buttons send nothing
+  const waitAsk = {}; // id -> true while the snooze choices show
+  const waitSnoozed = {}; // id -> the next chase date, for rows snoozed on this screen
+  const chasedWord = (n) => (n === 1 ? 'chased once' : n === 2 ? 'chased twice' : `chased ${n} times`);
+
+  function renderWaitWeek(wv, now) {
+    const card = $('wkWaitCard');
+    const items = wv ? waitItems(wv.items).filter((x) => !waitHiding.has(x.id)) : [];
+    const resolved = wv ? Number(wv.resolved) || 0 : 0;
+    const chased = wv ? Number(wv.chased) || 0 : 0;
+    card.hidden = !wv || (!items.length && !resolved && !chased && !(card.contains($('wkToast')) && !$('wkToast').hidden));
+    if (card.hidden) return;
+    const today = ymd(now);
+    const note = items.length ? `${items.length} open` : '';
+    if ($('wkWaitNote').textContent !== note) $('wkWaitNote').textContent = note;
+    const shownW = wkOpen.wait ? items : items.slice(0, WK_SHOWN);
+    const rows = shownW.map((x) => {
+      const id = esc(x.id);
+      const label = esc(`${x.who} about ${x.what}`);
+      const busy = waitBusy.has(x.id) ? ' disabled' : '';
+      const how = [CHANNEL_NAME[x.channel] || cap(String(x.channel || ''))];
+      if (x.chases > 0) how.push(chasedWord(x.chases));
+      if (waitSnoozed[x.id] && !x.chaseDue && isDate(x.nextChase)) how.push('next chase ' + dm(x.nextChase));
+      const d = isDate(x.since) ? Math.max(0, daysFrom(x.since, today)) : null;
+      const days = d === null ? '' : d === 0 ? 'today' : d === 1 ? '1 day' : d + ' days';
+      const btns = waitAsk[x.id]
+        ? `<div class="wk-ask ww-ask" role="group" aria-label="Snooze ${label}"><span>Chase again in</span>
+          ${SNOOZE.map(([n, words]) => `<button type="button" class="pbtn pbtn-done" data-ww="s${n}" data-id="${id}" title="${esc(shortDate(addDays(today, n)))}"${busy}>${words}</button>`).join('')}
+          <button type="button" class="pbtn pbtn-drop" data-ww="cancel" data-id="${id}">Cancel</button></div>`
+        : `<div class="park-btns ww-btns">
+          <button type="button" class="pbtn pbtn-done" data-ww="resolve" data-id="${id}" aria-label="Answered: ${label}"${busy}>Answered</button>
+          <button type="button" class="pbtn pbtn-done" data-ww="snooze" data-id="${id}" aria-label="Snooze: ${label}"${busy}>Snooze</button></div>`;
+      return `<div class="ww${x.chaseDue ? ' due' : ''}${waitAsk[x.id] ? ' asking' : ''}">
+        <span class="ww-what">${waitWhat(x)}</span><span class="ww-how">${esc(how.join(' · '))}</span>
+        <span class="ww-days">${esc(days)}</span>${btns}</div>`;
+    }).join('');
+    setHTML($('wkWait'), items.length ? `<div class="wws">${rows}</div>${moreBtn('wait', items.length)}` : emptyRow('Nothing open. Nobody owes you an answer.'));
+    const foot = `Resolved this week ${resolved} · Chased this week ${chased}`;
+    if ($('wkWaitFoot').textContent !== foot) $('wkWaitFoot').textContent = foot;
+  }
+
+  /* The hub's answer for one item into the copy on this device: the Sunday list and Morning's block. */
+  function waitApply(item, action) {
+    const d = last && last.data;
+    if (!d || !item || !item.id) return;
+    const gone = item.state !== 'open';
+    const swap = (list) => (gone ? list.filter((x) => x.id !== item.id) : list.map((x) => (x.id === item.id ? item : x)));
+    const w = d.week && d.week.waiting;
+    const m = waitOf(d);
+    const before = [...(w && Array.isArray(w.items) ? w.items : []), ...(m ? m.items : [])].find((x) => x.id === item.id);
+    if (w && Array.isArray(w.items)) {
+      w.items = swap(w.items);
+      if (gone && action === 'resolve') w.resolved = (Number(w.resolved) || 0) + 1;
+    }
+    if (m) {
+      m.items = swap(m.items);
+      if (gone) m.open = Math.max(0, (Number(m.open) || 0) - 1);
+      const was = !!(before && before.chaseDue);
+      const is = !gone && !!item.chaseDue;
+      m.due = Math.max(0, (Number(m.due) || 0) + (is ? 1 : 0) - (was ? 1 : 0));
+      m.dueWho = m.items.filter((x) => x.chaseDue).slice(0, 3).map((x) => x.who);
+    }
+    store.set(KEY, last);
+  }
+
+  async function waitPost(id, action, days) {
+    const body = { action, source: 'morning' };
+    if (days) body.days = days;
+    const r = await fetch(API + '/api/waiting/' + code + '/' + id, {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error('status ' + r.status);
+    const out = await r.json();
+    if (!out || !out.item) throw new Error('no item');
+    waitApply(out.item, action);
+    return out.item;
+  }
+
+  $('wkWait').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-ww]');
+    if (!b) return;
+    const { id, ww } = b.dataset;
+    const card = $('wkWaitCard');
+    if (ww === 'snooze') { waitAsk[id] = true; render(); return; }
+    if (ww === 'cancel') { delete waitAsk[id]; render(); return; }
+    if (waitBusy.has(id) || waitHiding.has(id)) return;
+    const days = ww === 'resolve' ? 0 : Number(ww.slice(1));
+    if (ww !== 'resolve' && !SNOOZE.some(([n]) => n === days)) return;
+    delete waitAsk[id];
+    waitBusy.add(id);
+    if (ww === 'resolve') waitHiding.add(id);
+    render();
+    wkToast(ww === 'resolve' ? 'Marked answered.' : `Snoozed. Next chase ${shortDate(addDays(ymd(new Date()), days))}.`, '', card);
+    try {
+      const item = await waitPost(id, ww === 'resolve' ? 'resolve' : 'snooze', days);
+      if (ww !== 'resolve') waitSnoozed[id] = item.nextChase;
+    } catch (err) {
+      wkToast('Couldn’t save that. Try again.', '', card);
+    }
+    waitBusy.delete(id);
+    waitHiding.delete(id);
+    render();
+  });
 
   /* What Claude learned (paul-hub src/lessons.js): each Sunday Claude reads how Paul corrected Claude
    * in To-do (Tidy, answers, letters) and Lift that week and proposes a few short rules. Keep puts a rule into their prompts from the
@@ -1513,6 +1770,7 @@
     renderIntake(data && data.intake, now);
     renderFeed(data && data.events, now);
     renderParked(data && data.projects, now);
+    renderWaiting(waitOf(data), now);
     renderCalendar(data, now);
     const a = data && data.arsenal;
     const arsenal = a && !ok(a) && arsenalDirect ? arsenalDirect : a;

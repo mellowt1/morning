@@ -32,6 +32,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Projects | one line per project (status and next step) plus a folded Parked list. Read only: Claude Code sets it with `POST /api/admin/morning/projects`. Hidden until the first push | every open |
 | Sunrise and sunset | worked out on the device (`app/sun.js`); no request | always |
 | Start with, to-dos | the to-do list, Today, open items; the first one is shown large as "Start with" | every open |
+| Waiting on | the hub's `waiting` table (paul-hub `src/waiting.js`): a Chases due tile in Today, a card with the oldest five open items and Add (POST `/api/waiting/:code`), and on Sundays every open item with Answered and Snooze. Hidden until the hub sends the block | every open |
 | Yesterday's wins | the to-do list, items finished yesterday, up to five names | every open |
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
 | Countdowns and fixed events | Worker secret `FIXED_EVENTS` | every open |

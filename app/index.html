@@ -76,6 +76,12 @@
       <div id="wkEnergy" class="en-grid"></div>
       <p id="wkEnergyFacts" class="en-facts"></p>
     </section>
+    <!-- Waiting on: everything still open, oldest first, with Answered and Snooze (data.week.waiting). Hidden with nothing open and nothing this week. -->
+    <section id="wkWaitCard" class="card card-para card-wait-wk" aria-label="Waiting on" style="--i:0" hidden>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">Waiting on</span><span id="wkWaitNote" class="card-note"></span></div>
+      <div id="wkWait"></div>
+      <p id="wkWaitFoot" class="ww-foot"></p>
+    </section>
     <!-- What Claude learned: short rules from Paul's corrections of Claude in To-do (Tidy, answers, letters) and Lift. He keeps or drops each; kept ones go into their prompts. -->
     <section id="wkLessonsCard" class="card card-para card-lessons" aria-label="What Claude learned" style="--i:0" hidden>
       <div class="card-head"><span class="num" role="heading" aria-level="2">What Claude learned</span><span id="wkLessonsNote" class="card-note"></span></div>
@@ -137,6 +143,42 @@
         </div>
         <div id="liftBody" class="fx"></div>
       </a>
+
+      <!-- Waiting on: what Paul sent and is waiting to hear back about (paul-hub src/waiting.js).
+           Rows only: answering and snoozing happen in To-do and on Sunday. Add opens the form below,
+           which render() never rebuilds, so a draft survives every refresh. Hidden until the hub sends the block. -->
+      <section id="waiting" class="card card-wait" aria-label="Waiting on" style="--i:4" hidden>
+        <div class="card-head">
+          <span class="num" role="heading" aria-level="2">Waiting on <span id="waitCount" class="sub-count"></span></span>
+          <button type="button" id="waitAdd" class="pbtn pbtn-done" aria-expanded="false" aria-controls="waitForm">Add</button>
+        </div>
+        <form id="waitForm" class="wait-form" aria-label="Add something you are waiting on" novalidate hidden>
+          <label class="wf-row"><span class="wf-k">Who</span><input id="wfWho" class="wf-in" name="who" maxlength="60" autocomplete="off" required></label>
+          <label class="wf-row"><span class="wf-k">About</span><input id="wfWhat" class="wf-in" name="what" maxlength="160" autocomplete="off" required></label>
+          <div class="wf-row" role="group" aria-labelledby="wfHowK"><span id="wfHowK" class="wf-k">How</span>
+            <div class="seg wf-seg" data-wf="channel">
+              <button type="button" data-v="email" aria-pressed="true">Email</button>
+              <button type="button" data-v="phone" aria-pressed="false">Phone</button>
+              <button type="button" data-v="letter" aria-pressed="false">Letter</button>
+              <button type="button" data-v="in-person" aria-pressed="false">In person</button>
+            </div>
+          </div>
+          <div class="wf-row" role="group" aria-labelledby="wfDaysK"><span id="wfDaysK" class="wf-k">Chase after</span>
+            <div class="seg wf-seg" data-wf="days">
+              <button type="button" data-v="3" aria-pressed="false">3 days</button>
+              <button type="button" data-v="7" aria-pressed="true">7 days</button>
+              <button type="button" data-v="14" aria-pressed="false">14 days</button>
+            </div>
+          </div>
+          <label class="wf-row"><span class="wf-k">For someone else</span><input id="wfFor" class="wf-in" name="forWhom" maxlength="40" autocomplete="off" placeholder="Optional"></label>
+          <p id="wfErr" class="wf-err" role="alert" hidden></p>
+          <div class="wf-acts">
+            <button type="submit" id="wfSend" class="pbtn pbtn-today">Add</button>
+            <button type="button" id="wfCancel" class="pbtn pbtn-drop">Cancel</button>
+          </div>
+        </form>
+        <div id="waitList"></div>
+      </section>
 
       <section id="parked" class="card" aria-label="Parked" style="--i:4" hidden>
         <div id="parkHead" class="card-head"></div>
