@@ -27,7 +27,12 @@ function world(now, empty) {
     { id: 'quiet0000005', text: 'Return the library books', section: 'today', days: 14 },
     { id: 'quiet0000006', text: 'Sort the photo backup', section: 'someday', days: 14 },
   ];
+  const flags = empty ? [] : [
+    { id: 'flag00000001', text: 'Book the flights · 2026-11-02', section: 'soon' },
+    { id: 'flag00000002', text: 'Call the plumber', section: 'today' },
+  ];
   const week = () => ({
+    thisWeek: structuredClone(flags),
     week: 42, from: '2026-10-12', to: '2026-10-18',
     lessons: structuredClone(lessons),
     energy: empty ? { parts: ['morning', 'afternoon', 'evening'], days: [12, 13, 14, 15, 16, 17, 18].map((d) => ({ date: '2026-10-' + d, parts: [null, null, null] })), sets: 0, most: { wired: null, normal: null, drained: null } } : {
@@ -94,6 +99,11 @@ function world(now, empty) {
     },
     act({ id, action }) {
       this.posts.push(action);
+      if (action === 'keep' || action === 'unflag') {
+        const i = flags.findIndex((q) => q.id === id); const [q] = flags.splice(i, 1); if (action === 'unflag') gone.set(id, { flag: q });
+        return { ok: true, week: week() };
+      }
+      if (action === 'undo' && gone.get(id) && gone.get(id).flag) { flags.push(gone.get(id).flag); gone.delete(id); return { ok: true, week: week() }; }
       if (action === 'undo') { const q = gone.get(id); if (q) { quiet.push(q); quiet.sort((a, b) => b.days - a.days); gone.delete(id); } }
       else { const i = quiet.findIndex((q) => q.id === id); const [q] = quiet.splice(i, 1); if (action !== 'delete') gone.set(id, q); }
       return { ok: true, week: week(), ...(action.startsWith('later') ? { until: '2026-10-26' } : {}) };
@@ -132,8 +142,24 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   const { page, ctx, w, errors } = await open(viewport, { dark });
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
-  check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|What Claude learned|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, the mirror, energy, the lessons, then four cards in order');
+  check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet. 2 flagged tasks are still open.', name + ': sentence ' + await page.textContent('.js-say'));
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, the lessons, then five cards in order');
+  // 02 Still this week: the flagged tasks still open, Keep for next week or Unflag (with Undo).
+  check((await texts(page, '#wkFlag .park-what')).join('|') === 'Book the flights|Call the plumber', name + ': still this week lists the flagged tasks, clean names');
+  check(await page.textContent('#wkFlagNote') === '2 left', name + ': still this week says 2 left');
+  await page.locator('#wkFlag').screenshot({ path: file(name + '-flag') });
+  await page.click('#wkFlag [data-wk="keep"][data-id="flag00000001"]');
+  await page.waitForTimeout(300);
+  check((await texts(page, '#wkFlag .park-what')).join('|') === 'Call the plumber' && w.posts.at(-1) === 'keep', name + ': Keep sends keep and the row leaves');
+  check(await page.textContent('#wkToast span') === 'Kept for next week.' && await page.$eval('#wkToast', (e) => !!e.closest('[aria-label="Still this week"]')), name + ': the toast says so, in this card ' + await page.textContent('#wkToast span') + ' ' + await page.$eval('#wkToast', (e) => e.parentElement.getAttribute('aria-label')));
+  await page.click('#wkFlag [data-wk="unflag"]');
+  await page.waitForTimeout(300);
+  check(w.posts.at(-1) === 'unflag' && await page.textContent('#wkToast span') === 'Off this week.', name + ': Unflag sends unflag');
+  check((await texts(page, '#wkFlag .row.empty')).join() === 'Nothing flagged is left. Flag tasks for the week in To-do.', name + ': then the card says nothing is left');
+  await page.click('#wkToast button');
+  await page.waitForTimeout(400);
+  check(w.posts.at(-1) === 'undo' && (await texts(page, '#wkFlag .park-what')).join() === 'Call the plumber', name + ': Undo brings it back');
+  w.posts.length = 0; // the checks below count from here
   // Energy this week: Mon to Sun across, morning, afternoon and evening down, then one line of facts.
   check((await texts(page, '#wkEnergy .en-day')).join() === 'Mon,Tue,Wed,Thu,Fri,Sat,Sun' && (await texts(page, '#wkEnergy .en-part')).join() === 'Morning,Afternoon,Evening', name + ': energy grid heads');
   const cells = await texts(page, '#wkEnergy .en-cell');
@@ -228,7 +254,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
 
 {
   const { page, ctx, errors } = await open({ width: 390, height: 844 }, { empty: true });
-  check((await texts(page, '#weekView .row.empty')).join('|') === 'Nothing ticked off this week. Next week is a fresh one.|Nothing has gone quiet. Every open task moved in the last two weeks.|No new vacancies this week.|Nothing in Day for next week yet.', 'empty: every card says so in a line');
+  check((await texts(page, '#weekView .row.empty')).join('|') === 'Nothing ticked off this week. Next week is a fresh one.|Nothing flagged is left. Flag tasks for the week in To-do.|Nothing has gone quiet. Every open task moved in the last two weeks.|No new vacancies this week.|Nothing in Day for next week yet.', 'empty: every card says so in a line');
   check(await page.textContent('.js-say') === 'A quiet week. Nothing to clear up.', 'empty: sentence');
   check(!(await shown(page, '#wkParaCard')), 'empty: no Your week card before it is written');
   check(!(await shown(page, '#wkMirrorCard')), 'empty: no mirror card before it is written');

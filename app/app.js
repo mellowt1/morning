@@ -568,6 +568,9 @@
         ? shown.map((i) => todoRow(i.text, now)).join('')
         : row(t.items.length ? 'Nothing else on the list.' : 'Nothing for today.', '', 'empty')}</ul>`;
       if (rest.length > shown.length) html += `<a class="more-link" href="../todo/?c=${encodeURIComponent(code)}">+${rest.length - shown.length} more</a>`;
+      // "This week" in To-do (2026-10-21): one line, how many flagged tasks are still open.
+      const left = t.week && Number.isInteger(t.week.left) ? t.week.left : 0;
+      if (left) html += `<a class="more-link week-left" href="../todo/?c=${encodeURIComponent(code)}">This week: ${left} left</a>`;
       // What was ticked off today stays in sight, struck through, so the card moves through the day.
       const won = t.doneToday && Array.isArray(t.doneToday.items) ? t.doneToday.items.slice(0, 3) : [];
       if (won.length) html += `<ul class="rows rows-done">${won.map((x) => `<li class="row task task-done"><span class="tick" aria-hidden="true"></span><span>${esc(taskName(x).name)}</span></li>`).join('')}</ul>`;
@@ -931,6 +934,23 @@
         <span class="park-age">${esc(q.days + ' days')}</span>
         <span class="park-what">${label}</span>${btns}</div>`;
     }).join('');
+    // 02 Still this week: the tasks flagged "this week" in To-do that are still open (2026-10-21).
+    // Keep holds the flag for next week; Unflag takes it off (with Undo). Nothing clears by itself.
+    const flagged = (w.thisWeek || []).filter((q) => !wkHiding.has(q.id));
+    const shownFlag = wkOpen.flag ? flagged : flagged.slice(0, WK_SHOWN);
+    const flagRows = shownFlag.map((q) => {
+      const label = esc(taskName(q.text).name);
+      return `<div class="park lv-flag">
+        <span class="fold-from park-from">${esc(SECTION_NAME[q.section] || q.section)}</span>
+        <span class="park-what">${label}</span>
+        <div class="park-btns">
+          <button type="button" class="pbtn pbtn-today" data-wk="keep" data-id="${esc(q.id)}" aria-label="Keep for next week: ${label}">Keep for next week</button>
+          <button type="button" class="pbtn pbtn-drop" data-wk="unflag" data-id="${esc(q.id)}" aria-label="Unflag: ${label}">Unflag</button>
+        </div></div>`;
+    }).join('');
+    $('wkFlagNote').textContent = flagged.length ? plural(flagged.length, 'left', 'left') : '';
+    setHTML($('wkFlag'), flagged.length ? `<div class="parks">${flagRows}</div>${moreBtn('flag', flagged.length)}` : emptyRow('Nothing flagged is left. Flag tasks for the week in To-do.'));
+
     $('wkQuietNote').textContent = quiet.length ? 'untouched 14+ days' : '';
     setHTML($('wkQuiet'), quiet.length ? `<div class="parks">${rows}</div>${moreBtn('quiet', quiet.length)}` : emptyRow('Nothing has gone quiet. Every open task moved in the last two weeks.'));
 
@@ -1084,17 +1104,20 @@
 
   function weekSentence(w) {
     const quiet = (w.quiet || []).filter((q) => !wkHiding.has(q.id)).length;
-    if (!w.done.count && !quiet) return 'A quiet week. Nothing to clear up.';
+    const flagged = (w.thisWeek || []).filter((q) => !wkHiding.has(q.id)).length;
+    if (!w.done.count && !quiet && !flagged) return 'A quiet week. Nothing to clear up.';
     const parts = [];
     parts.push(w.done.count ? `${w.done.count} done this week.` : 'Nothing ticked off this week.');
     if (quiet) parts.push(quiet === 1 ? '1 thing has gone quiet.' : `${quiet} things have gone quiet.`);
+    if (flagged) parts.push(flagged === 1 ? '1 flagged task is still open.' : `${flagged} flagged tasks are still open.`);
     return parts.join(' ');
   }
 
   let wkToastT = 0;
   let wkToastId = '';
-  function wkToast(words, id) {
+  function wkToast(words, id, card) {
     const el = $('wkToast');
+    if (card && el.parentElement !== card) card.append(el); // the toast sits in the card that was used
     clearTimeout(wkToastT);
     wkToastId = id || '';
     el.firstChild.textContent = words;
@@ -1127,6 +1150,7 @@
     const b = e.target.closest('button[data-wk]');
     if (!b) return;
     const { id, wk } = b.dataset;
+    const card = b.closest('.card'); // before render() replaces the button
     if (wk === 'delete' || wk === 'date') { wkAsk[id] = wk; render(); return; }
     if (wk === 'cancel') { delete wkAsk[id]; render(); return; }
     if (wkHiding.has(id)) return;
@@ -1135,7 +1159,9 @@
     delete wkAsk[id];
     wkHiding.add(id);
     render();
-    wkToast(action === 'delete' ? 'Deleted.' : later ? `Back in Today on ${shortDate(backOn(ymd(new Date()), later[2]))}.` : 'Moved to the top of Soon.', action === 'delete' ? '' : id);
+    const words = action === 'delete' ? 'Deleted.' : action === 'keep' ? 'Kept for next week.' : action === 'unflag' ? 'Off this week.'
+      : later ? `Back in Today on ${shortDate(backOn(ymd(new Date()), later[2]))}.` : 'Moved to the top of Soon.';
+    wkToast(words, action === 'delete' || action === 'keep' ? '' : id, card);
     const req = weekPost(id, action);
     wkInflight.set(id, req);
     try {
