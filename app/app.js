@@ -996,7 +996,7 @@
   const wkHiding = new Set();
   const wkInflight = new Map();
   const LATER = [['later1', 'Next week', 1], ['later2', 'In 2 weeks', 2], ['later4', 'In a month', 4]];
-  const SECTION_NAME = { today: 'Today', soon: 'Soon', someday: 'Someday' };
+  const SECTION_NAME = { today: 'Today', soon: 'Soon', someday: 'Someday', build: 'Build', fun: 'Fun', others: 'Others' }; // To-do's lanes too (2026-10-21)
   const weekOf = (data) => (data && ok(data.week) && data.week.done ? data.week : null);
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const dm = (date) => `${+date.slice(8, 10)} ${MONTHS[+date.slice(5, 7) - 1].slice(0, 3)}`;
