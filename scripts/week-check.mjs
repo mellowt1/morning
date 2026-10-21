@@ -15,7 +15,8 @@ const SUNDAY = '2026-10-18T18:30:00+02:00';
 const MONDAY = '2026-10-19T08:30:00+02:00';
 
 let failed = false;
-const check = (ok, what) => { if (!ok) { failed = true; console.error('FAIL:', what); } else console.log('ok:', what); };
+let passes = 0, fails = 0;
+const check = (ok, what) => { if (!ok) { fails++; failed = true; console.error('FAIL:', what); } else { passes++; console.log('ok:', what); } };
 
 function world(now, empty) {
   const quiet = empty ? [] : [
@@ -29,6 +30,14 @@ function world(now, empty) {
   const week = () => ({
     week: 42, from: '2026-10-12', to: '2026-10-18',
     lessons: structuredClone(lessons),
+    energy: empty ? { parts: ['morning', 'afternoon', 'evening'], days: [12, 13, 14, 15, 16, 17, 18].map((d) => ({ date: '2026-10-' + d, parts: [null, null, null] })), sets: 0, most: { wired: null, normal: null, drained: null } } : {
+      parts: ['morning', 'afternoon', 'evening'],
+      days: [
+        ['normal', 'normal', 'drained'], ['wired', 'normal', 'drained'], ['normal', 'drained', 'drained'], ['normal', 'normal', 'normal'],
+        [null, 'normal', 'drained'], ['wired', 'normal', 'normal'], ['normal', null, 'drained'],
+      ].map((parts, i) => ({ date: '2026-10-' + (12 + i), parts })),
+      sets: 11, most: { wired: 'morning', normal: 'afternoon', drained: 'evening' },
+    },
     paragraph: empty ? null : 'You got seven things done, including the rent and the ID card. The hallway light has sat for two weeks now. Thursday is busy, so do it Monday evening after archery.',
     mirror: empty ? null : {
       days: 45, moodDays: 31,
@@ -124,7 +133,16 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|What Claude learned|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, the mirror, the lessons, then four cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|What Claude learned|01 Done this week|02 Gone quiet|03 New vacancies|04 Next week', name + ': Your week, the mirror, energy, the lessons, then four cards in order');
+  // Energy this week: Mon to Sun across, morning, afternoon and evening down, then one line of facts.
+  check((await texts(page, '#wkEnergy .en-day')).join() === 'Mon,Tue,Wed,Thu,Fri,Sat,Sun' && (await texts(page, '#wkEnergy .en-part')).join() === 'Morning,Afternoon,Evening', name + ': energy grid heads');
+  const cells = await texts(page, '#wkEnergy .en-cell');
+  check(cells.length === 21 && cells[0] === 'Normal' && cells[1] === 'Wired' && cells[4] === 'Not set' && cells[20] === 'Drained', name + ': energy cells ' + cells.join());
+  check((await page.$$('#wkEnergy .en-cell .batt')).length === 19 && (await page.$$('#wkEnergy .en-none .batt')).length === 0, name + ': a battery in every set cell, none in Not set');
+  const facts = (await texts(page, '#wkEnergyFacts span')).join('|');
+  check(facts === 'Set 11 times|Drained most: evenings|Wired most: mornings|Normal most: afternoons', name + ': energy facts ' + facts);
+  check(await page.evaluate(() => { const a = document.getElementById('wkEnergyCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), g = document.getElementById('wkEnergy'); return a.width > v.width * 0.9 && g.scrollWidth <= g.clientWidth; }), name + ': the energy card spans the width, nothing cut off');
+  await page.locator('#wkEnergyCard').screenshot({ path: file(name + '-energy') });
   // What Claude learned: two rules to check with Keep and Drop, one kept rule under a fold.
   check(await page.textContent('#wkLessonsNote') === '2 rules to check' && (await page.$$('#wkLessons .parks .park')).length === 2, name + ': lessons shows 2 rules to check');
   check((await texts(page, '#wkLessons .park-from')).join() === 'Tidy,Desk' && (await page.textContent('#wkLessons .lesson-why')).startsWith('You undid 3'), name + ': each rule names its app and why');
@@ -215,6 +233,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(!(await shown(page, '#wkParaCard')), 'empty: no Your week card before it is written');
   check(!(await shown(page, '#wkMirrorCard')), 'empty: no mirror card before it is written');
   check(!(await shown(page, '#wkLessonsCard')), 'empty: no lessons card without rules');
+  check(!(await shown(page, '#wkEnergyCard')), 'empty: no energy card when nothing was set');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
   await ctx.close();
@@ -226,5 +245,6 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   await ctx.close();
 }
 await browser.close();
+console.log(`${passes} of ${passes + fails} week checks pass`);
 if (failed) process.exit(1);
 console.log('all week checks pass');
