@@ -35,7 +35,7 @@
       <span class="eyebrow js-eyebrow"></span>
       <h1 class="date js-date"></h1>
     </div>
-    <!-- PC only: three read-outs between the date and the clocks (next thing, left today, tonight). -->
+    <!-- PC only: four read-outs between the date and the clocks (next thing, left today, tonight, the energy dial). -->
     <div id="readouts" class="readouts" aria-label="At a glance" hidden></div>
     <div class="clocks">
       <div class="clock clock-far"><span class="clock-label" title="Miami">MIA</span><span class="clock-time" data-clock="miami"></span></div>
@@ -70,6 +70,12 @@
       <div id="wkMirrorTry" class="mirror-row"><span class="mirror-k">This week</span><span id="wkMirrorTryText"></span></div>
       <div id="wkMirrorLast" class="mirror-row"><span class="mirror-k">Last week</span><span id="wkMirrorLastText"></span></div>
     </section>
+    <!-- Energy this week: the dial's level for each part of each day (data.week.energy). Hidden with nothing set. -->
+    <section id="wkEnergyCard" class="card card-para card-energy" aria-label="Energy this week" style="--i:0" hidden>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">Energy this week</span></div>
+      <div id="wkEnergy" class="en-grid"></div>
+      <p id="wkEnergyFacts" class="en-facts"></p>
+    </section>
     <!-- What Claude learned: short rules from Paul's corrections of Claude in To-do (Tidy, answers, letters) and Lift. He keeps or drops each; kept ones go into their prompts. -->
     <section id="wkLessonsCard" class="card card-para card-lessons" aria-label="What Claude learned" style="--i:0" hidden>
       <div class="card-head"><span class="num" role="heading" aria-level="2">What Claude learned</span><span id="wkLessonsNote" class="card-note"></span></div>
@@ -98,10 +104,18 @@
 
   <main class="cols">
     <div class="col col-a">
-      <a id="start" class="card card-start" href="../todo/" style="--i:0" hidden>
-        <span class="num"><span>Start with</span><span class="start-go" aria-hidden="true">Open ›</span></span>
-        <span class="start-text"></span>
-      </a>
+      <!-- The strip in hand. With an energy level set (the dial, paul-hub src/energy.js) it holds the
+           pick for that level, with Not this one and Surprise me; otherwise the first Today task.
+           The dial sits on top on the phone only (the PC has it in the header). -->
+      <section id="start" class="card card-start" aria-label="Start with" style="--i:0" hidden>
+        <div id="startDial" class="start-dial"></div>
+        <a id="startLink" class="start-link" href="../todo/">
+          <span class="num"><span>Start with</span><span class="start-go" aria-hidden="true">Open ›</span><span class="start-note" hidden></span></span>
+          <span class="start-text"></span>
+          <span class="start-meta" hidden></span>
+        </a>
+        <div id="startActs" class="start-acts" hidden></div>
+      </section>
 
       <section class="card card-today" aria-label="Today" style="--i:1">
         <div class="card-head">

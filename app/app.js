@@ -229,13 +229,164 @@
 
   const isNew = (key) => (fresh.has(key) ? ' is-new' : '');
 
+  /* ---------- The energy dial (approved 2026-10-21) ----------
+   * Wired, Normal or Drained, held by the hub (paul-hub src/energy.js) and shared with To-do and Day.
+   * Tapping the level that is on clears it. With a level on, Start with holds the hub's pick of the
+   * tasks that fit it, with Not this one (skips it for this level) and Surprise me. The skip list
+   * lives in memory and starts over when the level changes, from any app. The level is read on
+   * return to the page and every minute while it shows; the last answer is kept on this device. */
+  const EKEY = 'morning.energy.' + code;
+  const LEVELS = [['wired', 'Wired', 12], ['normal', 'Normal', 7], ['drained', 'Drained', 2.5]];
+  const LEVEL_NAME = { wired: 'Wired', normal: 'Normal', drained: 'Drained' };
+  const LEVEL_FILL = { wired: 12, normal: 7, drained: 2.5 };
+  const ENERGY_EVERY = 60 * 1000;
+  let energy = store.get(EKEY); // { at, data: { level, setAt, until, source, pick } }
+  let eSkip = []; // task ids turned down for eSkipLevel
+  let eSkipLevel = null; // null until the first answer, so a reload starts a fresh round
+  let eBusy = false; // a tap's request is out: a second tap sends nothing
+  let eSeq = 0; // a poll that left before a tap's request is thrown away
+
+  /* A battery: its fill says the level (a full one for Wired, a sliver for Drained). */
+  const battery = (fill) => `<svg class="batt" width="18" height="11" viewBox="0 0 20 12" aria-hidden="true" focusable="false">` +
+    `<rect x=".75" y=".75" width="16" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>` +
+    `<rect x="17.5" y="3.75" width="1.75" height="4.5" rx=".8" fill="currentColor"/>` +
+    (fill ? `<rect x="2.75" y="2.75" width="${fill}" height="6.5" rx="1.2" fill="currentColor"/>` : '') + '</svg>';
+
+  /* The level now, or null once its time is up (the hub holds a level for a few hours). */
+  function energyLevel(now = Date.now()) {
+    const d = energy && energy.data;
+    if (!d || !LEVEL_NAME[d.level]) return null;
+    const until = Date.parse(d.until);
+    return Number.isFinite(until) && until <= now ? null : d.level;
+  }
+
+  const dialHTML = (lv) => `<div class="dial" role="group" aria-label="Energy">${LEVELS.map(([k, word, fill]) =>
+    `<button type="button" class="dial-btn" data-energy="${k}" aria-pressed="${lv === k}">${battery(fill)}<span>${word}</span></button>`).join('')}</div>`;
+
+  /* Take an answer from the hub. A poll keeps the round in hand (the skips, a surprise) while the
+   * level and the number of tasks that fit stay the same. */
+  function applyEnergy(d, poll = false) {
+    if (!d || typeof d !== 'object' || d.error || !('level' in d)) return;
+    const held = energy && energy.data;
+    if (d.level !== eSkipLevel) {
+      eSkip = [];
+      eSkipLevel = d.level;
+    } else if (poll && held && held.level === d.level && held.pick && d.pick && held.pick.count === d.pick.count) {
+      d = Object.assign({}, d, { pick: held.pick });
+    }
+    energy = { at: Date.now(), data: d };
+    store.set(EKEY, energy);
+  }
+
+  async function energyGet() {
+    if (eBusy || document.hidden) return;
+    const seq = ++eSeq;
+    try {
+      const r = await fetch(API + '/api/energy/' + code + '?pick=1', { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (seq !== eSeq || eBusy) return;
+      applyEnergy(d, true);
+      render();
+    } catch (e) { /* the hub is away: keep what is on screen */ }
+  }
+
+  /* One request at a time; a double tap sends once. */
+  async function energySend(path, body) {
+    if (eBusy) return;
+    eBusy = true;
+    eSeq++;
+    render();
+    try {
+      const r = await fetch(API + '/api/energy/' + code + path, {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ source: 'morning' }, body)),
+      });
+      if (r.ok) applyEnergy(await r.json());
+    } catch (e) { /* nothing changes on screen */ }
+    eBusy = false;
+    render();
+  }
+
+  document.addEventListener('click', (e) => {
+    const dial = e.target.closest('button[data-energy]');
+    const act = e.target.closest('button[data-pick]');
+    if (!dial && !act) return;
+    e.preventDefault();
+    if (eBusy) return;
+    if (dial) {
+      const k = dial.dataset.energy;
+      energySend('', { level: energyLevel() === k ? null : k });
+      return;
+    }
+    const pick = energy && energy.data && energy.data.pick;
+    const current = pick && pick.task ? pick.task.id : null;
+    if (act.dataset.pick === 'skip' && current) {
+      eSkip = [...eSkip, current];
+      energySend('/pick', { mode: 'next', skip: eSkip, current, skipped: current });
+    } else if (act.dataset.pick === 'surprise') {
+      energySend('/pick', { mode: 'surprise', skip: eSkip, current });
+    } else if (act.dataset.pick === 'again') {
+      eSkip = [];
+      energySend('/pick', { mode: 'next', skip: [], current: null });
+    }
+  });
+
+  /* The pick's line under its name: Today or Soon, then its date the way Morning writes dates, and its time. */
+  function pickMeta(task, now) {
+    const parts = [task.section === 'soon' ? 'Soon' : 'Today'];
+    const when = [];
+    if (task.due && /^\d{4}-\d{2}-\d{2}$/.test(task.due) && !(task.section !== 'soon' && task.due === ymd(now))) when.push(+task.due.slice(8, 10) + ' ' + SHORT_MONTHS[+task.due.slice(5, 7) - 1]);
+    if (task.time && /^\d{2}:\d{2}$/.test(task.time)) when.push(task.time);
+    if (when.length) parts.push(when.join(' '));
+    return parts.join(' · ');
+  }
+
+  /* With a level on and tasks that fit it: { level, pick }. Otherwise null, and Start with is as before. */
+  function energyPick() {
+    const lv = energyLevel();
+    const pick = lv && energy.data.pick;
+    return pick && pick.count > 0 ? { level: lv, pick } : null;
+  }
+
   /* ---------- 01 Start with: tapping it opens the to-do app ---------- */
-  function renderStart(t) {
+  function renderStart(t, now) {
+    const box = $('start');
+    const link = $('startLink');
+    const ep = energyPick();
     const first = ok(t) && t.items.length ? taskName(t.items[0].text).name : '';
-    $('start').hidden = !first;
-    $('start').href = '../todo/?c=' + encodeURIComponent(code);
-    $('start').setAttribute('aria-label', first ? 'Start with: ' + cap(first) + '. Opens the to-do app.' : '');
-    $('start').querySelector('.start-text').textContent = cap(first);
+    link.href = '../todo/?c=' + encodeURIComponent(code);
+    setHTML($('startDial'), WIDE.matches ? '' : dialHTML(energyLevel()));
+    const note = box.querySelector('.start-note');
+    const meta = box.querySelector('.start-meta');
+    const text = box.querySelector('.start-text');
+    let name = first, metaText = '', noteText = '', acts = '';
+    if (ep) {
+      const p = ep.pick;
+      const word = LEVEL_NAME[ep.level];
+      if (p.task) {
+        name = taskName(p.task.name).name;
+        metaText = pickMeta(p.task, now);
+        noteText = `${word} · ${p.position} of ${p.count} that fit`;
+        acts = `<button type="button" class="pbtn pbtn-done" data-pick="skip">Not this one</button>` +
+          (p.left > 1 ? `<button type="button" class="pbtn pbtn-done" data-pick="surprise">Surprise me</button>` : '');
+      } else {
+        name = `That was every task that fits ${ep.level}.`;
+        noteText = word;
+        acts = `<button type="button" class="pbtn pbtn-done" data-pick="again">Start again</button>`;
+      }
+    }
+    box.hidden = !name;
+    box.classList.toggle('is-pick', !!ep);
+    box.classList.toggle('is-out', !!ep && !ep.pick.task);
+    link.setAttribute('aria-label', name ? 'Start with: ' + cap(name) + (metaText ? ', ' + metaText : '') + '. Opens the to-do app.' : '');
+    if (text.textContent !== cap(name)) text.textContent = cap(name);
+    meta.textContent = metaText;
+    meta.hidden = !metaText;
+    note.textContent = noteText;
+    note.hidden = !noteText;
+    box.querySelector('.start-go').hidden = !!noteText;
+    $('startActs').hidden = !acts;
+    setHTML($('startActs'), acts);
   }
 
   /* ---------- 02 Today: the rest of Today, then the day's small facts ---------- */
@@ -402,7 +553,15 @@
     if (!t) html += failed ? retryRow() : `<ul class="rows">${row('Loading…', '', 'empty')}</ul>`;
     else if (!ok(t)) html += `<ul class="rows">${row("To-dos can't load right now.", '', 'empty')}</ul>`;
     else {
-      const rest = t.items.slice(1);
+      // Start with holds the first task, or with a level on the pick: then Today lists the rest, the first included.
+      const ep = energyPick();
+      let rest = t.items.slice(1);
+      if (ep) {
+        rest = t.items.slice();
+        const pickName = ep.pick.task ? taskName(ep.pick.task.name).name : null;
+        const i = pickName ? rest.findIndex((x) => taskName(x.text).name === pickName) : -1;
+        if (i >= 0) rest.splice(i, 1);
+      }
       const shown = rest.slice(0, TODO_SHOWN);
       html += todoProgress(t);
       html += `<ul class="rows">${rest.length
@@ -730,6 +889,7 @@
       $('wkMirrorLast').hidden = !m.last;
     }
 
+    renderEnergyWeek(w.energy);
     renderLessons(w);
 
     // 01 Done this week, grouped by section, newest first in each
@@ -801,6 +961,38 @@
     }
     $('wkCalNote').textContent = calNote;
     return w;
+  }
+
+  /* Energy this week (paul-hub src/energy.js, energyWeek): Mon to Sun across, morning, afternoon and
+   * evening down; each cell the level for most of that part of the day. Under it one line of facts.
+   * Hidden when nothing was set. */
+  const PART_NAME = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' };
+  function renderEnergyWeek(e) {
+    const days = e && Array.isArray(e.days) ? e.days.filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && Array.isArray(d.parts)).slice(0, 7) : [];
+    const parts = e && Array.isArray(e.parts) && e.parts.length ? e.parts : ['morning', 'afternoon', 'evening'];
+    const anySet = days.some((d) => d.parts.some((p) => LEVEL_NAME[p]));
+    const on = !!e && days.length > 0 && (e.sets > 0 || anySet);
+    $('wkEnergyCard').hidden = !on;
+    if (!on) return;
+    let html = '<span class="en-corner"></span>' + days.map((d) => `<span class="en-day">${SHORT[weekday(d.date)]}</span>`).join('');
+    parts.forEach((part, i) => {
+      const label = PART_NAME[part] || cap(part);
+      html += `<span class="en-part">${esc(label)}</span>`;
+      for (const d of days) {
+        const lv = LEVEL_NAME[d.parts[i]] ? d.parts[i] : null;
+        const word = lv ? LEVEL_NAME[lv] : 'Not set';
+        html += `<span class="en-cell en-${lv || 'none'}" title="${esc(`${DAYS[weekday(d.date)]} ${label.toLowerCase()}: ${word}`)}">` +
+          `${lv ? battery(LEVEL_FILL[lv]) : ''}<span class="en-word">${word}</span></span>`;
+      }
+    });
+    setHTML($('wkEnergy'), `<div class="en-table" style="--days:${days.length}">${html}</div>`);
+    const facts = [];
+    if (e.sets > 0) facts.push(e.sets === 1 ? 'Set once' : `Set ${e.sets} times`);
+    const most = e.most && typeof e.most === 'object' ? e.most : {};
+    for (const lv of ['drained', 'wired', 'normal']) {
+      if (most[lv] && PART_NAME[most[lv]]) facts.push(`${LEVEL_NAME[lv]} most: ${most[lv]}s`);
+    }
+    setHTML($('wkEnergyFacts'), facts.map((f) => `<span>${esc(f)}</span>`).join(''));
   }
 
   /* What Claude learned (paul-hub src/lessons.js): each Sunday Claude reads how Paul corrected Claude
@@ -1239,6 +1431,8 @@
       tiles.push(readout('Arsenal', live ? 'Live' : kd === today ? hm(k) : kd === addDays(today, 1) ? 'Tomorrow' : DAYS[weekday(kd)],
         `${live || kd === today ? '' : hm(k) + ' '}${n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`}`));
     }
+    // Energy: the dial (the phone has it in Start with instead)
+    tiles.push(`<div class="ro ro-energy"><span class="ro-k">Energy</span>${dialHTML(energyLevel())}</div>`);
     box.hidden = !tiles.length;
     setHTML(box, tiles.join(''));
   }
@@ -1286,7 +1480,7 @@
     }
     findFresh(data, now);
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
-    renderStart(data && data.todos);
+    renderStart(data && data.todos, now);
     renderToday(data, now);
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos, data && data.links);
@@ -1439,16 +1633,20 @@
   firstLight();
   render();
   load();
+  energyGet();
   tick();
 
   // Data every ten minutes and on return. Hiding the page is "the last look".
   setInterval(() => { if (!document.hidden) load(); }, REFRESH);
+  // The energy level every minute and on return (Paul's choice), so a tap in To-do or Day shows here.
+  setInterval(() => { if (!document.hidden) energyGet(); }, ENERGY_EVERY);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { saveSeen(); return; }
     visibleSince = Date.now();
     firstLight();
     render();
     load();
+    energyGet();
     tick();
   });
   addEventListener('pagehide', saveSeen);
