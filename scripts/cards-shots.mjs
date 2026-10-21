@@ -640,6 +640,183 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   }
 }
 
+// Email in (paul-hub src/mail.js, mocked like the real routes): read-later mails sit above the
+// letters with the event-blue tick, the meta line, the excerpt on tap, Done and Drop (the POST body,
+// the row off at once, back with a toast when the POST fails, a 404 keeps it off), the count line,
+// the "mails to sort in Day" line, nothing new without the block, and the phone's order.
+{
+  const NOON_MS = Date.parse(NOON);
+  const hmIn = (t) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+  const ymdIn = (t) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Amsterdam' }).format(t);
+  const shortIn = (t) => {
+    const d = ymdIn(t);
+    const wd = new Date(d + 'T12:00:00Z').getUTCDay();
+    return `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][wd]} ${+d.slice(8, 10)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+d.slice(5, 7) - 1]}`;
+  };
+  const t1 = NOON_MS - 200 * 60000, t2 = NOON_MS - 864e5, t3 = NOON_MS - 3 * 864e5, t4 = NOON_MS - 9 * 864e5;
+  const EX1 = 'The defence budget doubles by 2030, and most of it goes to people, not kit. Three things that means for jobs in The Hague this winter, and where the openings will be first.';
+  const mails = () => [
+    { id: 'mail0000000000a1', subject: 'Why the defence budget doubles by 2030 and what it means for the jobs in The Hague', sender: 'A newsletter', sentAt: 'Wed, 21 Oct 2026 18:02', excerpt: EX1, at: new Date(t1).toISOString() },
+    { id: 'mail0000000000b2', subject: 'New routine ideas for legs day', sender: 'Nick', sentAt: new Date(t2 - 3600000).toISOString(), excerpt: 'Try split squats before the leg press.', at: new Date(t2).toISOString() },
+    { id: 'mail0000000000c3', subject: 'Your parcel is on its way', sender: null, sentAt: 'Mon 19 Oct', excerpt: 'Track it in the app.', at: new Date(t3).toISOString() },
+    { id: 'mail0000000000d4', subject: 'An older one from last week', sender: 'The bank', sentAt: null, excerpt: '', at: new Date(t4).toISOString() },
+  ];
+  const mworld = (later = mails(), triage = 2) => {
+    const w = { mail: { later, triage }, posts: [], mode: 'ok' };
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    w.morning = (r) => r.fulfill({ json: answer({ mail: w.mail }), headers: h });
+    w.post = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      w.posts.push({ path: new URL(q.url()).pathname, body: q.postDataJSON() });
+      await new Promise((done) => setTimeout(done, 400)); // network time, so the row is seen off while the POST is out
+      if (w.mode === 'fail') return r.fulfill({ status: 500, json: { error: 'boom' }, headers: h });
+      if (w.mode === 'gone') return r.fulfill({ status: 404, json: { error: 'not a read-later line' }, headers: h });
+      return r.fulfill({ json: { ok: true }, headers: h });
+    };
+    return w;
+  };
+  const openM = async (w, viewport) => {
+    const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.setFixedTime(new Date(NOON));
+    await page.addInitScript((d) => { try { localStorage.setItem('morning.enteredOn', JSON.stringify(d)); } catch (e) {} }, day(0));
+    await page.route('**/api/morning/**', w.morning);
+    await page.route('**/api/mail/**', w.post);
+    await page.route('**/api/energy/**', (r) => r.abort());
+    await page.route('**/api/waiting/**', (r) => r.abort());
+    await page.route('**/site.**espn.com/**', (r) => r.abort());
+    await page.goto(BASE + '?c=' + CODE);
+    await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);
+    return { ctx, page };
+  };
+  const ms = (page) => page.evaluate(() => {
+    const card = document.getElementById('intake');
+    const rows = [...document.querySelectorAll('#mailList .mail-row')];
+    const letters = [...document.querySelectorAll('#intakeList .read-row')];
+    const toastEl = document.getElementById('mailToast');
+    const sort = document.getElementById('mailSort');
+    const first = rows[0] && rows[0].querySelector('.mail-subj');
+    return {
+      card: !card.hidden,
+      note: document.getElementById('intakeNote').textContent,
+      kinds: rows.map((r) => r.querySelector('.read-kind').textContent),
+      metas: rows.map((r) => (r.querySelector('.mail-meta') || {}).textContent || ''),
+      ids: rows.map((r) => r.querySelector('[data-mail="done"]').dataset.id),
+      btns: rows.map((r) => [...r.querySelectorAll('.mail-btns button')].map((b) => b.textContent).join()),
+      edge: rows.length ? getComputedStyle(rows[0], '::before').backgroundColor : '',
+      oneLine: first ? first.scrollWidth > first.clientWidth && Math.round(first.getBoundingClientRect().height) < 30 : null,
+      excerpt: [...document.querySelectorAll('#mailList .mail-excerpt')].map((e) => e.textContent),
+      expanded: first ? first.getAttribute('aria-expanded') : null,
+      lastMailBottom: rows.length ? Math.round(rows[rows.length - 1].getBoundingClientRect().bottom) : null,
+      firstLetterTop: letters.length ? Math.round(letters[0].getBoundingClientRect().top) : null,
+      letters: letters.map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
+      empty: !!document.querySelector('#intakeList .empty'),
+      toast: toastEl.hidden ? '' : toastEl.textContent,
+      sort: sort.hidden ? '' : sort.textContent,
+      sortBelow: sort.hidden ? null : sort.getBoundingClientRect().top >= Math.max(...[...card.querySelectorAll('.read-row')].map((r) => r.getBoundingClientRect().bottom)),
+      mailListHidden: document.getElementById('mailList').hidden,
+      overflow: document.documentElement.scrollWidth > innerWidth,
+      btnH: [...document.querySelectorAll('#mailList .mail-btns button')].map((b) => Math.round(b.getBoundingClientRect().height)),
+      order: ['#parked', '#intake', '#feed'].map((q) => getComputedStyle(document.querySelector(q)).order),
+    };
+  });
+
+  // The PC: rows, meta lines, the tick, above the letters, the count, the sort line.
+  const w = mworld();
+  const { ctx, page } = await openM(w, laptop);
+  let s = await ms(page);
+  check(s.card && s.kinds.join() === 'Mail,Mail,Mail,Mail', 'mail: four rows labelled Mail: ' + s.kinds);
+  check(s.ids.join() === 'mail0000000000a1,mail0000000000b2,mail0000000000c3,mail0000000000d4', 'mail: newest first as sent: ' + s.ids);
+  check(s.metas[0] === `From A newsletter · forwarded ${hmIn(t1)}` && s.metas[1] === 'From Nick · forwarded yesterday'
+    && s.metas[2] === `Forwarded ${shortIn(t3)}` && s.metas[3] === `From The bank · forwarded ${shortIn(t4)}`, 'mail: meta lines: ' + JSON.stringify(s.metas));
+  check(s.btns.every((b) => b === 'Done,Drop'), 'mail: Done and Drop on each row: ' + s.btns);
+  check(s.edge === 'rgb(127, 166, 207)', 'mail: event-blue holder tick: ' + s.edge);
+  check(s.oneLine === true, 'mail: a long subject stays on one line with an ellipsis');
+  check(s.lastMailBottom <= s.firstLetterTop && s.letters.length === 2 && /^letter Insurance letter/i.test(s.letters[0]), 'mail: rows above the letters: ' + s.lastMailBottom + ' / ' + s.firstLetterTop);
+  check(s.note === '5 this week', 'mail: the count line adds the 3 mails from the last 7 days to the 2 letters: ' + s.note);
+  check(s.sort === '2 mails to sort in Day' && s.sortBelow, 'mail: the sort line at the bottom: ' + s.sort);
+  check(s.excerpt.length === 0 && s.expanded === 'false', 'mail: excerpts closed to start with');
+  await page.screenshot({ path: file('mail-pc'), fullPage: true });
+  await page.locator('#intake').screenshot({ path: file('mail-pc-card') });
+
+  // The excerpt: a tap on the subject opens it, a second tap closes it.
+  await page.click('#mailList .mail-row:first-child .mail-subj');
+  s = await ms(page);
+  check(s.excerpt.length === 1 && s.excerpt[0] === EX1 && s.expanded === 'true', 'mail: the subject opens its excerpt: ' + s.excerpt);
+  await page.locator('#intake').screenshot({ path: file('mail-pc-open') });
+  await page.click('#mailList .mail-row:first-child .mail-subj');
+  s = await ms(page);
+  check(s.excerpt.length === 0 && s.expanded === 'false', 'mail: a second tap closes it');
+  check((await page.$$('#mailList .mail-row:nth-child(4) button.mail-subj')).length === 0, 'mail: no excerpt, no toggle');
+
+  // Done: off at once, the POST body, still off after.
+  await page.click('#mailList [data-mail="done"][data-id="mail0000000000a1"]');
+  s = await ms(page);
+  check(s.ids.join() === 'mail0000000000b2,mail0000000000c3,mail0000000000d4', 'mail done: the row goes at once: ' + s.ids);
+  await page.waitForTimeout(700);
+  s = await ms(page);
+  check(w.posts.length === 1 && w.posts[0].path === `/api/mail/${CODE}/mail0000000000a1` && JSON.stringify(w.posts[0].body) === '{"action":"done"}', 'mail done: the POST: ' + JSON.stringify(w.posts));
+  check(s.ids.length === 3 && !s.toast && s.note === '4 this week', 'mail done: stays off, the count follows: ' + s.ids + ' ' + s.note);
+
+  // Drop.
+  await page.click('#mailList [data-mail="drop"][data-id="mail0000000000b2"]');
+  await page.waitForTimeout(700);
+  s = await ms(page);
+  check(w.posts.length === 2 && w.posts[1].path === `/api/mail/${CODE}/mail0000000000b2` && JSON.stringify(w.posts[1].body) === '{"action":"drop"}', 'mail drop: the POST: ' + JSON.stringify(w.posts[1]));
+  check(s.ids.join() === 'mail0000000000c3,mail0000000000d4', 'mail drop: the row is gone: ' + s.ids);
+
+  // The POST fails: off at once, back with the toast.
+  w.mode = 'fail';
+  await page.click('#mailList [data-mail="done"][data-id="mail0000000000c3"]');
+  s = await ms(page);
+  check(s.ids.join() === 'mail0000000000d4', 'mail fail: off at once while the POST is out: ' + s.ids);
+  await page.waitForTimeout(700);
+  s = await ms(page);
+  check(s.ids.join() === 'mail0000000000c3,mail0000000000d4' && s.toast === 'Couldn’t save that. Try again.', 'mail fail: the row comes back with a toast: ' + s.ids + ' / ' + s.toast);
+  await page.locator('#intake').screenshot({ path: file('mail-pc-fail') });
+
+  // A 404 (closed somewhere else): it stays off, no toast.
+  w.mode = 'gone';
+  await page.evaluate(() => { document.getElementById('mailToast').hidden = true; });
+  await page.click('#mailList [data-mail="drop"][data-id="mail0000000000d4"]');
+  await page.waitForTimeout(700);
+  s = await ms(page);
+  check(s.ids.join() === 'mail0000000000c3' && !s.toast, 'mail 404: stays off, no toast: ' + s.ids + ' / ' + s.toast);
+  await ctx.close();
+
+  // Nothing new without the block, or with an empty one; one mail to sort reads singular.
+  const base = await shoot(answer(), laptop, '');
+  for (const [mail, what] of [[null, 'null'], [{ later: [], triage: 0 }, 'empty']]) {
+    const a = await shoot(answer({ mail }), laptop, '', async (p) => { s = await ms(p); });
+    check(s.card && s.kinds.length === 0 && s.mailListHidden && !s.sort && !s.toast && s.note === '2 this week'
+      && JSON.stringify(a.intake) === JSON.stringify(base.intake), `mail ${what}: the card as before: ` + JSON.stringify({ kinds: s.kinds, sort: s.sort, note: s.note, intake: a.intake }));
+  }
+  await shoot(answer({ mail: { later: [], triage: 1 } }), laptop, '', async (p) => { s = await ms(p); });
+  check(s.kinds.length === 0 && s.sort === '1 mail to sort in Day', 'mail: one to sort, singular, no rows: ' + s.sort);
+  await shoot(answer({ intake: null, mail: { later: mails().slice(0, 1), triage: 0 } }), laptop, '', async (p) => { s = await ms(p); });
+  check(s.card && s.kinds.length === 1 && !s.empty && s.letters.length === 0 && s.note === '1 this week', 'mail: shows the card before the first letter, no empty line: ' + JSON.stringify({ card: s.card, kinds: s.kinds, empty: s.empty, note: s.note }));
+  await shoot(answer({ intake: null, mail: null }), laptop, '', async (p) => { s = await ms(p); });
+  check(!s.card, 'mail: no letters and no mail, no card');
+
+  // The phone: the card keeps its order, buttons get their own line at 44 px, nothing scrolls sideways.
+  {
+    const p = await openM(mworld(), phone);
+    s = await ms(p.page);
+    check(s.order.join() === '6,7,8', 'mail phone: Read for you keeps its place (after Parked, before Lately): ' + s.order);
+    check(!s.overflow && s.btnH.length === 8 && s.btnH.every((h) => h >= 44), 'mail phone: no sideways scroll, 44 px buttons: ' + s.btnH);
+    await p.page.screenshot({ path: file('mail-phone'), fullPage: true });
+    await p.page.click('#mailList .mail-row:first-child .mail-subj');
+    await p.page.locator('#intake').screenshot({ path: file('mail-phone-card') });
+    s = await ms(p.page);
+    check(s.excerpt[0] === EX1 && !s.overflow, 'mail phone: the excerpt opens and wraps');
+    await p.ctx.close();
+  }
+}
+
 await browser.close();
 if (errors.length) { console.error(errors.join('\n')); failed = true; }
 console.log(`${checks - fails} of ${checks} checks pass`);
