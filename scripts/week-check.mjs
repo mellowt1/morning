@@ -31,7 +31,20 @@ function world(now, empty) {
     { id: 'flag00000001', text: 'Book the flights · 2026-11-02', section: 'soon' },
     { id: 'flag00000002', text: 'Call the plumber', section: 'today' },
   ];
+  // Waiting on: open items oldest first, with what was resolved and chased this week (paul-hub src/waiting.js).
+  const witem = (n, who, what, since, extra = {}) => ({ id: 'wait00000000000' + n, who, what, since, channel: 'email', chaseDays: 7, nextChase: '2026-10-20',
+    forWhom: null, source: 'morning', state: 'open', chases: 0, chaseDue: false, chaseTask: null, resolvedAt: null, ...extra });
+  const waits = empty ? [] : [
+    witem(1, 'The ministry', 'the policy officer application', '2026-10-04', { chases: 1, chaseDue: true, nextChase: '2026-10-18', source: 'apply' }),
+    witem(2, 'The agency', 'the application', '2026-10-05', { chaseDue: true, nextChase: '2026-10-12' }),
+    witem(3, 'The accountant', 'the tax overview', '2026-10-15', { channel: 'phone', forWhom: 'Nick' }),
+    witem(4, 'The council', 'the parking permit', '2026-10-18', { channel: 'letter' }),
+  ];
+  const wcount = { resolved: empty ? 0 : 2, chased: empty ? 0 : 3 };
+  const waitWeek = () => ({ items: structuredClone(waits), ...wcount });
+  const waitBlock = () => { const due = waits.filter((i) => i.chaseDue); return { open: waits.length, due: due.length, dueWho: due.slice(0, 3).map((i) => i.who), items: structuredClone(waits.slice(0, 8)) }; };
   const week = () => ({
+    waiting: waitWeek(),
     thisWeek: structuredClone(flags),
     week: 42, from: '2026-10-12', to: '2026-10-18',
     lessons: structuredClone(lessons),
@@ -80,6 +93,24 @@ function world(now, empty) {
   return {
     posts: [],
     lessonPosts: [],
+    waitPosts: [],
+    wait(url, body) {
+      this.waitPosts.push({ url, body });
+      const id = url.split('/').pop();
+      const i = waits.findIndex((x) => x.id === id);
+      if (i < 0) return { status: 404, json: { error: 'no such item' } };
+      if (body.action === 'resolve') {
+        const [x] = waits.splice(i, 1);
+        wcount.resolved++;
+        return { json: { item: { ...x, state: 'resolved', chaseDue: false, resolvedAt: new Date(now).toISOString() } } };
+      }
+      if (body.action === 'snooze' && [3, 7, 14].includes(body.days)) {
+        const next = new Date(Date.parse(now.slice(0, 10) + 'T12:00:00Z') + body.days * 864e5).toISOString().slice(0, 10);
+        Object.assign(waits[i], { nextChase: next, chaseDue: false, chaseTask: null });
+        return { json: { item: structuredClone(waits[i]) } };
+      }
+      return { status: 400, json: { error: 'action: resolve, snooze or still' } };
+    },
     lesson({ id, action }) {
       this.lessonPosts.push(action);
       const all = [...lessons.proposed, ...lessons.kept];
@@ -95,7 +126,7 @@ function world(now, empty) {
       const sunday = now === SUNDAY;
       return { now: new Date(now).toISOString(), todos: { items: [{ text: 'Water the plants' }], updated: now, yesterday: { count: 0, items: [] } },
         calendar: { events: [], sent: now, stale: false }, fixed: { events: [], countdowns: [] }, weather: null, arsenal: null, bins: null,
-        birthdays: { birthdays: [] }, news: { items: [] }, kitchen: null, projects: null, german: null, week: sunday ? week() : null };
+        birthdays: { birthdays: [] }, news: { items: [] }, kitchen: null, projects: null, german: null, waiting: waitBlock(), week: sunday ? week() : null };
     },
     act({ id, action }) {
       this.posts.push(action);
@@ -128,6 +159,13 @@ async function open(viewport, { dark = false, now = SUNDAY, empty = false } = {}
     if (r.request().url().endsWith('/week')) return r.fulfill({ json: w.act(r.request().postDataJSON()), headers: h });
     return r.fulfill({ json: w.answer(), headers: h });
   });
+  await page.route('**/api/waiting/**', async (r) => {
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+    const out = w.wait(new URL(r.request().url()).pathname, r.request().postDataJSON());
+    await new Promise((ok) => setTimeout(ok, 120)); // network time, so a double tap lands while the first is out
+    return r.fulfill({ status: out.status || 200, json: out.json, headers: h });
+  });
   await page.route('**/site.**espn.com/**', (r) => r.abort());
   await page.goto(BASE + '?c=' + CODE);
   await page.waitForFunction(() => document.querySelector('.js-say').textContent.length > 0);
@@ -143,7 +181,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet. 2 flagged tasks are still open.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, the lessons, then five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, waiting on, the lessons, then five cards in order');
   // 02 Still this week: the flagged tasks still open, Keep for next week or Unflag (with Undo).
   check((await texts(page, '#wkFlag .park-what')).join('|') === 'Book the flights|Call the plumber', name + ': still this week lists the flagged tasks, clean names');
   check(await page.textContent('#wkFlagNote') === '2 left', name + ': still this week says 2 left');
@@ -169,6 +207,40 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(facts === 'Set 11 times|Drained most: evenings|Wired most: mornings|Normal most: afternoons', name + ': energy facts ' + facts);
   check(await page.evaluate(() => { const a = document.getElementById('wkEnergyCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), g = document.getElementById('wkEnergy'); return a.width > v.width * 0.9 && g.scrollWidth <= g.clientWidth; }), name + ': the energy card spans the width, nothing cut off');
   await page.locator('#wkEnergyCard').screenshot({ path: file(name + '-energy') });
+  // Waiting on: every open item oldest first (who about what, channel, days waiting, amber edge when a
+  // chase is due), Answered and Snooze, and what was resolved and chased this week.
+  const wrows = () => page.$$eval('#wkWait .ww', (els) => els.map((e) => [e.querySelector('.ww-what').textContent.trim(), e.querySelector('.ww-how').textContent.trim(),
+    e.querySelector('.ww-days').textContent.trim(), e.classList.contains('due') ? 'due' : ''].join('|')).join(' / '));
+  check(await wrows() === 'The ministry about the policy officer application|Email · chased once|14 days|due / The agency about the application|Email|13 days|due'
+    + ' / The accountant about the tax overview · for Nick|Phone|3 days| / The council about the parking permit|Letter|today|', name + ': waiting rows, oldest first: ' + await wrows());
+  check(await page.$$eval('#wkWait .ww', (els) => els.map((e) => getComputedStyle(e, '::before').backgroundColor).join()) === 'rgb(226, 169, 59),rgb(226, 169, 59),rgb(207, 199, 179),rgb(207, 199, 179)', name + ': amber edge only where a chase is due');
+  check(await page.textContent('#wkWaitNote') === '4 open' && await page.textContent('#wkWaitFoot') === 'Resolved this week 2 · Chased this week 3', name + ': waiting note and footer: ' + await page.textContent('#wkWaitFoot'));
+  check(await page.evaluate(() => { const a = document.getElementById('wkWaitCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), g = document.getElementById('wkWait'); return a.width > v.width * 0.9 && g.scrollWidth <= g.clientWidth; }), name + ': the waiting card spans the width, nothing cut off');
+  const wsizes = await page.$$eval('#wkWait .ww:first-child .pbtn', (b) => b.map((x) => Math.round(x.getBoundingClientRect().height)));
+  check(wsizes.length === 2 && (viewport.width < 700 ? wsizes.every((h) => h >= 44) : wsizes.every((h) => h >= 34)), name + ': Answered and Snooze, heights ' + wsizes);
+  await page.locator('#wkWaitCard').screenshot({ path: file(name + '-waiting') });
+  // Snooze shows three choices; Cancel backs out and sends nothing.
+  await page.click('#wkWait [data-ww="snooze"][data-id="wait000000000001"]');
+  check((await texts(page, '#wkWait .ww-ask .pbtn')).join('|') === '3 days|1 week|2 weeks|Cancel', name + ': Snooze offers 3 days, 1 week, 2 weeks');
+  await page.locator('#wkWaitCard').screenshot({ path: file(name + '-waiting-snooze') });
+  await page.click('#wkWait [data-ww="cancel"]');
+  check((await page.$$('#wkWait .ww-ask')).length === 0 && w.waitPosts.length === 0, name + ': Cancel backs out, nothing sent');
+  // 1 week: the hub gets snooze with days 7; the row stays, open, its edge no longer amber.
+  await page.click('#wkWait [data-ww="snooze"][data-id="wait000000000001"]');
+  await page.click('#wkWait [data-ww="s7"][data-id="wait000000000001"]');
+  await page.waitForTimeout(400);
+  check(w.waitPosts.length === 1 && w.waitPosts[0].url === `/api/waiting/${CODE}/wait000000000001` && JSON.stringify(w.waitPosts[0].body) === JSON.stringify({ action: 'snooze', source: 'morning', days: 7 }),
+    name + ': Snooze 1 week POSTs ' + JSON.stringify(w.waitPosts));
+  check((await wrows()).startsWith('The ministry about the policy officer application|Email · chased once · next chase 25 Oct|14 days| / ') && (await page.$$('#wkWait .ww')).length === 4,
+    name + ': the snoozed row stays with its next chase: ' + await wrows());
+  check(await page.textContent('#wkToast span') === 'Snoozed. Next chase Sun 25 Oct.' && await page.$eval('#wkToast', (e) => !!e.closest('#wkWaitCard') && e.querySelector('button').hidden), name + ': snooze toast, no Undo, in this card');
+  // Answered: resolve, once for a double tap; the row leaves and Resolved this week counts it.
+  await page.evaluate(() => { const b = document.querySelector('#wkWait [data-ww="resolve"][data-id="wait000000000002"]'); b.click(); b.click(); });
+  await page.waitForTimeout(400);
+  check(w.waitPosts.length === 2 && w.waitPosts[1].url === `/api/waiting/${CODE}/wait000000000002` && JSON.stringify(w.waitPosts[1].body) === JSON.stringify({ action: 'resolve', source: 'morning' }),
+    name + ': Answered POSTs resolve once: ' + JSON.stringify(w.waitPosts.slice(1)));
+  check(!(await wrows()).includes('The agency') && await page.textContent('#wkWaitNote') === '3 open' && await page.textContent('#wkWaitFoot') === 'Resolved this week 3 · Chased this week 3'
+    && await page.textContent('#wkToast span') === 'Marked answered.', name + ': the answered row leaves, resolved 3: ' + await page.textContent('#wkWaitFoot'));
   // What Claude learned: two rules to check with Keep and Drop, one kept rule under a fold.
   check(await page.textContent('#wkLessonsNote') === '2 rules to check' && (await page.$$('#wkLessons .parks .park')).length === 2, name + ': lessons shows 2 rules to check');
   check((await texts(page, '#wkLessons .park-from')).join() === 'Tidy,Desk' && (await page.textContent('#wkLessons .lesson-why')).startsWith('You undid 3'), name + ': each rule names its app and why');
@@ -260,6 +332,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(!(await shown(page, '#wkMirrorCard')), 'empty: no mirror card before it is written');
   check(!(await shown(page, '#wkLessonsCard')), 'empty: no lessons card without rules');
   check(!(await shown(page, '#wkEnergyCard')), 'empty: no energy card when nothing was set');
+  check(!(await shown(page, '#wkWaitCard')), 'empty: no waiting card with nothing open and nothing resolved or chased');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
   await ctx.close();
