@@ -944,8 +944,10 @@ details.fold[open] > summary .tag::after { content: ''; }
  * opens the excerpt), a quiet meta line, Done and Drop. On the phone the buttons get their own line. */
 .mail-rows { padding-bottom: 0; }
 #mailList:not([hidden]) + #intakeList .read-rows { padding-top: 0; border-top: 1px solid var(--rule); }
-.read-row.mail-row { gap: 10px; }
-.mail-row::before { background: var(--h-event); }
+/* The label and the tick sit on the subject line; the buttons stay in the middle of the row. */
+.read-row.mail-row { gap: 10px; align-items: flex-start; }
+.mail-row::before { top: 15px; margin-top: 0; background: var(--h-event); }
+.mail-row .read-kind { padding-top: 3px; }
 .mail-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .mail-subj { display: block; max-width: 100%; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 500; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 button.mail-subj { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -953,11 +955,10 @@ button.mail-subj:hover { text-decoration: underline; text-decoration-color: var(
 button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .mail-meta { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mail-excerpt { margin-top: 6px; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
-.mail-btns { flex: none; display: flex; gap: 6px; }
+.mail-btns { flex: none; align-self: center; display: flex; gap: 6px; }
 .mail-btns .pbtn { padding: 0 12px; }
 .mail-sort { margin: 0; padding: 2px 0 12px; }
 @media (max-width: 719.98px) {
   .read-row.mail-row { flex-wrap: wrap; }
-  .mail-row::before { top: 13px; margin-top: 0; }
-  .mail-btns { width: 100%; padding-left: 62px; }
+  .mail-btns { width: 100%; padding-left: 62px; align-self: auto; }
 }
