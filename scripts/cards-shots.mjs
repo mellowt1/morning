@@ -60,7 +60,8 @@ function answer({ dark = false, ...over } = {}) {
 const browser = await chromium.launch();
 const errors = [];
 let failed = false;
-const check = (ok, what) => { if (!ok) { failed = true; console.error('FAIL:', what); } };
+let checks = 0, fails = 0;
+const check = (ok, what) => { checks++; if (!ok) { fails++; failed = true; console.error('FAIL:', what); } };
 
 // The page's clock is fixed at 13:00 in The Hague (the sun is up) unless a test says otherwise.
 const NOON = at(0, '13:00');
@@ -82,7 +83,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     eyebrow: document.querySelector('.js-eyebrow').textContent,
     say: document.querySelector('.js-say').textContent,
     sun: document.querySelector('.sun-stop').className,
-    href: document.getElementById('start').getAttribute('href'),
+    href: document.getElementById('startLink').getAttribute('href'),
     agenda: [...document.querySelectorAll('#todayList .evt')].map((li) => li.innerText.replace(/\s+/g, ' ').trim()),
     nextDot: document.querySelectorAll('#todayList .nd.next').length,
     tasks: [...document.querySelectorAll('#todayList .task')].map((li) => li.innerText.trim()),
@@ -189,7 +190,7 @@ await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
     sayShown = await page.evaluate(() => getComputedStyle(document.querySelector('.js-say')).display !== 'none');
   };
   await shoot(answer(), laptop, '', grab);
-  check(ro.length === 3 && ro[0] === 'Next at 23:00 Quiz night' && ro[1] === 'Left today 3 on the list' && /^Arsenal \w+ \d\d:\d\d Arsenal v Fictional Rovers$/.test(ro[2]) && !sayShown,
+  check(ro.length === 4 && ro[3] === 'Energy Wired Normal Drained' && ro[0] === 'Next at 23:00 Quiz night' && ro[1] === 'Left today 3 on the list' && /^Arsenal \w+ \d\d:\d\d Arsenal v Fictional Rovers$/.test(ro[2]) && !sayShown,
     'read-outs: ' + JSON.stringify(ro) + ' say shown: ' + sayShown);
   await shoot(answer({ dinner: { away: [{ date: day(0), title: 'Harbour Cafe - Table 4', start: '19:30' }] } }), laptop, '', grab, at(0, '22:40'));
   check(ro[0] === 'Next, in 20 min 23:00 Quiz night' && /^Arsenal /.test(ro[2] || ''), 'read-outs at 22:40: the night out is past, so Arsenal: ' + JSON.stringify(ro));
@@ -292,7 +293,159 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await ctx.close();
 }
 
+// The energy dial (paul-hub src/energy.js, mocked like the real routes): the PC read-out, the taps,
+// the pick in Start with, Not this one, Surprise me, every task turned down, a level set elsewhere,
+// the phone's dial in Start with, and the first paint from the copy on this device.
+{
+  const tasks = [
+    { id: 'task00000001', name: 'Return the lamp', section: 'today', due: null, time: null },
+    { id: 'task00000002', name: 'Text a friend', section: 'soon', due: day(4), time: null },
+    { id: 'task00000003', name: 'Sort the receipts', section: 'soon', due: null, time: '16:00' },
+  ];
+  const dm = (d) => `${+d.slice(8, 10)} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+d.slice(5, 7) - 1]}`;
+  const world = (level = null) => {
+    const w = { level, sets: [], picks: [], gets: 0, down: false };
+    const state = () => ({ level: w.level, setAt: w.level ? new Date(NOON).toISOString() : null,
+      until: w.level ? new Date(Date.parse(NOON) + 4 * 36e5).toISOString() : null, source: w.level ? 'morning' : null });
+    const pick = (skip = [], mode = 'next', current = null) => {
+      if (!w.level) return null;
+      const left = tasks.filter((t) => !skip.includes(t.id));
+      let task = left[0] || null;
+      if (mode === 'surprise' && left.length > 1) task = left.filter((t) => t.id !== current).pop();
+      return { task, count: tasks.length, left: left.length, position: tasks.length - left.length + 1 };
+    };
+    w.route = async (r) => {
+      const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      if (w.down) return r.abort();
+      if (q.method() === 'GET') { w.gets++; return r.fulfill({ json: { ...state(), pick: /pick=1/.test(q.url()) ? pick() : undefined }, headers: h }); }
+      const b = q.postDataJSON();
+      await new Promise((ok) => setTimeout(ok, 150)); // a little network time, so a double tap lands while the first is out
+      if (q.url().endsWith('/pick')) { w.picks.push(b); return r.fulfill({ json: { ...state(), pick: pick(b.skip, b.mode, b.current) }, headers: h }); }
+      w.sets.push(b);
+      w.level = b.level;
+      return r.fulfill({ json: { ...state(), pick: pick() }, headers: h });
+    };
+    return w;
+  };
+  const openE = async (w, viewport) => {
+    const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.setFixedTime(new Date(NOON));
+    await page.addInitScript((d) => { try { localStorage.setItem('morning.enteredOn', JSON.stringify(d)); } catch (e) {} }, day(0));
+    await page.route('**/api/morning/**', (r) => r.fulfill({ json: answer(), headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await page.route('**/api/energy/**', w.route);
+    await page.route('**/site.**espn.com/**', (r) => r.abort());
+    await page.goto(BASE + '?c=' + CODE);
+    await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);
+    return { ctx, page };
+  };
+  const st = (page) => page.evaluate(() => {
+    const vis = (el) => !!el && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
+    const t = (sel) => { const el = document.querySelector(sel); return vis(el) ? el.textContent.trim() : ''; };
+    return {
+      ro: [...document.querySelectorAll('#readouts .ro')].length,
+      dial: [...document.querySelectorAll('#readouts .dial-btn')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
+      dialH: [...document.querySelectorAll('#readouts .dial-btn')].map((b) => Math.round(b.getBoundingClientRect().height)),
+      phoneDial: [...document.querySelectorAll('#startDial .dial-btn')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
+      phoneDialH: [...document.querySelectorAll('#startDial .dial-btn')].map((b) => Math.round(b.getBoundingClientRect().height)),
+      start: t('#start .start-text'), meta: t('#start .start-meta'), note: t('#start .start-note'), go: t('#start .start-go'),
+      acts: [...document.querySelectorAll('#startActs button')].filter(vis).map((b) => b.textContent.trim()),
+      tasks: [...document.querySelectorAll('#todayList .task:not(.task-done)')].map((li) => li.innerText.trim()),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  const tap = async (page, sel, settle = 450) => { await page.click(sel); await page.waitForTimeout(settle); };
+
+  // The PC: the dial is the fourth read-out; nothing set, Start with is as before.
+  const w = world();
+  const { ctx, page } = await openE(w, laptop);
+  let s = await st(page);
+  check(s.ro === 4 && s.dial.join() === 'Wired,Normal,Drained' && s.dialH.every((h) => h >= 44), 'energy: the dial is the fourth read-out, three buttons of 44 px or more: ' + JSON.stringify(s));
+  check(s.start === 'Email the landlord about the heating' && !s.note && s.go === 'Open ›' && !s.acts.length && !s.meta, 'energy: no level, Start with as before: ' + JSON.stringify(s));
+  check(s.phoneDial.length === 0, 'energy: no dial in Start with on the PC');
+  await page.screenshot({ path: file('energy-pc-unset'), clip: { x: 0, y: 0, width: 1440, height: 560 } });
+  // Drained: one POST, the button pressed, the pick in Start with, Today keeps the first to-do.
+  await tap(page, '#readouts [data-energy="drained"]');
+  s = await st(page);
+  check(w.sets.length === 1 && w.sets[0].level === 'drained' && w.sets[0].source === 'morning', 'energy: tapping Drained sends level drained: ' + JSON.stringify(w.sets));
+  check(s.dial.join() === 'Wired,Normal,Drained*', 'energy: Drained is pressed: ' + s.dial);
+  check(s.start === 'Return the lamp' && s.meta === 'Today' && s.note === 'Drained · 1 of 3 that fit' && !s.go && s.acts.join() === 'Not this one,Surprise me',
+    'energy: Start with shows the pick: ' + JSON.stringify(s));
+  check(s.tasks[0] === 'Email the landlord about the heating' && s.tasks.length === 3, 'energy: Today lists the first to-do once the pick holds Start with: ' + s.tasks);
+  await page.screenshot({ path: file('energy-pc'), fullPage: true });
+  // Not this one: skip the one on screen, record it, show the next. A double tap sends once.
+  await page.evaluate(() => { const b = document.querySelector('[data-pick="skip"]'); b.click(); b.click(); });
+  await page.waitForTimeout(450);
+  s = await st(page);
+  check(w.picks.length === 1 && w.picks[0].mode === 'next' && w.picks[0].skipped === 'task00000001' && w.picks[0].current === 'task00000001' && w.picks[0].skip.join() === 'task00000001' && w.picks[0].source === 'morning',
+    'energy: Not this one sends skipped, once for a double tap: ' + JSON.stringify(w.picks));
+  check(s.start === 'Text a friend' && s.meta === 'Soon · ' + dm(day(4)) && s.note === 'Drained · 2 of 3 that fit', 'energy: the next pick: ' + JSON.stringify(s));
+  // Surprise me: not a skip.
+  await tap(page, '[data-pick="surprise"]');
+  check(w.picks[1].mode === 'surprise' && w.picks[1].skip.join() === 'task00000001' && w.picks[1].current === 'task00000002' && !w.picks[1].skipped, 'energy: Surprise me is not a skip: ' + JSON.stringify(w.picks[1]));
+  s = await st(page);
+  check(s.start === 'Sort the receipts' && s.meta === 'Soon · 16:00' && s.note === 'Drained · 2 of 3 that fit' && s.acts.join() === 'Not this one,Surprise me', 'energy: the surprise: ' + JSON.stringify(s));
+  // Turn the rest down: every task that fits is gone, Start again clears the skips.
+  await tap(page, '[data-pick="skip"]');
+  s = await st(page);
+  check(s.start === 'Text a friend' && s.acts.join() === 'Not this one', 'energy: with one left, no Surprise me: ' + JSON.stringify(s));
+  await tap(page, '[data-pick="skip"]');
+  s = await st(page);
+  check(w.picks[3].skip.join() === 'task00000001,task00000003,task00000002', 'energy: the skip list grows: ' + JSON.stringify(w.picks[3]));
+  check(s.start === 'That was every task that fits drained.' && s.acts.join() === 'Start again' && !s.meta && s.note === 'Drained', 'energy: every task turned down: ' + JSON.stringify(s));
+  await page.locator('#start').screenshot({ path: file('energy-pc-out') });
+  await tap(page, '[data-pick="again"]');
+  s = await st(page);
+  check(w.picks[4].skip.length === 0 && !w.picks[4].skipped && s.start === 'Return the lamp', 'energy: Start again starts over: ' + JSON.stringify(w.picks[4]));
+  // A level set in To-do shows on return to the page, and the skips start over.
+  await tap(page, '[data-pick="skip"]');
+  w.level = 'wired';
+  const gets = w.gets;
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(450);
+  s = await st(page);
+  check(w.gets === gets + 1 && s.dial.join() === 'Wired*,Normal,Drained' && s.note === 'Wired · 1 of 3 that fit', 'energy: a level set elsewhere shows on return: ' + JSON.stringify(s));
+  await tap(page, '[data-pick="skip"]');
+  check(w.picks[w.picks.length - 1].skip.join() === 'task00000001', 'energy: a new level starts a new skip list: ' + JSON.stringify(w.picks[w.picks.length - 1]));
+  // Tapping the level that is on clears it: Start with goes back to the first Today task.
+  await tap(page, '#readouts [data-energy="wired"]');
+  s = await st(page);
+  check(w.sets[w.sets.length - 1].level === null && s.dial.join() === 'Wired,Normal,Drained' && s.start === 'Email the landlord about the heating' && !s.acts.length,
+    'energy: tapping the level that is on clears it: ' + JSON.stringify(w.sets) + JSON.stringify(s));
+  // The hub away: the copy on this device paints first, and the page carries on.
+  await tap(page, '#readouts [data-energy="normal"]');
+  w.down = true;
+  await page.reload();
+  await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+  await page.waitForTimeout(300);
+  s = await st(page);
+  check(s.dial.join() === 'Wired,Normal*,Drained' && s.start === 'Return the lamp' && s.tasks.length === 3, 'energy: the last answer paints after a reload with the hub away: ' + JSON.stringify(s));
+  await ctx.close();
+
+  // The phone: no header read-outs; the dial sits on top of Start with.
+  const pw = world('drained');
+  const p = await openE(pw, phone);
+  s = await st(p.page);
+  check(s.dial.length === 0 && s.phoneDial.join() === 'Wired,Normal,Drained*' && s.phoneDialH.every((h) => h >= 44), 'energy phone: the dial in Start with: ' + JSON.stringify(s));
+  check(s.start === 'Return the lamp' && s.acts.join() === 'Not this one,Surprise me' && !s.overflow, 'energy phone: the pick and its buttons, no sideways scroll: ' + JSON.stringify(s));
+  await p.page.screenshot({ path: file('energy-phone'), fullPage: true });
+  await tap(p.page, '#startDial [data-energy="normal"]');
+  check(pw.sets.length === 1 && pw.sets[0].level === 'normal', 'energy phone: the dial in Start with sends: ' + JSON.stringify(pw.sets));
+  // Every task turned down on the phone.
+  for (let i = 0; i < 3; i++) await tap(p.page, '[data-pick="skip"]');
+  s = await st(p.page);
+  check(s.start === 'That was every task that fits normal.' && s.acts.join() === 'Start again' && !s.overflow, 'energy phone: every task turned down: ' + JSON.stringify(s));
+  await p.page.locator('#start').screenshot({ path: file('energy-phone-out') });
+  await p.ctx.close();
+}
+
 await browser.close();
 if (errors.length) { console.error(errors.join('\n')); failed = true; }
+console.log(`${checks - fails} of ${checks} checks pass`);
 console.log(failed ? 'FAILED' : 'ok');
 process.exit(failed ? 1 : 0);
