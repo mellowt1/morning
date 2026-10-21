@@ -680,17 +680,29 @@
   /* ---------- Read for you: what the paper-clip in the to-do app read lately ---------- */
   const READ_KIND = { letter: 'letter', bill: 'bill', contract: 'contract', 'credit-report': 'credit report', job: 'job posting', note: 'note', other: 'document' };
   const whoLabel = (w) => (!w || w === 'me' || w === 'other' ? '' : w.charAt(0).toUpperCase() + w.slice(1));
-  function renderIntake(b, now) {
+  function renderIntake(b, m, now) {
     const box = $('intake');
-    if (!b) { box.hidden = true; return; }
+    const mails = mailRows(m);
+    const triage = m && ok(m) ? Math.max(0, Number(m.triage) || 0) : 0;
+    const hasMail = mails.length > 0 || triage > 0 || !$('mailToast').hidden;
+    if (!b && !hasMail) { box.hidden = true; return; }
     box.hidden = false;
     const list = $('intakeList');
-    if (!ok(b)) {
-      setHTML(list, `<div class="row empty"><span>Read items can't load right now.</span></div>`);
-      $('intakeNote').textContent = '';
+    setHTML($('mailList'), mailHTML(mails.slice(0, MAIL_SHOWN), now));
+    $('mailList').hidden = !mails.length;
+    const sort = triage ? `${triage} mail${triage === 1 ? '' : 's'} to sort in Day` : '';
+    if ($('mailSort').textContent !== sort) $('mailSort').textContent = sort;
+    $('mailSort').hidden = !sort;
+    // The count line: letters read in the last 7 days plus the mails forwarded in them.
+    const weekAgo = now - 7 * 864e5;
+    const mailWeek = mails.filter((x) => Date.parse(x.at) >= weekAgo).length;
+    if (!b || !ok(b)) {
+      setHTML(list, b ? `<div class="row empty"><span>Read items can't load right now.</span></div>` : '');
+      $('intakeNote').textContent = mailWeek ? `${mailWeek} this week` : '';
       return;
     }
-    $('intakeNote').textContent = b.week ? `${b.week} this week` : '';
+    const week = (Number(b.week) || 0) + mailWeek;
+    $('intakeNote').textContent = week ? `${week} this week` : '';
     const when = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? (ymd(t) === ymd(now) ? 'today' : shortDate(ymd(t))) : ''; };
     const line = (r) => [whoLabel(r.who), READ_KIND[r.kind] || 'document', when(r.at), r.tasks ? `${r.tasks} task${r.tasks === 1 ? '' : 's'}` : 'nothing to do'].filter(Boolean).join(' · ');
     // One line per letter: what kind, the gist (cut to one line, all of it on hover), when.
@@ -703,8 +715,95 @@
     const rest = (Array.isArray(b.recent) ? b.recent : []).filter((r) => !needIds.has(r.id));
     const shown = [...needs.map((r) => one(r, true)), ...rest.map((r) => one(r, false))].slice(0, 3);
     let html = shown.length ? `<div class="rows read-rows">${shown.join('')}</div>` : '';
-    setHTML(list, html || `<div class="row empty"><span>Nothing read yet.</span></div>`);
+    setHTML(list, html || (mails.length ? '' : `<div class="row empty"><span>Nothing read yet.</span></div>`));
   }
+
+  /* ---------- Mail to read later (Email in, approved 2026-10-22) ----------
+   * Mail Paul forwards with "later:" (paul-hub src/mail.js) sits above the letters, newest first:
+   * the subject on one line, "From <sender> · forwarded <when>" under it, Done and Drop. Tapping the
+   * subject opens the 200 character excerpt and closes it again. A button takes the row off at once
+   * and POSTs /api/mail/:code/:id; if that fails the row comes back with a short toast. A 404 means
+   * the line was closed elsewhere, so the row stays off. */
+  const MAIL_SHOWN = 5;
+  const mailHiding = new Set(); // ids taken off on this screen while the Worker answers
+  const mailOpen = new Set(); // ids whose excerpt is showing
+  const mailRows = (m) => (m && ok(m) && Array.isArray(m.later) ? m.later : [])
+    .filter((x) => x && CODE_RE.test(x.id) && x.subject && !mailHiding.has(x.id));
+  function mailHTML(rows, now) {
+    if (!rows.length) return '';
+    const today = ymd(now), yesterday = ymd(now - 864e5);
+    const fwd = (iso) => {
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return '';
+      const d = ymd(t);
+      return 'forwarded ' + (d === today ? hm(t) : d === yesterday ? 'yesterday' : shortDate(d));
+    };
+    return `<div class="rows read-rows mail-rows">${rows.map((x) => {
+      const open = mailOpen.has(x.id) && x.excerpt;
+      const meta = [x.sender ? 'From ' + x.sender : '', fwd(x.at)].filter(Boolean).join(' · ');
+      const subj = x.excerpt
+        ? `<button type="button" class="mail-subj" data-mail-open="${esc(x.id)}" aria-expanded="${open ? 'true' : 'false'}">${esc(x.subject)}</button>`
+        : `<span class="mail-subj">${esc(x.subject)}</span>`;
+      return `<div class="read-row mail-row">` +
+        `<span class="read-kind">Mail</span>` +
+        `<span class="mail-main">${subj}${meta ? `<span class="mail-meta">${esc(cap(meta))}</span>` : ''}` +
+        `${open ? `<span class="mail-excerpt">${esc(x.excerpt)}</span>` : ''}</span>` +
+        `<span class="mail-btns">` +
+        `<button type="button" class="pbtn pbtn-done" data-mail="done" data-id="${esc(x.id)}" aria-label="Done: ${esc(x.subject)}">Done</button>` +
+        `<button type="button" class="pbtn pbtn-done" data-mail="drop" data-id="${esc(x.id)}" aria-label="Drop: ${esc(x.subject)}">Drop</button>` +
+        `</span></div>`;
+    }).join('')}</div>`;
+  }
+
+  let mailToastT = 0;
+  function mailToast(words) {
+    const el = $('mailToast');
+    clearTimeout(mailToastT);
+    el.firstChild.textContent = words;
+    el.hidden = false;
+    mailToastT = setTimeout(() => { el.hidden = true; render(); }, 6000);
+  }
+
+  /* Take the line out of the copy on this device, so a refresh before the next GET keeps it off. */
+  function mailForget(id) {
+    const m = last && last.data && last.data.mail;
+    if (!m || !Array.isArray(m.later)) return;
+    m.later = m.later.filter((x) => x && x.id !== id);
+    store.set(KEY, last);
+  }
+
+  async function mailPost(id, action) {
+    const r = await fetch(API + '/api/mail/' + code + '/' + id, {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+    });
+    if (!r.ok && r.status !== 404) throw new Error('status ' + r.status);
+  }
+
+  $('mailList').addEventListener('click', async (e) => {
+    const t = e.target.closest('button[data-mail-open]');
+    if (t) {
+      const id = t.dataset.mailOpen;
+      if (mailOpen.has(id)) mailOpen.delete(id); else mailOpen.add(id);
+      render();
+      const again = $('mailList').querySelector(`button[data-mail-open="${id}"]`);
+      if (again) again.focus();
+      return;
+    }
+    const b = e.target.closest('button[data-mail]');
+    if (!b || mailHiding.has(b.dataset.id)) return;
+    const id = b.dataset.id;
+    mailHiding.add(id);
+    render();
+    try {
+      await mailPost(id, b.dataset.mail);
+      mailForget(id);
+      mailOpen.delete(id);
+    } catch (err) {
+      mailToast('Couldn’t save that. Try again.');
+    }
+    mailHiding.delete(id);
+    render();
+  });
 
   /* ---------- Lately: the hub's feed, one line per thing that happened in the other apps ----------
    * Newest first, a few lines, each cut to one line. The app and the full text are on hover. */
@@ -1767,7 +1866,7 @@
     renderToday(data, now);
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos, data && data.links);
-    renderIntake(data && data.intake, now);
+    renderIntake(data && data.intake, data && data.mail, now);
     renderFeed(data && data.events, now);
     renderParked(data && data.projects, now);
     renderWaiting(waitOf(data), now);

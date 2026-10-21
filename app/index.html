@@ -194,13 +194,16 @@
         <span id="calNote" class="card-note card-foot"></span>
       </section>
 
-      <!-- What the paper-clip in the to-do app read lately. Hidden until the first letter. -->
+      <!-- What the paper-clip in the to-do app read lately, and mail forwarded to read later. Hidden until there is one. -->
       <section id="intake" class="card" aria-label="Read for you" style="--i:3" hidden>
         <div class="card-head">
           <span class="num" role="heading" aria-level="2">Read for you</span>
           <span id="intakeNote" class="card-note"></span>
         </div>
+        <div id="mailList" hidden></div>
         <div id="intakeList"></div>
+        <div id="mailToast" class="park-toast" role="status" hidden><span></span></div>
+        <p id="mailSort" class="card-note mail-sort" hidden></p>
       </section>
     </div>
 
