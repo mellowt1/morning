@@ -444,6 +444,202 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await p.ctx.close();
 }
 
+// Waiting on (paul-hub src/waiting.js, mocked like the real routes): the Chases due tile, the card's
+// rows, the empty and missing states, the add form (validation, the POST body, a refusal, no hub,
+// a double tap), the phone's order, and that the card leaves the PC's week band where it was.
+{
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dm = (d) => `${+d.slice(8, 10)} ${MON[+d.slice(5, 7) - 1]}`;
+  const item = (n, who, what, since, extra = {}) => ({ id: 'wait00000000000' + n, who, what, since, channel: 'email', chaseDays: 7, nextChase: day(1),
+    forWhom: null, source: 'morning', state: 'open', chases: 0, chaseDue: false, chaseTask: null, resolvedAt: null, ...extra });
+  const seed = () => [
+    item(1, 'The ministry', 'the policy officer application', day(-14), { chases: 1, chaseDue: true, nextChase: day(0), source: 'apply' }),
+    item(2, 'The agency', 'the application', day(-13), { chaseDue: true, nextChase: day(-1) }),
+    item(3, 'The accountant', 'the tax overview', day(-3), { channel: 'phone', forWhom: 'Nick' }),
+    item(4, 'The council', 'the parking permit', day(0), { channel: 'letter' }),
+  ];
+  const block = (items) => {
+    const due = items.filter((i) => i.chaseDue);
+    return { open: items.length, due: due.length, dueWho: due.slice(0, 3).map((i) => i.who), items: items.slice(0, 8) };
+  };
+  const wworld = (items = seed()) => {
+    const w = { items, posts: [], gets: 0, mode: 'ok' };
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    w.morning = (r) => { w.gets++; return r.fulfill({ json: answer({ waiting: block(w.items) }), headers: h }); };
+    w.waiting = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      const b = q.postDataJSON();
+      w.posts.push(b);
+      await new Promise((ok) => setTimeout(ok, 150)); // network time, so a double tap lands while the first is out
+      if (w.mode === 'down') return r.abort();
+      if (w.mode === 'refuse') return r.fulfill({ status: 400, json: { error: 'channel: email, phone, letter or in-person' }, headers: h });
+      const it = item('x', b.who, b.what, day(0), { channel: b.channel, chaseDays: b.chaseDays, nextChase: day(b.chaseDays), forWhom: b.forWhom || null });
+      it.id = 'new0000000000' + String(w.posts.length).padStart(3, '0');
+      w.items.push(it);
+      return r.fulfill({ json: { item: it }, headers: h });
+    };
+    return w;
+  };
+  const openW = async (w, viewport) => {
+    const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.setFixedTime(new Date(NOON));
+    await page.addInitScript((d) => { try { localStorage.setItem('morning.enteredOn', JSON.stringify(d)); } catch (e) {} }, day(0));
+    await page.route('**/api/morning/**', w.morning);
+    await page.route('**/api/waiting/**', w.waiting);
+    await page.route('**/api/energy/**', (r) => r.abort());
+    await page.route('**/site.**espn.com/**', (r) => r.abort());
+    await page.goto(BASE + '?c=' + CODE);
+    await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);
+    return { ctx, page };
+  };
+  const ws = (page) => page.evaluate(() => {
+    const vis = (el) => !!el && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
+    const card = document.getElementById('waiting');
+    const due = document.querySelector('#waitList .tmeta-near');
+    return {
+      card: vis(card),
+      head: vis(card) ? card.querySelector('.card-head .num').innerText.replace(/\s+/g, ' ').trim() : '',
+      add: vis(document.getElementById('waitAdd')),
+      form: vis(document.getElementById('waitForm')),
+      rows: [...document.querySelectorAll('#waitList .wait-row')].map((r) => r.innerText.replace(/\s+/g, ' ').trim()),
+      more: vis(document.querySelector('#waitList .more-link')) ? document.querySelector('#waitList .more-link').textContent : '',
+      dueInk: due ? getComputedStyle(due).color : '',
+      err: vis(document.getElementById('wfErr')) ? document.getElementById('wfErr').textContent : '',
+      vals: ['wfWho', 'wfWhat', 'wfFor'].map((id) => document.getElementById(id).value),
+      invalid: ['wfWho', 'wfWhat'].filter((id) => document.getElementById(id).getAttribute('aria-invalid') === 'true'),
+      focus: document.activeElement && document.activeElement.id,
+      tiles: [...document.querySelectorAll('#todayList .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+      band: Math.round(document.getElementById('weekBand').getBoundingClientRect().top),
+      order: ['#start', '.card-today', '#waiting', '#projects'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+
+  // The tile, on both widths: the number and the names. Hidden with nothing due, and without the block.
+  for (const vp of [laptop, phone]) {
+    const t = await shoot(answer({ waiting: block(seed()) }), vp, '');
+    check(t.tiles[0] === 'Chases due 2 The ministry, The agency', `waiting ${vp.width}: the Chases due tile comes first: ` + t.tiles);
+  }
+  const many = [...seed(), item(5, 'The bank', 'the card', day(-20), { chaseDue: true }), item(6, 'The school', 'the form', day(-19), { chaseDue: true })];
+  const tm = await shoot(answer({ waiting: block(many) }), laptop, '');
+  check(tm.tiles.some((x) => x === 'Chases due 4 The ministry, The agency, The bank +1'), 'waiting: three names and +1 for the fourth: ' + tm.tiles);
+  const t0 = await shoot(answer({ waiting: block(seed().map((i) => ({ ...i, chaseDue: false }))) }), laptop, '');
+  const tn = await shoot(answer({ waiting: null }), laptop, '');
+  check(!t0.tiles.some((x) => /^Chases due/i.test(x)) && !tn.tiles.some((x) => /^Chases due/i.test(x)), 'waiting: no tile when nothing is due or the block is null');
+
+  // The card on the PC.
+  const w = wworld();
+  const { ctx, page } = await openW(w, laptop);
+  let s = await ws(page);
+  check(s.card && s.head === 'Waiting on 4 open' && s.add && !s.form, 'waiting: the card, its header and Add: ' + JSON.stringify(s));
+  check(s.rows.length === 4 && s.rows[0] === 'The ministry about the policy officer application Chase due' && s.rows[1] === 'The agency about the application Chase due'
+    && s.rows[2] === `The accountant about the tax overview · for Nick since ${dm(day(-3))}` && s.rows[3] === 'The council about the parking permit since today',
+    'waiting: rows, oldest first, Chase due or since: ' + s.rows);
+  check(s.dueInk === 'rgb(138, 83, 0)', 'waiting: Chase due is amber ink: ' + s.dueInk);
+  check((await page.$$('#waitList button')).length === 0, 'waiting: no buttons on the rows');
+  await page.screenshot({ path: file('waiting-pc'), fullPage: true });
+  await page.locator('#waiting').screenshot({ path: file('waiting-pc-card') });
+  // The week band stays where it was without the card (col-a runs beside it, the full height).
+  const plain = await shoot(answer({ waiting: null }), laptop, '', async (p) => { s.bandWithout = await p.evaluate(() => Math.round(document.getElementById('weekBand').getBoundingClientRect().top)); });
+  check(s.band === s.bandWithout, `waiting: the card leaves the week band at ${s.bandWithout}px (with it: ${s.band}px)`);
+
+  // Add: validation first, nothing sent.
+  await page.click('#waitAdd');
+  s = await ws(page);
+  check(s.form && !s.add && s.focus === 'wfWho', 'waiting: Add opens the form, Who has focus: ' + JSON.stringify({ form: s.form, add: s.add, focus: s.focus }));
+  check(await page.$$eval('#waitForm [data-wf="days"] [aria-pressed="true"]', (b) => b.map((x) => x.textContent).join()) === '7 days'
+    && await page.$$eval('#waitForm [data-wf="channel"] [aria-pressed="true"]', (b) => b.map((x) => x.textContent).join()) === 'Email', 'waiting: Email and 7 days to start with');
+  await page.click('#wfSend');
+  s = await ws(page);
+  check(s.err === 'Who and About are needed.' && s.invalid.join() === 'wfWho,wfWhat' && s.focus === 'wfWho' && w.posts.length === 0, 'waiting: both empty: ' + JSON.stringify({ err: s.err, invalid: s.invalid, focus: s.focus, posts: w.posts.length }));
+  await page.fill('#wfWho', '  The landlord ');
+  await page.click('#wfSend');
+  s = await ws(page);
+  check(s.err === 'About is needed.' && s.invalid.join() === 'wfWhat' && s.focus === 'wfWhat' && w.posts.length === 0, 'waiting: About empty: ' + JSON.stringify({ err: s.err, invalid: s.invalid }));
+  await page.fill('#wfWhat', 'the heating repair');
+  await page.click('#waitForm [data-v="phone"]');
+  await page.click('#waitForm [data-v="14"]');
+  await page.fill('#wfFor', 'Nick');
+  check(!(await ws(page)).err, 'waiting: the error goes once Who and About are filled');
+  await page.waitForTimeout(300); // the chips' colour change
+  await page.locator('#waiting').screenshot({ path: file('waiting-pc-form') });
+  // The hub refuses: its words show, nothing typed is lost.
+  w.mode = 'refuse';
+  await page.click('#wfSend');
+  await page.waitForTimeout(400);
+  s = await ws(page);
+  check(s.err === 'Not added: channel: email, phone, letter or in-person' && s.vals.join('|') === '  The landlord |the heating repair|Nick' && s.form, 'waiting: a refusal shows the hub\'s words and keeps the draft: ' + JSON.stringify({ err: s.err, vals: s.vals }));
+  // No hub: the same.
+  w.mode = 'down';
+  await page.click('#wfSend');
+  await page.waitForTimeout(400);
+  s = await ws(page);
+  check(/^Can’t reach the hub/.test(s.err) && s.vals[1] === 'the heating repair' && s.form, 'waiting: no hub keeps the draft: ' + s.err);
+  // A double tap sends once; the body is what was picked; the item goes in, then Morning asks again.
+  w.mode = 'ok';
+  w.posts.length = 0;
+  const gets = w.gets;
+  await page.evaluate(() => { const b = document.getElementById('wfSend'); b.click(); b.click(); document.getElementById('waitForm').requestSubmit(); });
+  await page.waitForTimeout(600);
+  s = await ws(page);
+  check(w.posts.length === 1, 'waiting: a double tap sends once: ' + w.posts.length);
+  check(JSON.stringify(w.posts[0]) === JSON.stringify({ who: 'The landlord', what: 'the heating repair', channel: 'phone', chaseDays: 14, source: 'morning', forWhom: 'Nick' }), 'waiting: the POST body: ' + JSON.stringify(w.posts[0]));
+  check(!s.form && s.add && s.focus === 'waitAdd' && s.head === 'Waiting on 5 open' && !s.more && s.rows.length === 5 && s.rows[4] === 'The landlord about the heating repair · for Nick since today', 'waiting: the new item shows, the form closes: ' + JSON.stringify(s.rows) + s.head);
+  check(w.gets === gets + 1, 'waiting: Morning is asked again after an add: ' + (w.gets - gets));
+  check(s.vals.join('|') === '||', 'waiting: the form is empty after an add');
+  // A second add with nothing picked: Email, 7 days, no forWhom; a sixth item makes "+1 more".
+  await page.click('#waitAdd');
+  await page.fill('#wfWho', 'The dentist');
+  await page.fill('#wfWhat', 'the new appointment');
+  await page.press('#wfWhat', 'Enter');
+  await page.waitForTimeout(600);
+  s = await ws(page);
+  check(JSON.stringify(w.posts[1]) === JSON.stringify({ who: 'The dentist', what: 'the new appointment', channel: 'email', chaseDays: 7, source: 'morning' }), 'waiting: the defaults go out with Enter: ' + JSON.stringify(w.posts[1]));
+  check(s.rows.length === 5 && s.more === '+1 more' && s.head === 'Waiting on 6 open', 'waiting: five rows and +1 more: ' + s.more + ' ' + s.head);
+  // Escape closes the form and keeps a draft.
+  await page.click('#waitAdd');
+  await page.fill('#wfWho', 'Half typed');
+  await page.press('#wfWho', 'Escape');
+  await page.click('#waitAdd');
+  s = await ws(page);
+  check(s.form && s.vals[0] === 'Half typed', 'waiting: Escape closes, the draft stays: ' + s.vals);
+  await ctx.close();
+
+  // Empty: only the header and Add. No block: no card.
+  {
+    const e = await openW(wworld([]), laptop);
+    s = await ws(e.page);
+    check(s.card && s.head === 'Waiting on' && s.add && !s.rows.length && !s.more && !(await e.page.$$('#waitList *')).length, 'waiting empty: only the header and Add: ' + JSON.stringify(s));
+    await e.page.locator('#waiting').screenshot({ path: file('waiting-pc-empty') });
+    await e.ctx.close();
+    const n = await shoot(answer({ waiting: null }), laptop, '', async (p) => { s.nullCard = await p.evaluate(() => document.getElementById('waiting').hidden); });
+    check(s.nullCard === true, 'waiting: no card without the block');
+  }
+
+  // The phone: after Today, before Projects; the form fits, nothing scrolls sideways.
+  {
+    const pw = wworld();
+    const p = await openW(pw, phone);
+    s = await ws(p.page);
+    check(s.order[1] < s.order[2] && s.order[2] < s.order[3], 'waiting phone: after Today, before Projects: ' + s.order);
+    check(!s.overflow, 'waiting phone: no sideways scroll');
+    await p.page.screenshot({ path: file('waiting-phone'), fullPage: true });
+    await p.page.click('#waitAdd');
+    await p.page.click('#wfSend');
+    s = await ws(p.page);
+    const sizes = await p.page.$$eval('#waitForm .wf-in, #waitForm button', (els) => els.map((x) => Math.round(x.getBoundingClientRect().height)));
+    check(s.form && s.err === 'Who and About are needed.' && !s.overflow && sizes.every((h) => h >= 44), 'waiting phone: the form, its error, 44 px controls: ' + sizes);
+    check(await p.page.$eval('#wfWho', (x) => parseFloat(getComputedStyle(x).fontSize) >= 16), 'waiting phone: inputs at 16 px or more (no zoom on iOS)');
+    await p.page.locator('#waiting').screenshot({ path: file('waiting-phone-form') });
+    await p.ctx.close();
+  }
+}
+
 await browser.close();
 if (errors.length) { console.error(errors.join('\n')); failed = true; }
 console.log(`${checks - fails} of ${checks} checks pass`);
