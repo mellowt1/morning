@@ -893,6 +893,9 @@ details.fold[open] > summary .tag::after { content: ''; }
 /* Network › (morning/network/) beside Add, 44 px tall on touch like Constellation ›. */
 .wait-side { display: inline-flex; align-items: center; gap: 16px; min-width: 0; }
 .wait-net { display: inline-flex; align-items: center; gap: .3em; min-height: 44px; margin: -12px 0; padding: 0; white-space: nowrap; }
+/* Skills › beside Network ›: under 400 px the head keeps "2 open" together and the links sit closer. */
+.card-wait .sub-count { white-space: nowrap; }
+@media (max-width: 399.98px) { .wait-side { gap: 12px; } }
 .wait-rows { padding: 6px 0 2px; }
 .wait-row .task-name { font-weight: 400; }
 .wait-row b { font-weight: 600; }

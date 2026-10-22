@@ -268,11 +268,12 @@
       <!-- Waiting on: what Paul sent and is waiting to hear back about (paul-hub src/waiting.js).
            Rows only: answering and snoozing happen in To-do and on Sunday. Add opens the form below,
            which render() never rebuilds, so a draft survives every refresh. Hidden until the hub sends the block.
-           Network (network/) is the map of the people Paul knows; Sent a message there lands here. -->
+           Network (network/) is the map of the people Paul knows; Sent a message there lands here.
+           Skills (skills/) is the roles Paul tracks and the gaps across them. -->
       <section id="waiting" class="card card-wait" aria-label="Waiting on" style="--i:4" hidden>
         <div class="card-head">
           <span class="num" role="heading" aria-level="2">Waiting on <span id="waitCount" class="sub-count"></span></span>
-          <span class="wait-side"><a id="waitNet" class="card-link wait-net" href="network/">Network <span aria-hidden="true">›</span></a><button type="button" id="waitAdd" class="pbtn pbtn-done" aria-expanded="false" aria-controls="waitForm">Add</button></span>
+          <span class="wait-side"><a id="waitNet" class="card-link wait-net" href="network/">Network <span aria-hidden="true">›</span></a><a id="waitSkills" class="card-link wait-net" href="skills/">Skills <span aria-hidden="true">›</span></a><button type="button" id="waitAdd" class="pbtn pbtn-done" aria-expanded="false" aria-controls="waitForm">Add</button></span>
         </div>
         <form id="waitForm" class="wait-form" aria-label="Add something you are waiting on" novalidate hidden>
           <label class="wf-row"><span class="wf-k">Who</span><input id="wfWho" class="wf-in" name="who" maxlength="60" autocomplete="off" required></label>

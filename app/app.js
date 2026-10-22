@@ -1716,6 +1716,7 @@
     const count = open ? `${open} open` : '';
     if ($('waitCount').textContent !== count) $('waitCount').textContent = count;
     $('waitNet').href = 'network/?c=' + encodeURIComponent(code);
+    $('waitSkills').href = 'skills/?c=' + encodeURIComponent(code);
     const today = ymd(now);
     const shown = items.slice(0, WAIT_SHOWN);
     const rows = shown.map((x) => {
