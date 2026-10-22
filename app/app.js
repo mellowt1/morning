@@ -348,6 +348,127 @@
     return pick && pick.count > 0 ? { level: lv, pick } : null;
   }
 
+  /* ---------- The Dread meter (approved 2026-10-22) ----------
+   * One timer at a time, held by the hub (paul-hub src/dread.js) and shared with To-do and Day.
+   * Start on the pick starts it; while it runs, Start with holds that task (from whichever app
+   * started it) with "Running since", How much do you dread it? (1 to 5, changeable), Skip (hides
+   * the question on this screen) and Stop. Morning never sends done: ticking off happens in To-do,
+   * and the hub settles the timer then. Read with the energy level, every minute and on return;
+   * the last answer is kept on this device. Task names never go to the console. */
+  const DKEY = 'morning.dread.' + code;
+  const DREAD_HOURS = 4; // the hub stops a forgotten timer after this
+  const SCALE = [1, 2, 3, 4, 5];
+  const RUN_FROM = { todo: 'To-do', day: 'Day' };
+  let dread = store.get(DKEY); // { at, running }
+  let dSkipped = ''; // task|startedAt whose question was skipped on this screen
+  let dBusy = false; // a tap's request is out: a second tap sends nothing
+  let dSeq = 0; // a poll that left before a tap's request is thrown away
+
+  /* The timer that runs, or null (also once the hub would have stopped it). */
+  function dreadRunning(now = Date.now()) {
+    const r = dread && dread.running;
+    if (!r || typeof r !== 'object' || typeof r.task !== 'string') return null;
+    const at = Date.parse(r.startedAt);
+    return Number.isFinite(at) && now - at < DREAD_HOURS * 3600000 ? r : null;
+  }
+
+  function applyDread(d) {
+    if (!d || typeof d !== 'object' || d.error || !('running' in d)) return;
+    dread = { at: Date.now(), running: d.running && typeof d.running === 'object' ? d.running : null };
+    store.set(DKEY, dread);
+  }
+
+  async function dreadGet() {
+    if (dBusy || document.hidden) return;
+    const seq = ++dSeq;
+    try {
+      const r = await fetch(API + '/api/dread/' + code, { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (seq !== dSeq || dBusy) return;
+      applyDread(d);
+      render();
+      // The hub just settled a timer (ticked off elsewhere): the pick may have moved on too.
+      if (d.stopped && d.stopped.done) energyGet();
+    } catch (e) { /* the hub is away: keep what is on screen */ }
+  }
+
+  /* One request at a time; a double tap sends once. `then` puts the focus back after the strip changed. */
+  async function dreadSend(path, body, then) {
+    if (dBusy) return;
+    dBusy = true;
+    dSeq++;
+    let again = false;
+    try {
+      const r = await fetch(API + '/api/dread/' + code + path, {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ source: 'morning' }, body)),
+      });
+      if (r.ok) applyDread(await r.json());
+      else again = r.status === 409; // that timer is no longer running: ask what is
+    } catch (e) { /* nothing changes on screen */ }
+    dBusy = false;
+    render();
+    if (then) then();
+    if (again) dreadGet();
+  }
+
+  /* The line under the running task: when it started, and where when that was not Morning. */
+  const runLine = (run) => {
+    const at = Date.parse(run.startedAt);
+    return `Running since ${hm(at)}` + (RUN_FROM[run.source] ? `, started in ${RUN_FROM[run.source]}` : '');
+  };
+  const runKey = (run) => run.task + '|' + run.startedAt;
+
+  /* The question, five square numbers (the chosen one checked), Skip, and Stop on the right. */
+  function dreadHTML(run) {
+    const ask = dSkipped !== runKey(run);
+    const chips = SCALE.map((n) => `<button type="button" class="dread-chip" role="radio" data-rate="${n}" aria-checked="${run.dread === n}"` +
+      `${n === 1 ? ' aria-label="1, not at all"' : n === 5 ? ' aria-label="5, a lot"' : ''}>${n}</button>`).join('');
+    return (ask ? '<span class="dread-q" id="dreadQ">How much do you dread it?</span>' : '') +
+      `<div class="dread-row">${ask ? `<div class="dread-chips" role="radiogroup" aria-labelledby="dreadQ">${chips}</div>` +
+        '<button type="button" class="dread-quiet" data-dread="skip">Skip</button>' : ''}` +
+      '<button type="button" class="dread-quiet dread-stop" data-dread="stop" aria-label="Stop the timer">Stop</button></div>';
+  }
+
+  /* Focus the first of the selectors that is on the page. */
+  const focusIn = (...sels) => { for (const s of sels) { const el = document.querySelector(s); if (el) { el.focus(); return; } } };
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('#start button[data-dread], #start button[data-rate]');
+    if (!b) return;
+    e.preventDefault();
+    if (dBusy) return;
+    const run = dreadRunning();
+    if (b.dataset.rate) {
+      const n = Number(b.dataset.rate);
+      if (run) dreadSend('/rate', { task: run.task, dread: n }, () => focusIn(`#startDread [data-rate="${n}"]`));
+      return;
+    }
+    const act = b.dataset.dread;
+    if (act === 'start') {
+      const p = energy && energy.data && energy.data.pick;
+      if (!p || !p.task || !p.task.id) return;
+      dSkipped = ''; // a new timer asks again
+      dreadSend('/start', { task: p.task.id }, () => focusIn('#startDread [data-rate]'));
+    } else if (act === 'skip' && run) {
+      dSkipped = runKey(run);
+      render();
+      focusIn('#startDread [data-dread="stop"]');
+    } else if (act === 'stop') {
+      dreadSend('/stop', {}, () => (dreadRunning() ? focusIn('#startDread [data-dread="stop"]') : focusIn('#startActs [data-dread="start"]', '#startLink')));
+    }
+  });
+
+  /* Left and right (or up and down) walk the five numbers; Enter or Space picks one. */
+  document.addEventListener('keydown', (e) => {
+    const chip = e.target.closest && e.target.closest('#startDread .dread-chip');
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (!chip || !step) return;
+    e.preventDefault();
+    const all = [...document.querySelectorAll('#startDread .dread-chip')];
+    all[(all.indexOf(chip) + step + all.length) % all.length].focus();
+  });
+
   /* ---------- 01 Start with: tapping it opens the to-do app ---------- */
   function renderStart(t, now) {
     const box = $('start');
@@ -359,15 +480,22 @@
     const note = box.querySelector('.start-note');
     const meta = box.querySelector('.start-meta');
     const text = box.querySelector('.start-text');
+    const run = dreadRunning(now.valueOf());
     let name = first, metaText = '', noteText = '', acts = '';
-    if (ep) {
+    if (run) {
+      // A timer runs (from here, To-do or Day): the strip holds that task until it stops.
+      const p = ep && ep.pick.task;
+      name = run.name ? taskName(run.name).name : p && p.id === run.task ? taskName(p.name).name : 'A task from To-do';
+      metaText = runLine(run);
+    } else if (ep) {
       const p = ep.pick;
       const word = LEVEL_NAME[ep.level];
       if (p.task) {
         name = taskName(p.task.name).name;
         metaText = pickMeta(p.task, now);
         noteText = `${word} · ${p.position} of ${p.count} that fit`;
-        acts = `<button type="button" class="pbtn pbtn-done" data-pick="skip">Not this one</button>` +
+        acts = (p.task.id ? `<button type="button" class="pbtn pbtn-today" data-dread="start">Start</button>` : '') +
+          `<button type="button" class="pbtn pbtn-done" data-pick="skip">Not this one</button>` +
           (p.left > 1 ? `<button type="button" class="pbtn pbtn-done" data-pick="surprise">Surprise me</button>` : '');
       } else {
         name = `That was every task that fits ${ep.level}.`;
@@ -376,8 +504,16 @@
       }
     }
     box.hidden = !name;
-    box.classList.toggle('is-pick', !!ep);
-    box.classList.toggle('is-out', !!ep && !ep.pick.task);
+    box.classList.toggle('is-pick', !!ep && !run);
+    box.classList.toggle('is-out', !!ep && !run && !ep.pick.task);
+    box.classList.toggle('is-running', !!run);
+    meta.classList.toggle('start-run', !!run);
+    // The strip is rebuilt when a rating changes: the focus stays on the number (or Stop).
+    const dbox = $('startDread');
+    const had = dbox.contains(document.activeElement) ? document.activeElement : null;
+    const sel = had && (had.dataset.rate ? `[data-rate="${had.dataset.rate}"]` : '[data-dread="stop"]');
+    if (setHTML(dbox, run ? dreadHTML(run) : '') && sel) { const el = dbox.querySelector(sel); if (el) el.focus(); }
+    dbox.hidden = !run;
     link.setAttribute('aria-label', name ? 'Start with: ' + cap(name) + (metaText ? ', ' + metaText : '') + '. Opens the to-do app.' : '');
     if (text.textContent !== cap(name)) text.textContent = cap(name);
     meta.textContent = metaText;
@@ -563,12 +699,15 @@
     if (!t) html += failed ? retryRow() : `<ul class="rows">${row('Loading…', '', 'empty')}</ul>`;
     else if (!ok(t)) html += `<ul class="rows">${row("To-dos can't load right now.", '', 'empty')}</ul>`;
     else {
-      // Start with holds the first task, or with a level on the pick: then Today lists the rest, the first included.
+      // Start with holds the first task, or with a level on the pick, or a running timer's task:
+      // then Today lists the rest, the first included.
       const ep = energyPick();
+      const run = dreadRunning(now.valueOf());
       let rest = t.items.slice(1);
-      if (ep) {
+      if (run || ep) {
         rest = t.items.slice();
-        const pickName = ep.pick.task ? taskName(ep.pick.task.name).name : null;
+        const held = run ? run.name : ep.pick.task && ep.pick.task.name;
+        const pickName = held ? taskName(held).name : null;
         const i = pickName ? rest.findIndex((x) => taskName(x.text).name === pickName) : -1;
         if (i >= 0) rest.splice(i, 1);
       }
@@ -1138,6 +1277,7 @@
     }
 
     renderEnergyWeek(w.energy);
+    renderDreadWeek(w.dread && typeof w.dread === 'object' ? w.dread : null);
     renderWaitWeek(w.waiting && typeof w.waiting === 'object' ? w.waiting : null, now);
     renderLessons(w);
 
@@ -1259,6 +1399,29 @@
       if (most[lv] && PART_NAME[most[lv]]) facts.push(`${LEVEL_NAME[lv]} most: ${most[lv]}s`);
     }
     setHTML($('wkEnergyFacts'), facts.map((f) => `<span>${esc(f)}</span>`).join(''));
+  }
+
+  /* Biggest lies this week (paul-hub src/dread.js, dreadWeek): tasks dreaded 4 or 5 and done in 15
+   * minutes or less, worst first; then the average dread per energy level, and one line on how many
+   * were started and skipped. Hidden when nothing was started or skipped. */
+  function renderDreadWeek(d) {
+    const started = d ? Number(d.started) || 0 : 0;
+    const skipped = d ? Number(d.skipped) || 0 : 0;
+    $('wkDreadCard').hidden = !d || (!started && !skipped);
+    if ($('wkDreadCard').hidden) return;
+    const lies = (Array.isArray(d.lies) ? d.lies : []).filter((x) => x && SCALE.includes(x.dread) && Number.isFinite(x.mins));
+    setHTML($('wkLies'), lies.length
+      ? `<ul class="dr-lies">${lies.map((x) => `<li class="dr-lie"><span class="dr-name">${esc(cap(x.name || 'A task'))}</span>` +
+        `<span class="dr-dread">dreaded ${x.dread}</span><span class="dr-took">took ${Math.round(x.mins)} min</span></li>`).join('')}</ul>`
+      : emptyRow('No lies this week.'));
+    const by = d.byLevel && typeof d.byLevel === 'object' ? d.byLevel : {};
+    setHTML($('wkDreadLevels'), LEVELS.map(([k, word]) => {
+      const v = Number.isFinite(by[k]) ? by[k].toFixed(1) : null;
+      return `<div class="dr-tile"><span class="dr-k">${word}</span>` +
+        (v ? `<span class="dr-v">${v}</span>` : '<span class="dr-v dr-none"><span aria-hidden="true">–</span><span class="sr">no ratings</span></span>') + '</div>';
+    }).join(''));
+    const foot = `From ${plural(started, 'started task', 'started tasks')}. Skipped this week: ${skipped} (Not this one, snoozes, moved out of Today).`;
+    if ($('wkDreadFoot').textContent !== foot) $('wkDreadFoot').textContent = foot;
   }
 
   /* Waiting on (Sundays): every open item, oldest first, with Answered and Snooze
@@ -2017,12 +2180,14 @@
   render();
   load();
   energyGet();
+  dreadGet();
   tick();
 
   // Data every ten minutes and on return. Hiding the page is "the last look".
   setInterval(() => { if (!document.hidden) load(); }, REFRESH);
-  // The energy level every minute and on return (Paul's choice), so a tap in To-do or Day shows here.
-  setInterval(() => { if (!document.hidden) energyGet(); }, ENERGY_EVERY);
+  // The energy level and the dread timer every minute and on return (Paul's choice), so a tap in
+  // To-do or Day shows here.
+  setInterval(() => { if (!document.hidden) { energyGet(); dreadGet(); } }, ENERGY_EVERY);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { saveSeen(); return; }
     visibleSince = Date.now();
@@ -2030,6 +2195,7 @@
     render();
     load();
     energyGet();
+    dreadGet();
     tick();
   });
   addEventListener('pagehide', saveSeen);

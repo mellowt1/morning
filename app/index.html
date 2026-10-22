@@ -76,6 +76,16 @@
       <div id="wkEnergy" class="en-grid"></div>
       <p id="wkEnergyFacts" class="en-facts"></p>
     </section>
+    <!-- Biggest lies: tasks dreaded 4 or 5 and done in 15 minutes or less, the average dread per energy
+         level, and how many were started and skipped (data.week.dread). Hidden with nothing started or skipped. -->
+    <section id="wkDreadCard" class="card card-para card-dread" aria-label="Biggest lies this week" style="--i:0" hidden>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">Biggest lies this week</span></div>
+      <p class="dr-sub">Dreaded 4 or 5, done in 15 minutes or less</p>
+      <div id="wkLies"></div>
+      <span class="dr-h" role="heading" aria-level="3">Average dread by energy level</span>
+      <div id="wkDreadLevels" class="dr-levels"></div>
+      <p id="wkDreadFoot" class="dr-foot"></p>
+    </section>
     <!-- Waiting on: everything still open, oldest first, with Answered and Snooze (data.week.waiting). Hidden with nothing open and nothing this week. -->
     <section id="wkWaitCard" class="card card-para card-wait-wk" aria-label="Waiting on" style="--i:0" hidden>
       <div class="card-head"><span class="num" role="heading" aria-level="2">Waiting on</span><span id="wkWaitNote" class="card-note"></span></div>
@@ -116,7 +126,9 @@
     <div class="col col-a">
       <!-- The strip in hand. With an energy level set (the dial, paul-hub src/energy.js) it holds the
            pick for that level, with Not this one and Surprise me; otherwise the first Today task.
-           The dial sits on top on the phone only (the PC has it in the header). -->
+           The dial sits on top on the phone only (the PC has it in the header). The pick has Start
+           (the Dread meter, paul-hub src/dread.js); a timer that runs, from any app, takes the strip
+           with "Running since", the dread question (1 to 5), Skip and Stop. -->
       <section id="start" class="card card-start" aria-label="Start with" style="--i:0" hidden>
         <div id="startDial" class="start-dial"></div>
         <a id="startLink" class="start-link" href="../todo/">
@@ -125,6 +137,7 @@
           <span class="start-meta" hidden></span>
         </a>
         <div id="startActs" class="start-acts" hidden></div>
+        <div id="startDread" class="start-dread" hidden></div>
       </section>
 
       <section class="card card-today" aria-label="Today" style="--i:1">

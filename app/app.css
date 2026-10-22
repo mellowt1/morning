@@ -962,3 +962,57 @@ button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-
   .read-row.mail-row { flex-wrap: wrap; }
   .mail-btns { width: 100%; padding-left: 62px; align-self: auto; }
 }
+
+/* ---------- The Dread meter (approved 2026-10-22) ----------
+ * Start is the one green button beside the pick. While a timer runs the strip is set down square
+ * (no tilt), its line says "Running since" in green, and under it the question: five square numbers
+ * in Barlow Condensed (the chosen one filled), a quiet Skip and, on the right, a quiet Stop. */
+.start-acts .pbtn-today { border: 0; background: var(--accent-fill); color: var(--on-accent); }
+.start-acts .pbtn-today:hover { background: var(--accent-fill-press); }
+.card-start.is-running { transform: none; }
+.card-start.is-running:has(.start-link:active) { transform: scale(.985); }
+.start-meta.start-run { color: var(--paper-green); font-weight: 600; }
+.start-dread { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; }
+.start-dread[hidden] { display: none; }
+.dread-q { font-size: 16px; font-weight: 600; }
+.dread-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dread-chips { display: grid; grid-template-columns: repeat(5, 46px); gap: 6px; }
+.dread-chip { min-height: 44px; padding: 0; border: 1px solid var(--btn-rule); border-radius: 3px; background: var(--rack-hi); color: var(--paper-ink); font-family: 'Barlow Condensed', 'Barlow', system-ui, sans-serif; font-size: 22px; font-weight: 600; line-height: 1; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color .18s ease, color .18s ease; }
+.dread-chip:hover { background: #ECEFF2; }
+.dread-chip[aria-checked="true"] { border-color: var(--accent-fill); background: var(--accent-fill); color: var(--on-accent); }
+.dread-chip[aria-checked="true"]:hover { background: var(--accent-fill-press); }
+.dread-quiet { min-height: 44px; padding: 0 10px; border: 0; border-radius: 3px; background: none; color: var(--paper-2); font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.dread-quiet:hover { color: var(--paper-ink); text-decoration: underline; text-underline-offset: 3px; }
+.dread-stop { margin-left: auto; }
+.dread-chip:focus-visible, .dread-quiet:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+@media (max-width: 719.98px) {
+  /* The phone: the five numbers fill the strip's width; Skip and Stop share the line under them. */
+  .dread-chips { flex: 1 1 100%; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .dread-chips + .dread-quiet { margin-left: -10px; } /* Skip lines up with the 1 */
+}
+@media (prefers-reduced-motion: reduce) { .dread-chip { transition: none; } }
+
+/* Biggest lies this week (Sundays): name, "dreaded N" in amber, "took N min"; then three tiles, the
+ * average dread per energy level; then one line of counts. */
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.dr-sub { margin: -2px 0 4px; font-size: 15px; color: var(--muted); }
+.dr-lies { margin: 0; padding: 0; list-style: none; }
+.dr-lie { display: grid; grid-template-columns: minmax(0, 1fr) 120px 120px; gap: 14px; align-items: center; min-height: 48px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.dr-name { font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
+.dr-dread, .dr-took { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 20px; font-weight: 600; white-space: nowrap; }
+.dr-dread { color: var(--amber-ink); }
+.dr-h { display: block; margin: 16px 0 8px; font-size: 15px; font-weight: 600; }
+.dr-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.dr-tile { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; min-width: 0; padding: 10px 14px; border-radius: 3px; background: var(--paper); box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+.dr-k { font-size: 15px; color: var(--muted); }
+.dr-v { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 26px; font-weight: 600; line-height: 1; }
+.dr-none { color: var(--muted); }
+.dr-foot { margin: 12px 0 0; font-size: 15px; font-weight: 500; color: var(--muted); }
+@media (max-width: 719.98px) {
+  /* The phone: the name over its two numbers; the tiles' word over the figure. */
+  .dr-lie { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "name name" "dread took"; row-gap: 2px; column-gap: 16px; padding: 10px 0; }
+  .dr-name { grid-area: name; }
+  .dr-dread { grid-area: dread; }
+  .dr-took { grid-area: took; }
+  .dr-tile { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; }
+}
