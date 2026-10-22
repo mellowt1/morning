@@ -18,7 +18,7 @@ let failed = false;
 let passes = 0, fails = 0;
 const check = (ok, what) => { if (!ok) { fails++; failed = true; console.error('FAIL:', what); } else { passes++; console.log('ok:', what); } };
 
-function world(now, empty) {
+function world(now, empty, dreadOver) {
   const quiet = empty ? [] : [
     { id: 'quiet0000001', text: 'Cancel the old phone contract', section: 'soon', days: 31 },
     { id: 'quiet0000002', text: 'Find a tutor for the evening class', section: 'someday', days: 22 },
@@ -43,7 +43,13 @@ function world(now, empty) {
   const wcount = { resolved: empty ? 0 : 2, chased: empty ? 0 : 3 };
   const waitWeek = () => ({ items: structuredClone(waits), ...wcount });
   const waitBlock = () => { const due = waits.filter((i) => i.chaseDue); return { open: waits.length, due: due.length, dueWho: due.slice(0, 3).map((i) => i.who), items: structuredClone(waits.slice(0, 8)) }; };
+  // Dread meter: the biggest lies, the average dread per level, started and skipped (paul-hub src/dread.js).
+  const dreadWeek = dreadOver !== undefined ? dreadOver : empty ? { lies: [], byLevel: { wired: null, normal: null, drained: null }, rated: 0, started: 0, skipped: 0 } : {
+    lies: [{ task: 'task00000011', name: 'Call the insurance about the claim', dread: 5, mins: 6 }, { task: 'task00000012', name: 'book the car service', dread: 4, mins: 12 }],
+    byLevel: { wired: 2.5, normal: 3, drained: null }, rated: 7, started: 9, skipped: 6,
+  };
   const week = () => ({
+    dread: structuredClone(dreadWeek),
     waiting: waitWeek(),
     thisWeek: structuredClone(flags),
     week: 42, from: '2026-10-12', to: '2026-10-18',
@@ -143,8 +149,8 @@ function world(now, empty) {
 }
 
 const browser = await chromium.launch();
-async function open(viewport, { dark = false, now = SUNDAY, empty = false } = {}) {
-  const w = world(now, empty);
+async function open(viewport, { dark = false, now = SUNDAY, empty = false, dread } = {}) {
+  const w = world(now, empty, dread);
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700, colorScheme: dark ? 'dark' : 'light' });
   const page = await ctx.newPage();
   const errors = [];
@@ -181,7 +187,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet. 2 flagged tasks are still open.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, waiting on, the lessons, then five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|Biggest lies this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, biggest lies, waiting on, the lessons, then five cards in order');
   // 02 Still this week: the flagged tasks still open, Keep for next week or Unflag (with Undo).
   check((await texts(page, '#wkFlag .park-what')).join('|') === 'Book the flights|Call the plumber', name + ': still this week lists the flagged tasks, clean names');
   check(await page.textContent('#wkFlagNote') === '2 left', name + ': still this week says 2 left');
@@ -207,6 +213,16 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(facts === 'Set 11 times|Drained most: evenings|Wired most: mornings|Normal most: afternoons', name + ': energy facts ' + facts);
   check(await page.evaluate(() => { const a = document.getElementById('wkEnergyCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), g = document.getElementById('wkEnergy'); return a.width > v.width * 0.9 && g.scrollWidth <= g.clientWidth; }), name + ': the energy card spans the width, nothing cut off');
   await page.locator('#wkEnergyCard').screenshot({ path: file(name + '-energy') });
+  // Biggest lies: name, "dreaded N" in amber condensed, "took N min"; three tiles (– with no ratings); the footer.
+  const lies = await page.$$eval('#wkLies .dr-lie', (els) => els.map((e) => [...e.children].map((c) => c.textContent.trim()).join('|')).join(' / '));
+  check(lies === 'Call the insurance about the claim|dreaded 5|took 6 min / Book the car service|dreaded 4|took 12 min', name + ': biggest lies rows: ' + lies);
+  check(await page.$eval('#wkLies .dr-dread', (e) => getComputedStyle(e).color === 'rgb(138, 83, 0)' && /Barlow Condensed/.test(getComputedStyle(e).fontFamily)), name + ': dreaded N is amber, Barlow Condensed');
+  const dtiles = await page.$$eval('#wkDreadLevels .dr-tile', (els) => els.map((e) => e.querySelector('.dr-k').textContent + ' ' + (e.querySelector('.dr-v [aria-hidden]') ? '–' : e.querySelector('.dr-v').textContent)).join(', '));
+  check(dtiles === 'Wired 2.5, Normal 3.0, Drained –' && await page.textContent('#wkDreadLevels .sr') === 'no ratings', name + ': average dread tiles: ' + dtiles);
+  check(await page.textContent('#wkDreadFoot') === 'From 9 started tasks. Skipped this week: 6 (Not this one, snoozes, moved out of Today).', name + ': dread footer: ' + await page.textContent('#wkDreadFoot'));
+  check(await page.textContent('#wkDreadCard .dr-sub') === 'Dreaded 4 or 5, done in 15 minutes or less' && await page.getAttribute('#wkDreadCard .dr-h', 'aria-level') === '3', name + ': the subtitle, the tiles under a level 3 heading');
+  check(await page.evaluate(() => { const a = document.getElementById('wkDreadCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), c = document.getElementById('wkDreadCard'); return a.width > v.width * 0.9 && c.scrollWidth <= c.clientWidth; }), name + ': the lies card spans the width, nothing cut off');
+  await page.locator('#wkDreadCard').screenshot({ path: file(name + '-dread') });
   // Waiting on: every open item oldest first (who about what, channel, days waiting, amber edge when a
   // chase is due), Answered and Snooze, and what was resolved and chased this week.
   const wrows = () => page.$$eval('#wkWait .ww', (els) => els.map((e) => [e.querySelector('.ww-what').textContent.trim(), e.querySelector('.ww-how').textContent.trim(),
@@ -333,8 +349,24 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(!(await shown(page, '#wkLessonsCard')), 'empty: no lessons card without rules');
   check(!(await shown(page, '#wkEnergyCard')), 'empty: no energy card when nothing was set');
   check(!(await shown(page, '#wkWaitCard')), 'empty: no waiting card with nothing open and nothing resolved or chased');
+  check(!(await shown(page, '#wkDreadCard')), 'empty: no biggest lies card with nothing started or skipped');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
+  await ctx.close();
+}
+// Biggest lies with no lies: the line, the rest stays. Hidden when the block is null.
+for (const [name, viewport] of [['week-pc-dread-none', { width: 1440, height: 1000 }], ['week-phone-dread-none', { width: 390, height: 844 }]]) {
+  const { page, ctx, errors } = await open(viewport, { dread: { lies: [], byLevel: { wired: null, normal: 3.5, drained: null }, rated: 1, started: 1, skipped: 2 } });
+  check(await shown(page, '#wkDreadCard') && (await texts(page, '#wkLies .row.empty')).join() === 'No lies this week.' && (await page.$$('#wkDreadLevels .dr-tile')).length === 3, name + ': no lies, the line and the tiles');
+  check(await page.textContent('#wkDreadFoot') === 'From 1 started task. Skipped this week: 2 (Not this one, snoozes, moved out of Today).', name + ': one started task: ' + await page.textContent('#wkDreadFoot'));
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ': no sideways scroll');
+  await page.locator('#wkDreadCard').screenshot({ path: file(name) });
+  check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
+  await ctx.close();
+}
+{
+  const { page, ctx } = await open({ width: 390, height: 844 }, { dread: null });
+  check(!(await shown(page, '#wkDreadCard')) && await shown(page, '#weekView'), 'dread null: no biggest lies card, the rest of the week shows');
   await ctx.close();
 }
 {
