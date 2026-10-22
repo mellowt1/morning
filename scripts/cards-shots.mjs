@@ -1308,6 +1308,198 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   check(!logs.some((x) => NAMES.test(x)), 'decide: no task names or notes in the console: ' + logs.length + ' lines');
 }
 
+// The Oracle question (paul-hub src/oracle.js, mocked like the real routes): one line under the header
+// while this week's question is open (the label, the question on one line, Answer, Past weeks), the box in
+// place (the focus in, Cancel and Escape put it back on Answer, a draft stays), Save answer (nothing empty,
+// a failed save keeps the words, the POST body, a double tap sends once, a short line then nothing), Not this
+// week, no line with nothing open or the hub away, the minute poll, the phone, and nothing in the console.
+{
+  const OQ = 'You passed on "Call the bank" seven times, then did it in six minutes on Friday. What was different about Friday?';
+  const OROW = { week: '2026-10-19', label: 'Week 43', question: OQ, state: 'open', answer: null, askedAt: '2026-10-25T05:02:00.000Z', answeredAt: null };
+  const oworld = (current = OROW) => {
+    const w = { current: structuredClone(current), posts: [], gets: 0, down: false, status: 0 };
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    w.oracle = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      const sub = new URL(q.url()).pathname.split('/').slice(4)[0] || '';
+      if (q.method() === 'GET') {
+        if (w.down) return r.fulfill({ status: 503, json: { error: 'not configured' }, headers: h });
+        w.gets++;
+        return r.fulfill({ json: sub === 'list' ? { weeks: [] } : { current: structuredClone(w.current) }, headers: h });
+      }
+      const b = q.postDataJSON();
+      w.posts.push({ sub, body: b });
+      await new Promise((ok) => setTimeout(ok, 150)); // network time, so a double tap lands while the first is out
+      if (w.status) return r.fulfill({ status: w.status, json: { error: 'nope' }, headers: h });
+      if (!w.current || b.week !== w.current.week) return r.fulfill({ status: 404, json: { error: 'no question that week' }, headers: h });
+      const row = sub === 'answer' ? { ...w.current, state: 'answered', answer: b.answer, answeredAt: new Date(NOON).toISOString() } : { ...w.current, state: 'aside', answeredAt: new Date(NOON).toISOString() };
+      w.current = null;
+      return r.fulfill({ json: { week: row }, headers: h });
+    };
+    return w;
+  };
+  const logs = [];
+  const openO = async (w, viewport, clock = 'fixed') => {
+    const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => logs.push(m.text()));
+    if (clock === 'fixed') await page.clock.setFixedTime(new Date(NOON));
+    else await page.clock.install({ time: new Date(NOON) });
+    await page.addInitScript((d) => { try { localStorage.setItem('morning.enteredOn', JSON.stringify(d)); } catch (e) {} }, day(0));
+    await page.route('**/api/morning/**', (r) => r.fulfill({ json: answer(), headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await page.route('**/api/oracle/**', w.oracle);
+    for (const other of ['energy', 'dread', 'archive', 'waiting']) await page.route(`**/api/${other}/**`, (r) => r.abort());
+    await page.route('**/site.**espn.com/**', (r) => r.abort());
+    await page.goto(BASE + '?c=' + CODE);
+    if (clock !== 'fixed') await page.clock.runFor(1000);
+    await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(400);
+    return { ctx, page };
+  };
+  const ol = (page) => page.evaluate(() => {
+    const vis = (el) => !!el && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
+    const t = (sel) => { const el = document.querySelector(sel); return vis(el) ? el.textContent.replace(/\s+/g, ' ').trim() : ''; };
+    const line = document.getElementById('olLine');
+    const q = document.getElementById('olQ');
+    const ta = document.getElementById('olText');
+    const a = document.activeElement;
+    const r = (el) => el.getBoundingClientRect();
+    const firstCard = [...document.querySelectorAll('.cols .card')].filter(vis).sort((x, y) => r(x).top - r(y).top)[0];
+    return {
+      shown: vis(line), bg: getComputedStyle(line).backgroundColor, k: t('#olK'), level: document.getElementById('olK').getAttribute('aria-level'),
+      q: t('#olQ'), cut: q.scrollWidth > q.clientWidth, qH: Math.round(r(q).height), ellipsis: getComputedStyle(q).textOverflow,
+      answer: vis(document.getElementById('olOpen')) ? document.getElementById('olOpen').textContent.trim() : '',
+      expanded: document.getElementById('olOpen').getAttribute('aria-expanded'),
+      past: t('#olPast'), pastHref: document.getElementById('olPast').getAttribute('href'),
+      open: vis(document.getElementById('olForm')), label: t('#olForm .or-label'), rows: ta.rows, max: ta.maxLength, ph: ta.placeholder, value: ta.value,
+      btns: [...document.querySelectorAll('#olForm button')].filter(vis).map((b) => b.textContent.trim()),
+      err: t('#olErr'), done: t('#olDone'), doneHref: document.querySelector('#olDone a') ? document.querySelector('#olDone a').getAttribute('href') : '',
+      focus: a ? (a.id || a.textContent.replace(/\s+/g, ' ').trim()) : '',
+      targets: [...line.querySelectorAll('button, a')].filter(vis).map((b) => Math.round(r(b).height)),
+      underHead: vis(line) && r(line).top >= r(document.querySelector('.head')).bottom && (!firstCard || r(line).bottom <= r(firstCard).top),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  const tap = async (page, sel, settle = 300) => { await page.click(sel); await page.waitForTimeout(settle); };
+
+  // The PC: the line under the header, read on opening.
+  const w = oworld();
+  const { ctx, page } = await openO(w, laptop);
+  let s = await ol(page);
+  check(s.shown && s.bg === 'rgb(255, 255, 255)' && s.k === 'This week\'s question' && s.level === '2' && s.q === OQ && s.answer === 'Answer' && s.expanded === 'false' && w.gets >= 1,
+    'oracle line: the label, the question, Answer, read on opening: ' + JSON.stringify({ k: s.k, q: s.q, answer: s.answer, gets: w.gets }));
+  check(s.past === 'Past weeks ›' && s.pastHref === 'oracle/?c=' + CODE && s.underHead && s.qH <= 26 && s.ellipsis === 'ellipsis',
+    'oracle line: Past weeks, under the header, the question on one line: ' + JSON.stringify({ past: s.past, href: s.pastHref, under: s.underHead, h: s.qH }));
+  await page.locator('#olLine').screenshot({ path: file('oracle-pc-line') });
+  await page.screenshot({ path: file('oracle-pc'), fullPage: true });
+  // Answer: the box in place, the focus in it; Escape and Cancel put the focus back on Answer; the draft stays.
+  await tap(page, '#olOpen', 150);
+  s = await ol(page);
+  check(s.open && s.focus === 'olText' && !s.answer && s.label === 'Your answer' && s.rows === 3 && s.max === 1000 && s.ph === 'A sentence or two is enough' && s.btns.join() === 'Save answer,Not this week,Cancel'
+    && !s.cut, 'oracle line: Answer opens the box in place, the whole question shows: ' + JSON.stringify({ open: s.open, focus: s.focus, btns: s.btns }));
+  await page.keyboard.type('Friday had');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  s = await ol(page);
+  check(!s.open && s.answer === 'Answer' && s.focus === 'olOpen' && s.expanded === 'false', 'oracle line: Escape closes it, the focus back on Answer: ' + JSON.stringify({ open: s.open, focus: s.focus }));
+  await tap(page, '#olOpen', 150);
+  s = await ol(page);
+  check(s.value === 'Friday had' && await page.getAttribute('#olOpen', 'aria-expanded') === 'true', 'oracle line: the draft stays');
+  await tap(page, '#olForm [data-ol="cancel"]', 100);
+  s = await ol(page);
+  check(!s.open && s.focus === 'olOpen' && !w.posts.length, 'oracle line: Cancel closes it, nothing sent: ' + JSON.stringify({ focus: s.focus }));
+  // Nothing written: nothing sent.
+  await tap(page, '#olOpen', 100);
+  await page.fill('#olText', '   ');
+  await tap(page, '#olSave', 150);
+  s = await ol(page);
+  check(!w.posts.length && s.err === 'Write a sentence first, or choose Not this week.' && s.focus === 'olText', 'oracle line: nothing written, nothing sent: ' + JSON.stringify({ err: s.err }));
+  // A failed save: the words show, what was typed stays, the box stays open.
+  await page.fill('#olText', 'Friday had nothing else on it.');
+  w.status = 500;
+  await tap(page, '#olSave', 500);
+  s = await ol(page);
+  check(w.posts.length === 1 && s.err === 'Couldn’t save that. Try again.' && s.open && s.value === 'Friday had nothing else on it.' && s.focus === 'olText',
+    'oracle line: a failed save keeps the words: ' + JSON.stringify({ err: s.err, value: s.value }));
+  w.status = 0;
+  await page.locator('#olLine').screenshot({ path: file('oracle-pc-line-open') });
+  // Save answer: one POST for a double tap; a short line with Past weeks, then the line goes.
+  await page.evaluate(() => { const b = document.getElementById('olSave'); b.click(); b.click(); });
+  await page.waitForTimeout(600);
+  s = await ol(page);
+  check(w.posts.length === 2 && w.posts[1].sub === 'answer' && JSON.stringify(w.posts[1].body) === JSON.stringify({ week: '2026-10-19', answer: 'Friday had nothing else on it.', source: 'morning' }),
+    'oracle line: Save answer posts once: ' + JSON.stringify(w.posts.slice(1)));
+  check(s.shown && !s.q && !s.open && s.done === 'Saved. Your answer is in Past weeks.' && s.doneHref === 'oracle/?c=' + CODE && s.focus === 'Past weeks',
+    'oracle line: Saved, with the way to Past weeks, the focus on it: ' + JSON.stringify({ done: s.done, focus: s.focus }));
+  await page.locator('#olLine').screenshot({ path: file('oracle-pc-line-saved') });
+  await page.waitForTimeout(6200);
+  s = await ol(page);
+  check(!s.shown && s.focus === 'startLink', 'oracle line: then the line goes, the focus on Start with: ' + JSON.stringify({ shown: s.shown, focus: s.focus }));
+  // Answered: the next read keeps it gone.
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(300);
+  check(!(await ol(page)).shown, 'oracle line: answered, gone on return too');
+  await ctx.close();
+
+  // Not this week: the aside POST, then the line goes.
+  {
+    const aw = oworld();
+    const { ctx, page } = await openO(aw, laptop);
+    await tap(page, '#olOpen', 100);
+    await tap(page, '#olForm [data-ol="aside"]', 500);
+    const s = await ol(page);
+    check(aw.posts.length === 1 && aw.posts[0].sub === 'aside' && JSON.stringify(aw.posts[0].body) === JSON.stringify({ week: '2026-10-19', source: 'morning' }) && s.done.startsWith('Put aside for this week.') && !s.q,
+      'oracle line: Not this week posts aside: ' + JSON.stringify({ posts: aw.posts, done: s.done }));
+    await ctx.close();
+  }
+  // Nothing open, the hub away: no line, the page as before.
+  for (const [what, set] of [['nothing open', (x) => { x.current = null; }], ['the hub away', (x) => { x.down = true; }]]) {
+    const nw = oworld();
+    set(nw);
+    const { ctx, page } = await openO(nw, laptop);
+    const s = await ol(page);
+    check(!s.shown && await page.evaluate(() => !document.getElementById('start').hidden), 'oracle line: ' + what + ', no line: ' + JSON.stringify({ shown: s.shown }));
+    await ctx.close();
+  }
+  // The minute poll: a question asked meanwhile shows within a minute.
+  {
+    const mw = oworld(null);
+    const { ctx, page } = await openO(mw, laptop, 'install');
+    check(!(await ol(page)).shown, 'oracle line: nothing open at first');
+    const before = mw.gets;
+    mw.current = structuredClone(OROW);
+    await page.clock.runFor(61000);
+    await page.waitForTimeout(300);
+    const s = await ol(page);
+    check(mw.gets > before && s.shown && s.q === OQ, 'oracle line: read again within a minute: ' + JSON.stringify({ gets: mw.gets - before, shown: s.shown }));
+    await ctx.close();
+  }
+  // The phone: the label and Past weeks over the question and Answer; cut with an ellipsis; 44 px; nothing sideways.
+  {
+    const pw = oworld();
+    const { ctx, page } = await openO(pw, phone);
+    let s = await ol(page);
+    check(s.shown && s.cut && s.underHead && s.targets.every((x) => x >= 44) && !s.overflow, 'oracle line phone: cut to one line, under the header, 44 px, nothing sideways: ' + JSON.stringify({ cut: s.cut, targets: s.targets }));
+    await page.locator('#olLine').screenshot({ path: file('oracle-phone-line') });
+    await page.screenshot({ path: file('oracle-phone') });
+    await tap(page, '#olOpen', 150);
+    await page.fill('#olText', 'Nothing else was on that day, so it was the only thing to do.');
+    s = await ol(page);
+    check(s.open && !s.cut && s.targets.every((x) => x >= 44) && !s.overflow, 'oracle line phone: the box, 44 px, nothing sideways: ' + JSON.stringify({ targets: s.targets }));
+    await page.locator('#olLine').screenshot({ path: file('oracle-phone-line-open') });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.waitForTimeout(100);
+    s = await ol(page);
+    const tops = await page.evaluate(() => [...document.querySelectorAll('#olForm .or-acts button')].map((b) => Math.round(b.getBoundingClientRect().top)));
+    check(!s.overflow && tops.length === 3 && tops.every((y) => y === tops[0]), 'oracle line phone: at 375 px the three buttons share one line: ' + tops);
+    await ctx.close();
+  }
+  check(!logs.some((x) => x.includes('Call the bank') || x.includes('Friday had') || x.includes('Nothing else was on')), 'oracle line: no question or answer in the console: ' + logs.length + ' lines');
+}
+
 await browser.close();
 if (errors.length) { console.error(errors.join('\n')); failed = true; }
 console.log(`${checks - fails} of ${checks} checks pass`);
