@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skills</title>
+<meta name="description" content="The roles you track, what each one asks for, what is on your side and the gaps across them.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#CBD1D8">
+<meta name="color-scheme" content="light">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="skills.css">
+</head>
+<body>
+<main id="app" class="page">
+  <header id="top" class="top">
+    <a id="back" class="back" href="../">‹ Morning</a>
+    <h1>Skills</h1>
+    <p id="sideLine" class="side-line"></p>
+    <div class="acts">
+      <button type="button" id="sideBtn" class="btn">Your side</button>
+      <button type="button" id="pasteBtn" class="btn btn-go">Paste a job</button>
+    </div>
+    <p id="status" class="status" role="status"></p>
+  </header>
+
+  <!-- The phone: Roles and Gaps as two tabs; a role or a gap opens full screen. -->
+  <div id="tabs" class="tabs" role="tablist" aria-label="Roles and gaps">
+    <button type="button" id="tabRoles" class="tab" role="tab" aria-selected="true" aria-controls="roles">Roles <span id="tabRolesN" class="tab-n"></span></button>
+    <button type="button" id="tabGaps" class="tab" role="tab" aria-selected="false" aria-controls="gaps" tabindex="-1">Gaps <span id="tabGapsN" class="tab-n"></span></button>
+  </div>
+
+  <div id="away" class="away" hidden>
+    <p>Can’t reach the hub.</p>
+    <button type="button" id="retry" class="btn">Retry</button>
+  </div>
+
+  <!-- GET /api/skills/:code (paul-hub src/skills.js). PC: Roles you track, the role or gap that is open,
+       Gaps across roles. Everything about Paul on this page is a line from his side that the hub sent. -->
+  <div id="cols" class="cols">
+    <section id="roles" class="col col-roles" aria-labelledby="rolesH">
+      <h2 id="rolesH" class="col-h">Roles you track</h2>
+      <div id="rolesBody"></div>
+    </section>
+    <section id="detail" class="col col-detail" aria-labelledby="detailH" hidden>
+      <div id="detailBody" class="d-body"></div>
+    </section>
+    <section id="gaps" class="col col-gaps" aria-labelledby="gapsH">
+      <h2 id="gapsH" class="col-h">Gaps across roles</h2>
+      <p id="gapsSub" class="col-sub">Must-haves first, then the ones most roles ask for.</p>
+      <div id="gapsBody"></div>
+    </section>
+  </div>
+
+  <p id="toast" class="toast" role="status" hidden></p>
+</main>
+<p id="nocode" class="nocode" hidden>Open Morning from your private link first; this page uses the same one.</p>
+
+<!-- Paste a job: POST /role. Claude reads it once on the hub. -->
+<dialog id="paste" class="dlg dlg-full" aria-labelledby="pasteH">
+  <form id="pasteForm" class="pf" novalidate>
+    <div class="pf-top">
+      <button type="button" class="link-btn" data-close>Cancel</button>
+      <h2 id="pasteH">Paste a job</h2>
+      <span class="pf-gap" aria-hidden="true"></span>
+    </div>
+    <div class="pf-body">
+      <p id="pasteErr" class="err" role="alert" hidden></p>
+      <div class="fld">
+        <label for="pjTitle">Title</label>
+        <input id="pjTitle" class="in" maxlength="200" autocomplete="off" required>
+      </div>
+      <div class="fld">
+        <label for="pjOrg">Organisation</label>
+        <input id="pjOrg" class="in" maxlength="200" autocomplete="off">
+      </div>
+      <div class="fld">
+        <label for="pjLink">Link <span class="optional">(optional)</span></label>
+        <input id="pjLink" class="in" type="url" maxlength="500" autocomplete="off" placeholder="https://">
+      </div>
+      <div class="fld fld-grow">
+        <label for="pjText">The job text</label>
+        <textarea id="pjText" class="in ta ta-job" maxlength="60000" required aria-describedby="pjCount"></textarea>
+        <span id="pjCount" class="count"></span>
+      </div>
+      <p class="hint">Claude reads it once and lists what it asks for. The text stays in the hub with the role.</p>
+      <button type="submit" id="pasteGo" class="btn btn-go btn-wide">Read the requirements</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Your side: GET /side for the lines, POST /side with what Paul copies from CV Studio. -->
+<dialog id="side" class="dlg dlg-wide" aria-labelledby="sideH">
+  <div class="sd">
+    <div class="dlg-head sd-head">
+      <h2 id="sideH">Your side</h2>
+      <button type="button" class="x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="sd-cols">
+      <section class="sd-col" aria-labelledby="sideH">
+        <p class="hint hint-top">Only these lines count as yours. Every Have or Partly points to one of them.</p>
+        <div id="sdBox" class="sd-now">
+          <p id="sdNow" class="sd-now-t"></p>
+          <button type="button" id="sdReplace" class="btn" aria-expanded="false" aria-controls="sdPaste" hidden>Replace</button>
+        </div>
+        <p id="sdDone" class="done" role="status" hidden></p>
+        <div id="sdPaste" class="sd-paste" hidden>
+          <label for="sdText" class="sd-k">Paste your CV Studio blocks</label>
+          <textarea id="sdText" class="in ta" rows="6" maxlength="200000" spellcheck="false" aria-describedby="sdHint"></textarea>
+          <p id="sdHint" class="hint">Plain text or the JSON export, as CV Studio gives it. These replace the CV Studio lines; the gaps you closed stay. Every role you track is checked again, one Claude call per role.</p>
+          <p id="sdErr" class="err" role="alert" hidden></p>
+          <div class="sd-acts">
+            <button type="button" id="sdFile" class="btn">Choose a file</button>
+            <input id="sdPick" type="file" accept=".json,.txt,.md,application/json,text/plain" hidden>
+            <button type="button" id="sdGo" class="btn btn-go">Use these blocks</button>
+          </div>
+        </div>
+        <div id="sdLines"></div>
+      </section>
+      <section class="sd-col sd-closed" aria-labelledby="sdClosedH">
+        <h3 id="sdClosedH" class="sd-h" tabindex="-1">Gaps you closed</h3>
+        <p class="hint">Your own words, from I have this now. They count like a line from CV Studio.</p>
+        <div id="sdClosed"></div>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<!-- Make a task from a plan step: POST /gap/:key/step/:id/task. -->
+<dialog id="task" class="dlg dlg-sheet" aria-labelledby="taskH">
+  <form id="taskForm" class="sheet" novalidate>
+    <div class="dlg-head">
+      <h2 id="taskH">Make a task</h2>
+      <button type="button" class="x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="task-prev">
+      <span class="task-k">The task in To-do</span>
+      <span id="taskText" class="task-t"></span>
+    </div>
+    <div class="grp" role="group" aria-labelledby="taskWhereK">
+      <span id="taskWhereK" class="grp-k">Where</span>
+      <div class="chips" data-pick="section">
+        <button type="button" class="chip" data-v="today" aria-pressed="false">Today</button>
+        <button type="button" class="chip" data-v="soon" aria-pressed="true">Soon</button>
+      </div>
+    </div>
+    <div class="grp" role="group" aria-labelledby="taskEnergyK">
+      <span id="taskEnergyK" class="grp-k">Energy</span>
+      <div class="chips" data-pick="energy">
+        <button type="button" class="chip" data-v="wired" aria-pressed="false">Wired</button>
+        <button type="button" class="chip" data-v="normal" aria-pressed="true">Normal</button>
+        <button type="button" class="chip" data-v="drained" aria-pressed="false">Drained</button>
+      </div>
+    </div>
+    <p id="taskErr" class="err" role="alert" hidden></p>
+    <button type="submit" id="taskGo" class="btn btn-go btn-wide">Make the task</button>
+  </form>
+</dialog>
+
+<!-- I have this now: POST /gap/:key/close with Paul's own words. -->
+<dialog id="close" class="dlg dlg-sheet" aria-labelledby="closeH">
+  <form id="closeForm" class="sheet" novalidate>
+    <div class="dlg-head">
+      <h2 id="closeH">I have this now</h2>
+      <button type="button" class="x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="fld">
+      <label for="closeNote">How, in your words</label>
+      <textarea id="closeNote" class="in ta" rows="3" maxlength="600" placeholder="For example: passed the exam, June 2027" required></textarea>
+    </div>
+    <p id="closeHint" class="hint"></p>
+    <ul id="closeMoves" class="moves"></ul>
+    <p id="closeErr" class="err" role="alert" hidden></p>
+    <button type="submit" id="closeGo" class="btn btn-go btn-wide">Close the gap</button>
+  </form>
+</dialog>
+
+<script src="skills.js"></script>
+</body>
+</html>
