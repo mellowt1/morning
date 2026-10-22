@@ -265,6 +265,9 @@ details.fold[open] > summary .tag::after { content: ''; }
 .feed-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 14px; }
 .feed-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .feed-when { flex-shrink: 0; font-size: 13px; color: var(--muted); }
+/* Constellation › in the head of Lately (morning/constellation/), 44 px tall on touch like Past weeks. */
+.feed-side { display: inline-flex; align-items: baseline; gap: 14px; min-width: 0; }
+.feed-sky { display: inline-flex; align-items: center; gap: .3em; min-height: 44px; margin: -12px 0; padding: 0; white-space: nowrap; }
 .proj-live { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 10px; color: var(--muted); font-size: 15px; }
 .proj-turn { gap: 4px; margin: 2px 0 6px; padding: 14px; background: var(--inner); border-radius: 12px; }
 .rows > .proj-turn, .rows > .proj-turn + * { border-top: 0; }
@@ -1161,6 +1164,6 @@ button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-
   .ol-form { padding-bottom: 6px; }
 }
 @media (min-width: 720px) and (pointer: fine) {
-  .or-past, .ol-past, .ol-done a { min-height: 34px; margin: -6px 0; }
+  .or-past, .ol-past, .ol-done a, .feed-sky { min-height: 34px; margin: -6px 0; }
   .or-text-btn { min-height: 34px; margin: -8px 0 -8px 2px; }
 }

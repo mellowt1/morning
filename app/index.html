@@ -354,11 +354,12 @@
     </div>
 
     <div class="col col-e">
-      <!-- The hub's feed: one line per thing that happened in the other apps. Hidden until the first. -->
+      <!-- The hub's feed: one line per thing that happened in the other apps. Hidden until the first.
+           Constellation (constellation/) draws the apps as stars and what they told each other. -->
       <section id="feed" class="card" aria-label="Lately" style="--i:6" hidden>
         <div class="card-head">
           <span class="num" role="heading" aria-level="2">Lately</span>
-          <span id="feedNote" class="card-note"></span>
+          <span class="feed-side"><span id="feedNote" class="card-note"></span><a id="feedSky" class="card-link feed-sky" href="constellation/">Constellation <span aria-hidden="true">›</span></a></span>
         </div>
         <div id="feedList"></div>
       </section>

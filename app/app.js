@@ -1564,6 +1564,7 @@
     const box = $('feed');
     if (!b) { box.hidden = true; return; }
     box.hidden = false;
+    $('feedSky').href = 'constellation/?c=' + encodeURIComponent(code);
     const list = $('feedList');
     if (!ok(b)) {
       setHTML(list, `<div class="row empty"><span>The feed can't load right now.</span></div>`);
