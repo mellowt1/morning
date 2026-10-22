@@ -89,7 +89,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const own = url.origin === self.location.origin;
   if (!own && !FONTS.test(url.origin)) return;
-  // A visit to Morning itself is kept as './'; another page under it (hiscores/, oracle/, constellation/) under its own
+  // A visit to Morning itself is kept as './'; another page under it (hiscores/, oracle/, constellation/, network/) under its own
   // path, so opening one of those never puts that page in Morning's place.
   const root = new URL('./', self.location).pathname;
   const page = own && e.request.mode === 'navigate' ? (url.pathname === root || url.pathname === root + 'index.html' ? './' : url.pathname) : null;
