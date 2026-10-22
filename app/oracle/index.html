@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Past weeks</title>
+<meta name="description" content="One question a week, and what Paul said.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#CBD1D8">
+<meta name="color-scheme" content="light">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="oracle.css">
+</head>
+<body>
+<main id="app" class="page">
+  <header class="top">
+    <a id="back" class="back" href="../">‹ Morning</a>
+    <h1>Past weeks</h1>
+    <p class="sub">One question a week, and what you said.</p>
+  </header>
+  <!-- The Oracle's questions, newest first (GET /api/oracle/:code/list, paul-hub src/oracle.js). -->
+  <section class="sheet" aria-labelledby="listH">
+    <h2 id="listH" class="sr">Questions</h2>
+    <div id="list" aria-live="polite"></div>
+  </section>
+</main>
+<p id="nocode" class="nocode" hidden>Open Morning from your private link first; this page uses the same one.</p>
+<script src="oracle.js"></script>
+</body>
+</html>

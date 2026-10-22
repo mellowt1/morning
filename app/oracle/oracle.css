@@ -1,0 +1,63 @@
+/* Past weeks: Morning's daylight bay. A white sheet of rows: the week (Barlow Condensed) on the left,
+ * the question and what Paul said on the right; on the phone the week sits over its question. */
+:root {
+  --ground: #CBD1D8;
+  --card: #E7EAEE;
+  --ink: #15181C;
+  --muted: #545E6B;
+  --paper: #FFFFFF;
+  --paper-ink: #16181B;
+  --paper-2: #5E5A50;
+  --paper-rule: #E1DCCF;
+  --btn-rule: #B9C1CA;
+  --accent-text: #217A4B;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--ink); }
+body { font-family: 'Barlow', system-ui, sans-serif; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+::selection { background: color-mix(in srgb, var(--accent-text) 32%, transparent); color: var(--ink); }
+a { color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.page { max-width: 980px; margin: 0 auto; padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+.top { padding: 0 4px 16px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; margin-left: -2px; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 17px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.back:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+h1 { margin: 4px 0 0; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 44px; font-weight: 700; line-height: 1; }
+.sub { margin: 8px 0 0; font-size: 17px; font-weight: 500; color: var(--muted); }
+
+.sheet { background: var(--paper); color: var(--paper-ink); border-radius: 3px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14), 0 6px 18px rgba(30, 40, 55, .10); }
+.pw-list { margin: 0; padding: 0; list-style: none; }
+.pw { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 16px 18px 18px; }
+.pw + .pw { border-top: 1px solid var(--paper-rule); }
+.pw-week { display: flex; align-items: baseline; gap: 10px; }
+.pw-label { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 20px; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+.pw-days { font-size: 14px; color: var(--paper-2); white-space: nowrap; }
+.pw-body { min-width: 0; }
+.pw-q { margin: 0; font-size: 19px; font-weight: 500; line-height: 1.32; text-wrap: pretty; overflow-wrap: anywhere; }
+.pw-a { margin: 8px 0 0; font-size: 16px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.pw-quiet { color: var(--paper-2); font-style: normal; }
+.pw-note { margin: 0; padding: 18px; font-size: 16px; color: var(--paper-2); }
+.pw-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.btn { min-height: 44px; padding: 0 16px; border: 1px solid var(--btn-rule); border-radius: 3px; background: var(--paper); color: var(--paper-ink); font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; }
+.back:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+.nocode { max-width: 420px; margin: 0 auto; padding: 96px 24px; font-size: 16px; line-height: 1.5; color: var(--muted); }
+
+@media (min-width: 720px) {
+  .page { padding: 40px 40px 40px; }
+  h1 { font-size: 56px; }
+  .sub { font-size: 19px; }
+  .pw { grid-template-columns: 150px minmax(0, 1fr); gap: 24px; padding: 20px 28px 22px; }
+  .pw-week { flex-direction: column; gap: 4px; padding-top: 2px; }
+  .pw-label { font-size: 24px; }
+  .pw-q { font-size: 22px; }
+  .pw-a { font-size: 17px; }
+  .pw-note { padding: 22px 28px; }
+}
+@media (min-width: 720px) and (pointer: fine) {
+  .back, .btn { min-height: 36px; }
+}
