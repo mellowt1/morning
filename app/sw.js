@@ -89,12 +89,16 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const own = url.origin === self.location.origin;
   if (!own && !FONTS.test(url.origin)) return;
+  // A visit to Morning itself is kept as './'; another page under it (hiscores/, oracle/) under its own
+  // path, so opening one of those never puts that page in Morning's place.
+  const root = new URL('./', self.location).pathname;
+  const page = own && e.request.mode === 'navigate' ? (url.pathname === root || url.pathname === root + 'index.html' ? './' : url.pathname) : null;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: own, ignoreVary: !own }).then((hit) => {
       const fetching = fetch(e.request).then((res) => {
         if (res && (res.ok || res.type === 'opaque')) {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(own && e.request.mode === 'navigate' ? './' : e.request, copy));
+          caches.open(CACHE).then((c) => c.put(page || e.request, copy));
         }
         return res;
       }).catch(() => hit);
