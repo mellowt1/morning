@@ -15,7 +15,8 @@
     "lift-check": "node scripts/lift-check.mjs",
     "oracle-check": "node scripts/oracle-check.mjs",
     "sky-check": "node scripts/sky-check.mjs",
-    "network-check": "node scripts/network-check.mjs"
+    "network-check": "node scripts/network-check.mjs",
+    "skills-check": "node scripts/skills-check.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
