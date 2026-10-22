@@ -1038,6 +1038,276 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   }
 }
 
+// Time to decide (Archive, paul-hub src/archive.js, mocked like the real routes): the card at due (the
+// first only, "Passed on N times", the strip, the four buttons), hidden with nothing due, Later posts and
+// moves on, Archive with a note posts and moves to the next, Hand it off posts handoff: true with
+// sourceItem (name chips, How, Chase after 7), Do it now starts the Dread meter, Escape, the ledger with
+// Restore, the phone, and no task names or notes in the console.
+{
+  const iso = (hhmm) => new Date(at(0, hhmm)).toISOString();
+  const aworld = (due) => {
+    const w = { due: structuredClone(due), later: new Set(), posts: [], waitPosts: [], gets: 0, listGets: 0, running: null,
+      ledger: [
+        { task: 'arch00000001', name: 'Learn the ukulele', added: Date.parse(at(-40, '10:00')), archived: iso('09:00'), skips: 9, note: 'Not this year.' },
+        { task: 'arch00000002', name: 'Sort the attic', added: null, archived: new Date(Date.parse(NOON) - 3 * 864e5).toISOString(), skips: 6, note: '' },
+      ] };
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    w.archive = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      const path = new URL(q.url()).pathname.split('/').slice(3); // [code, sub?]
+      if (q.method() === 'GET' && path.length === 1) {
+        w.gets++;
+        return r.fulfill({ json: { due: w.due.filter((x) => !w.later.has(x.task)), archived: w.ledger.length, limit: 5 }, headers: h });
+      }
+      if (q.method() === 'GET') { w.listGets++; return r.fulfill({ json: { items: structuredClone(w.ledger) }, headers: h }); }
+      const b = q.postDataJSON();
+      w.posts.push({ path: path[1], body: b });
+      await new Promise((ok) => setTimeout(ok, 150)); // network time, so a double tap lands while the first is out
+      if (path[1] === 'later') { w.later.add(b.task); return r.fulfill({ json: { ok: true }, headers: h }); }
+      if (path[1] === 'archive') {
+        const x = w.due.find((t) => t.task === b.task);
+        if (!x) return r.fulfill({ status: 404, json: { error: 'no such open task' }, headers: h });
+        w.due = w.due.filter((t) => t !== x);
+        w.ledger.unshift({ task: x.task, name: x.name, added: null, archived: iso('13:00'), skips: x.skips, note: b.note || '' });
+        return r.fulfill({ json: { ok: true, task: x.task, skips: x.skips }, headers: h });
+      }
+      if (path[1] === 'restore') {
+        if (!w.ledger.some((x) => x.task === b.task)) return r.fulfill({ status: 404, json: { error: 'not archived' }, headers: h });
+        w.ledger = w.ledger.filter((x) => x.task !== b.task);
+        return r.fulfill({ json: { ok: true, task: b.task, section: 'soon' }, headers: h });
+      }
+      return r.fulfill({ status: 404, json: { error: 'not found' }, headers: h });
+    };
+    w.waiting = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      if (q.method() === 'GET') return r.fulfill({ json: { items: [], open: 0, due: 0, names: ['The landlord', 'Alex'] }, headers: h });
+      const b = q.postDataJSON();
+      w.waitPosts.push(b);
+      await new Promise((ok) => setTimeout(ok, 150));
+      return r.fulfill({ json: { item: { id: 'wait00000000009', who: b.who, what: b.what, since: day(0), channel: b.channel, chaseDays: b.chaseDays, nextChase: day(b.chaseDays),
+        forWhom: null, source: 'morning', state: 'open', chases: 0, chaseDue: false } }, headers: h });
+    };
+    w.energy = (r) => (r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: h })
+      : r.fulfill({ json: { level: null, setAt: null, until: null, source: null, pick: null }, headers: h }));
+    w.dread = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      if (q.method() === 'GET') return r.fulfill({ json: { running: w.running }, headers: h });
+      const b = q.postDataJSON();
+      w.posts.push({ path: 'dread/' + new URL(q.url()).pathname.split('/').pop(), body: b });
+      const x = w.due.find((t) => t.task === b.task);
+      w.running = { task: b.task, name: x ? x.name : 'A task', section: x ? x.section : 'soon', startedAt: new Date(NOON).toISOString(), dread: null, level: null, source: 'morning', mins: 0 };
+      return r.fulfill({ json: { running: w.running }, headers: h });
+    };
+    return w;
+  };
+  const DUE = [
+    { task: 'task00000021', name: 'Call the bank about the old account', section: 'soon', skips: 7 },
+    { task: 'task00000022', name: 'Fix the bike light', section: 'today', skips: 5 },
+    { task: 'task00000023', name: 'Write to the council', section: 'soon', skips: 5 },
+  ];
+  const NAMES = /Call the bank|Fix the bike light|Write to the council|Learn the ukulele|Sort the attic|Not this year|Battery is fine/;
+  const logs = [];
+  const openA = async (w, viewport, data = answer()) => {
+    const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => logs.push(m.text()));
+    await page.clock.setFixedTime(new Date(NOON));
+    await page.addInitScript((d) => { try { localStorage.setItem('morning.enteredOn', JSON.stringify(d)); } catch (e) {} }, day(0));
+    await page.route('**/api/morning/**', (r) => r.fulfill({ json: data, headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await page.route('**/api/energy/**', w.energy);
+    await page.route('**/api/dread/**', w.dread);
+    await page.route('**/api/archive/**', w.archive);
+    await page.route('**/api/waiting/**', w.waiting);
+    await page.route('**/site.**espn.com/**', (r) => r.abort());
+    await page.goto(BASE + '?c=' + CODE);
+    await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(400);
+    return { ctx, page };
+  };
+  const as = (page) => page.evaluate(() => {
+    const vis = (el) => !!el && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
+    const t = (sel) => { const el = document.querySelector(sel); return vis(el) ? el.textContent.trim() : ''; };
+    const now = document.querySelector('#decideActs [data-decide="now"]');
+    return {
+      shown: vis(document.getElementById('decide')), head: t('#decideH'), passed: t('#decidePassed'),
+      name: t('#decide .decide-name'), meta: t('#decide .decide-meta'),
+      acts: [...document.querySelectorAll('#decideActs button')].filter(vis).map((b) => b.textContent.trim()),
+      actH: [...document.querySelectorAll('#decide button')].filter(vis).map((b) => Math.round(b.getBoundingClientRect().height)),
+      nowFill: now ? getComputedStyle(now).backgroundColor : '',
+      laterRight: (() => { const a = document.querySelector('#decideActs'), l = document.querySelector('#decideActs [data-decide="later"]'); return vis(l) ? Math.round(a.getBoundingClientRect().right - l.getBoundingClientRect().right) : -1; })(),
+      arch: vis(document.getElementById('decideArch')), hand: vis(document.getElementById('decideHand')),
+      archLabel: t('#decideArch .wf-k'), archBtns: [...document.querySelectorAll('#decideArch button')].filter(vis).map((b) => b.textContent.trim()),
+      noteMax: document.getElementById('daNote').maxLength, notePh: document.getElementById('daNote').placeholder,
+      chips: [...document.querySelectorAll('#dhNames button')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
+      how: [...document.querySelectorAll('#decideHand [data-dh="channel"] button[aria-pressed="true"]')].map((b) => b.textContent.trim()).join(),
+      days: [...document.querySelectorAll('#decideHand [data-dh="days"] button[aria-pressed="true"]')].map((b) => b.textContent.trim()).join(),
+      handBtns: [...document.querySelectorAll('#decideHand button[type="submit"], #decideHand [data-decide="back"]')].filter(vis).map((b) => b.textContent.trim()),
+      toast: t('#decideToast span'), err: t('#decideErr') || t('#dhErr'),
+      link: t('#archLink'), todayLink: t('#todayList [data-ledger]'),
+      start: t('#start .start-text'), startMeta: t('#start .start-meta'),
+      focus: document.activeElement ? (document.activeElement.dataset.decide || document.activeElement.id || document.activeElement.textContent.trim()) : '',
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  const tap = async (page, sel, settle = 450) => { await page.click(sel); await page.waitForTimeout(settle); };
+
+  // The PC: the first due task, its count, the strip, the buttons; the poll reads it on opening.
+  const w = aworld(DUE);
+  const { ctx, page } = await openA(w, laptop);
+  let s = await as(page);
+  check(s.shown && s.head === 'Time to decide' && s.passed === 'Passed on 7 times' && s.name === 'Call the bank about the old account' && s.meta === 'Soon',
+    'decide: the first due task, Passed on 7 times, Soon: ' + JSON.stringify(s));
+  check(s.acts.join() === 'Do it now,Hand it off,Archive,Later' && s.nowFill === 'rgb(36, 127, 81)' && s.laterRight === 0,
+    'decide: Do it now green first, Later quiet on the right: ' + JSON.stringify({ acts: s.acts, fill: s.nowFill, right: s.laterRight }));
+  check(s.link === 'Archived (2)' && !s.todayLink && w.gets >= 1, 'decide: Archived (2) on the card, read on opening: ' + JSON.stringify({ link: s.link, gets: w.gets }));
+  check(await page.evaluate(() => { const a = document.getElementById('start').getBoundingClientRect(), d = document.getElementById('decide').getBoundingClientRect(), t = document.querySelector('.card-today').getBoundingClientRect(); return d.top > a.bottom && d.bottom < t.top; }),
+    'decide: the card sits between Start with and Today');
+  await page.locator('#decide').screenshot({ path: file('archive-pc-card') });
+  await page.screenshot({ path: file('archive-pc'), fullPage: true });
+
+  // Later: one POST (a double tap sends once), the card moves to the next.
+  await page.evaluate(() => { const b = document.querySelector('[data-decide="later"]'); b.click(); b.click(); });
+  await page.waitForTimeout(600);
+  s = await as(page);
+  check(w.posts.length === 1 && w.posts[0].path === 'later' && JSON.stringify(w.posts[0].body) === JSON.stringify({ source: 'morning', task: 'task00000021' }),
+    'decide: Later posts once with the task: ' + JSON.stringify(w.posts));
+  check(s.name === 'Fix the bike light' && s.meta === 'Today' && s.passed === 'Passed on 5 times' && /^Later\./.test(s.toast) && s.focus === 'now',
+    'decide: Later moves to the next, says so, focus on Do it now: ' + JSON.stringify(s));
+
+  // Archive: opens in place, the note field; Escape goes back; then a note and Archive.
+  await tap(page, '[data-decide="archive"]', 200);
+  s = await as(page);
+  check(s.arch && !s.acts.length && s.archLabel === 'A note, if you want one' && s.noteMax === 80 && s.notePh === 'Optional' && s.archBtns.join() === 'Archive,Back' && s.focus === 'daNote',
+    'decide: Archive opens the note in place: ' + JSON.stringify(s));
+  await page.locator('#decide').screenshot({ path: file('archive-pc-note') });
+  await page.keyboard.type('Battery is fine');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  s = await as(page);
+  check(!s.arch && s.acts.length === 4 && s.focus === 'archive', 'decide: Escape goes back, focus on Archive: ' + JSON.stringify(s));
+  await tap(page, '[data-decide="archive"]', 100);
+  check(await page.inputValue('#daNote') === 'Battery is fine', 'decide: the note draft stays for the same task');
+  await page.fill('#daNote', '  Battery is   fine, bike light works  ');
+  await tap(page, '#daSend', 700);
+  s = await as(page);
+  check(w.posts[1].path === 'archive' && JSON.stringify(w.posts[1].body) === JSON.stringify({ source: 'morning', task: 'task00000022', note: 'Battery is fine, bike light works' }),
+    'decide: Archive posts the task and the note: ' + JSON.stringify(w.posts[1]));
+  check(s.name === 'Write to the council' && !s.arch && /^Archived\./.test(s.toast) && s.link === 'Archived (3)', 'decide: then the next one, Archived (3): ' + JSON.stringify(s));
+
+  // Hand it off: the chips, How, Chase after 7; Who is needed; the POST; the card hides.
+  await tap(page, '[data-decide="hand"]', 300);
+  s = await as(page);
+  check(s.hand && s.chips.join() === 'The landlord,Alex' && s.how === 'Email' && s.days === '7 days' && s.handBtns.join() === 'Hand it off,Back' && s.focus === 'dhWho',
+    'decide: Hand it off opens Who with chips, Email, 7 days: ' + JSON.stringify(s));
+  await tap(page, '#dhSend', 200);
+  s = await as(page);
+  check(s.err === 'Who is needed.' && !w.waitPosts.length && s.focus === 'dhWho', 'decide: Who is needed, nothing sent: ' + JSON.stringify(s));
+  await tap(page, '#dhNames [data-name="Alex"]', 50);
+  await tap(page, '#decideHand [data-dh="channel"] [data-v="phone"]', 300);
+  s = await as(page);
+  check(await page.inputValue('#dhWho') === 'Alex' && s.chips.join() === 'The landlord,Alex*' && s.how === 'Phone' && !s.err, 'decide: a chip fills Who, Phone chosen: ' + JSON.stringify(s));
+  await page.locator('#decide').screenshot({ path: file('archive-pc-hand') });
+  await page.evaluate(() => { const b = document.getElementById('dhSend'); b.click(); b.click(); });
+  await page.waitForTimeout(700);
+  s = await as(page);
+  check(w.waitPosts.length === 1 && JSON.stringify(w.waitPosts[0]) === JSON.stringify({ who: 'Alex', what: 'Write to the council', channel: 'phone', chaseDays: 7, sourceItem: 'task00000023', handoff: true, source: 'morning' }),
+    'decide: Hand it off posts once, handoff true with sourceItem: ' + JSON.stringify(w.waitPosts));
+  check(s.shown && !s.name && !s.acts.length && s.toast === 'Handed off to Alex. It is in Waiting on; tick the task off in To-do.' && s.focus === 'startLink',
+    'decide: nothing left, the card keeps only the toast, focus on Start with: ' + JSON.stringify(s));
+  await page.waitForTimeout(6200);
+  s = await as(page);
+  check(!s.shown && s.todayLink === 'Archived (3)', 'decide: then the card hides, Archived (3) moves under Today: ' + JSON.stringify({ shown: s.shown, today: s.todayLink }));
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('morning.handed.abcdefgh23456789') || '{}').task00000023 > 0), 'decide: the handed-off task is remembered on this device');
+
+  // The ledger: Task, Added, Off, Skips; the note under its row; "–" with no Added; Restore.
+  await tap(page, '#todayList [data-ledger]', 400);
+  const lg = () => page.evaluate(() => ({
+    open: document.getElementById('ledger').open,
+    head: [...document.querySelectorAll('#ledger thead th')].map((t) => t.textContent.trim()),
+    rows: [...document.querySelectorAll('#ledger .lg-row')].map((r) => [...r.children].map((c) => c.textContent.trim()).join('|')),
+    notes: [...document.querySelectorAll('#ledger .lg-note')].map((r) => r.textContent.trim()),
+    toast: document.getElementById('ledgerToast').hidden ? '' : document.getElementById('ledgerToast').textContent.trim(),
+    overflow: (() => { const d = document.getElementById('ledger'); return d.scrollWidth > d.clientWidth; })(),
+  }));
+  let l = await lg();
+  const offDay = (ms) => { const d = new Date(ms); return `${d.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]}`; };
+  check(l.open && w.listGets === 1 && l.head.join('|') === 'Task|Added|Off|Skips|Restore', 'ledger: opens with the columns: ' + JSON.stringify(l.head));
+  check(l.rows.join(' / ') === `Fix the bike light|–|${offDay(Date.parse(NOON))}|5|Restore / Learn the ukulele|${offDay(Date.parse(at(-40, '10:00')))}|${offDay(Date.parse(NOON))}|9|Restore / Sort the attic|–|${offDay(Date.parse(NOON) - 3 * 864e5)}|6|Restore` && l.notes.join('|') === 'Battery is fine, bike light works|Not this year.' && !l.overflow,
+    'ledger: newest first, "–" without Added, the notes under their rows: ' + JSON.stringify(l));
+  await page.screenshot({ path: file('archive-pc-ledger') });
+  await tap(page, '#ledger [data-restore="arch00000001"]', 500);
+  l = await lg();
+  check(w.posts.at(-1).path === 'restore' && JSON.stringify(w.posts.at(-1).body) === JSON.stringify({ source: 'morning', task: 'arch00000001' }) && l.rows.length === 2 && l.toast === 'Back in Soon.',
+    'ledger: Restore posts the task, the row leaves, Back in Soon: ' + JSON.stringify({ post: w.posts.at(-1), l }));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  const fx = await page.evaluate(() => [document.getElementById('ledger').open, document.activeElement && document.activeElement.outerHTML.slice(0, 120)]);
+  check(!fx[0] && />Archived \(2\)</.test(fx[1] || '') && /data-ledger/.test(fx[1]),
+    'ledger: Escape closes it, focus back on Archived (2): ' + JSON.stringify(fx));
+  await ctx.close();
+
+  // Do it now: the Dread meter's Start; Start with holds the task, running; the card moves on.
+  {
+    const dw = aworld(DUE.slice(0, 2));
+    const { ctx, page } = await openA(dw, laptop);
+    await tap(page, '[data-decide="now"]', 500);
+    const s = await as(page);
+    check(dw.posts.length === 1 && dw.posts[0].path === 'dread/start' && JSON.stringify(dw.posts[0].body) === JSON.stringify({ source: 'morning', task: 'task00000021' }),
+      'decide: Do it now starts the Dread meter on that task: ' + JSON.stringify(dw.posts));
+    check(s.start === 'Call the bank about the old account' && s.startMeta === 'Running since 13:00' && s.name === 'Fix the bike light',
+      'decide: Start with runs it, the card moves to the next: ' + JSON.stringify(s));
+    await page.screenshot({ path: file('archive-pc-now'), fullPage: true });
+    await ctx.close();
+  }
+  // Nothing due: no card; nothing archived either: no ledger link.
+  {
+    const ew = aworld([]);
+    ew.ledger = [];
+    const { ctx, page } = await openA(ew, laptop);
+    const s = await as(page);
+    check(!s.shown && !s.todayLink && ew.gets >= 1, 'decide: nothing due, no card, no Archived link: ' + JSON.stringify(s));
+    await ctx.close();
+  }
+  // The phone: the card under Start with, 44 px targets, no sideways scroll; the forms; the ledger.
+  {
+    const pw = aworld(DUE);
+    const { ctx, page } = await openA(pw, phone);
+    let s = await as(page);
+    check(s.shown && s.actH.every((x) => x >= 44) && !s.overflow, 'decide phone: shown, 44 px, no sideways scroll: ' + JSON.stringify(s));
+    check(await page.evaluate(() => { const a = document.getElementById('start').getBoundingClientRect(), d = document.getElementById('decide').getBoundingClientRect(), t = document.querySelector('.card-today').getBoundingClientRect(); return d.top > a.bottom && d.bottom < t.top; }),
+      'decide phone: between Start with and Today');
+    await page.locator('#decide').screenshot({ path: file('archive-phone-card') });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.waitForTimeout(100);
+    const tops = await page.evaluate(() => [...document.querySelectorAll('#decideActs button')].map((b) => Math.round(b.getBoundingClientRect().top)));
+    check(tops.length === 4 && tops.every((y) => y === tops[0]) && !(await as(page)).overflow, 'decide phone: at 375 px the three buttons and Later share one line: ' + tops);
+    await page.setViewportSize(phone);
+    await page.screenshot({ path: file('archive-phone'), fullPage: true });
+    await tap(page, '[data-decide="archive"]', 200);
+    await page.fill('#daNote', 'Someone else does it now');
+    await page.locator('#decide').screenshot({ path: file('archive-phone-note') });
+    await tap(page, '#decideArch [data-decide="back"]', 100);
+    await tap(page, '[data-decide="hand"]', 300);
+    s = await as(page);
+    check(s.hand && s.actH.every((x) => x >= 44) && !s.overflow, 'decide phone: hand off form, 44 px, no sideways scroll: ' + JSON.stringify(s.actH));
+    await page.locator('#decide').screenshot({ path: file('archive-phone-hand') });
+    await tap(page, '#decideHand [data-decide="back"]', 100);
+    await tap(page, '#archLink', 400);
+    const lgp = await page.evaluate(() => ({ open: document.getElementById('ledger').open, w: document.getElementById('ledger').getBoundingClientRect().width,
+      over: document.getElementById('ledger').scrollWidth > document.getElementById('ledger').clientWidth,
+      btnH: [...document.querySelectorAll('#ledger button')].map((b) => Math.round(b.getBoundingClientRect().height)) }));
+    check(lgp.open && lgp.w <= 390 - 32 + 1 && !lgp.over && lgp.btnH.every((x) => x >= 44), 'ledger phone: fits with a 16 px gutter, 44 px buttons: ' + JSON.stringify(lgp));
+    await page.screenshot({ path: file('archive-phone-ledger') });
+    await ctx.close();
+  }
+  check(!logs.some((x) => NAMES.test(x)), 'decide: no task names or notes in the console: ' + logs.length + ' lines');
+}
+
 await browser.close();
 if (errors.length) { console.error(errors.join('\n')); failed = true; }
 console.log(`${checks - fails} of ${checks} checks pass`);
