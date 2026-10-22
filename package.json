@@ -12,7 +12,8 @@
     "parked-check": "node scripts/parked-check.mjs",
     "week-check": "node scripts/week-check.mjs",
     "hiscores-check": "node scripts/hiscores-check.mjs",
-    "lift-check": "node scripts/lift-check.mjs"
+    "lift-check": "node scripts/lift-check.mjs",
+    "oracle-check": "node scripts/oracle-check.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
