@@ -335,8 +335,8 @@ const zoneOf = (s, sector) => s.zones[ORDER.indexOf(sector)];
   check(nodeOf(s, 'henrik').ink === 'rgb(255, 255, 255)' && nodeOf(s, 'anna').ink === 'rgb(21, 24, 28)' && nodeOf(s, 'anna').ini === 'AV' && nodeOf(s, 'pieter').ini === 'PG', 'pc: initials, white on NATO and EU');
   check(nodeOf(s, 'anna').name === 'Anna de Vries' && nodeOf(s, 'anna').R === 24 && nodeOf(s, 'anna').nmPx === 14, 'pc: few people: full names, 48 px circles');
   const fades = Object.fromEntries(['lars', 'sofia', 'nadia', 'bram'].map((k) => [k, nodeOf(s, k).note]));
-  check(JSON.stringify(fades) === JSON.stringify({ lars: '8 mo', sofia: '13 mo', nadia: '7 mo', bram: 'No contact yet' }) && ['lars', 'sofia', 'nadia', 'bram'].every((k) => nodeOf(s, k).op === 0.4) &&
-    s.nodes.filter((x) => !['lars', 'sofia', 'nadia', 'bram'].map(id).includes(x.id)).every((x) => x.op === 1 && !x.note), 'pc: faded at 0.4 with the amber note: ' + JSON.stringify(fades));
+  check(JSON.stringify(fades) === JSON.stringify({ lars: '8 mo', sofia: '13 mo', nadia: '7 mo', bram: '' }) && ['lars', 'sofia', 'nadia', 'bram'].every((k) => nodeOf(s, k).op === 0.4) &&
+    s.nodes.filter((x) => !['lars', 'sofia', 'nadia', 'bram'].map(id).includes(x.id)).every((x) => x.op === 1 && !x.note), 'pc: faded at 0.4, the amber note only with a date (never contacted: no note): ' + JSON.stringify(fades));
   check(nodeOf(s, 'lars').label === 'Lars Eriksen, Political officer, Embassy of Norway, no contact for 8 months' && nodeOf(s, 'bram').label === 'Bram Kuipers, Alumni coordinator, Leiden University, no contact yet' &&
     nodeOf(s, 'anna').label === 'Anna de Vries, Policy advisor, Ministerie van Defensie', 'pc: each node says who, and how long: ' + nodeOf(s, 'lars').label);
   const dashed = s.lines.filter((l) => l.kind === 'introduced'), solid = s.lines.filter((l) => l.kind === 'works_with');
@@ -688,7 +688,7 @@ const zoneOf = (s, sector) => s.zones[ORDER.indexOf(sector)];
   let clash = 0;
   for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) if (overlap(all[a], all[b])) clash++;
   check(!clash && s.nodes.every((x) => x.h >= 44 && x.nmPx >= 13), 'many: packed without overlap, 44 px nodes, names 13 px or more: ' + clash);
-  check(s.nodes.filter((x) => x.note).length > 20 && !s.nodes.some((x) => x.cut), 'many: every amber note whole at the smallest size: ' + s.nodes.filter((x) => x.cut).map((x) => x.note).slice(0, 3));
+  check(s.nodes.filter((x) => x.note).length >= 5 && !s.nodes.some((x) => x.cut), 'many: every amber note whole at the smallest size (dated ones only): ' + s.nodes.filter((x) => x.cut).map((x) => x.note).slice(0, 3));
   const ind = s.more.find((x) => x.s === 'ind');
   const shownInd = s.nodes.filter((x) => sec[x.id] === 'ind');
   check(ind && ind.label === `${per.ind - shownInd.length} more in Industry` && ind.text === `+${per.ind - shownInd.length}`, 'many: Industry overflows: ' + (ind && ind.label));
@@ -901,7 +901,7 @@ for (const [name, vp] of [['net-phone', { width: 390, height: 844 }], ['net-phon
   check(s.bands.map((b) => b.label).join() === 'Embassies,Ministries,Industry,NATO and EU,Other' && s.bands.every((b) => Math.abs(b.x - 12) < 1 && Math.abs(b.w - (vp.width - 24)) < 1), name + ': one band per sector, 12 px from the sides');
   check(s.nodes.length === 18 && s.nodes.every((n) => !n.name.includes(' ') && n.R === 19) && s.bands.every((b, i) => i === 0 || b.y >= s.bands[i - 1].y + s.bands[i - 1].h), name + ': first names, 38 px circles, bands stacked');
   check(s.nodes.every((n) => { const b = s.bands.find((x) => n.cy > x.y && n.cy < x.y + x.h); return b && Math.abs(n.cy - (b.y + 66)) < 1; }), name + ': each row of people in the middle of its band');
-  check(nodeOf(s, 'sofia').note === '13 mo' && nodeOf(s, 'bram').note === 'No contact yet' && !s.nodes.some((x) => x.cut) && s.lines.length === 10, name + ': faded notes, whole, and lines on the phone: ' + s.lines.length);
+  check(nodeOf(s, 'sofia').note === '13 mo' && nodeOf(s, 'bram').note === '' && !s.nodes.some((x) => x.cut) && s.lines.length === 10, name + ': faded notes, whole, and lines on the phone: ' + s.lines.length);
   check(!s.overflow && !small(s).length, name + ': nothing sideways, 44 px: ' + small(s));
   await page.screenshot({ path: file(name), fullPage: true });
   await page.tap(`.node[data-id="${id('anna')}"]`);

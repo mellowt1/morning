@@ -71,7 +71,8 @@
     if (m < 12) return `${plural(m, 'month', 'months')} ago`;
     return `${plural(Math.floor(m / 12), 'year', 'years')} ago`;
   }
-  // The amber note under a faded node: "8 mo", "2 yr" or "No contact yet".
+  // The amber note under a faded node: "8 mo" or "2 yr"; someone never contacted only fades (an
+  // import of hundreds would otherwise fill the map with amber). The card and the list still say it.
   function fadeNote(p) {
     if (!p.lastContact) return 'No contact yet';
     const m = Math.max(1, months(p.lastContact, data.today));
@@ -226,7 +227,7 @@
   function nodeHTML(p, x, y, L) {
     const S = SEC[p.sector];
     const on = p.id === sel;
-    const note = p.fading ? fadeNote(p) : '';
+    const note = p.fading && p.lastContact ? fadeNote(p) : '';
     const label = `${p.name}${roleOrg(p) ? ', ' + [p.role, p.org].filter(Boolean).join(', ') : ''}${p.fading ? ', ' + fadeWords(p) : ''}`;
     return `<button type="button" class="node${on ? ' is-sel' : ''}${p.fading ? ' is-fade' : ''}${filtering() && !lit(p) ? ' is-dim' : ''}" data-id="${esc(p.id)}" ` +
       `style="left:${r1(x - L.bw / 2)}px;top:${r1(y - L.R)}px;width:${L.bw}px;--r:${L.R}px;--f:${L.font}px" aria-label="${esc(label)}" aria-controls="card" aria-expanded="${on}">` +
