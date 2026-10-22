@@ -5,8 +5,8 @@
  * says "As of 07:52". It refreshes when it becomes visible again and every ten minutes
  * while open. All times are shown in The Hague's time, whatever the device says.
  *
- * Layout: a greeting, the date with the sun as its full stop, one sentence about the day,
- * then the cards. Start with (the loudest thing), Time to decide (a task passed on 5+ times), Today (fact tiles, the next three to-dos),
+ * Layout: a greeting, the date with the sun as its full stop, the Oracle's question of the week
+ * while it is open (one line), one sentence about the day, then the cards. Start with (the loudest thing), Time to decide (a task passed on 5+ times), Today (fact tiles, the next three to-dos),
  * Waiting on, Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores. (Desk moved into To-do, 2026-10-19.)
  *
  * Motion ("Alive", approved 27 Sept 2026 through the prototype): the clock rolls on the
@@ -819,6 +819,260 @@
   // The opener may have been rebuilt meanwhile: after the dialog's own focus return, find it again.
   $('ledger').addEventListener('close', () => setTimeout(() => focusIn('#decide:not([hidden]) #archLink:not([hidden])', '#todayList [data-ledger]', '#startLink'), 0));
 
+  /* ---------- The Oracle question (Phase 6, approved 2026-10-22) ----------
+   * Once a week, on Sunday morning, the hub (paul-hub src/oracle.js) asks Paul one question about his
+   * week. On Sundays it sits on top of the Week view (data.week.oracle) with the answer box; after
+   * Save answer it shows "You said" with Change, after Not this week "Put aside.". On the other days,
+   * and on Sunday's Today, one line under the header while the newest question is still open
+   * (GET /api/oracle/:code, read on opening, every minute and on return), with Answer opening the same
+   * box in place. Both write through POST /api/oracle/:code/(answer | aside). The card and the line
+   * share one draft. No question, or a failed read, shows nothing. The question and the answer never
+   * go to the console. */
+  const ANSWER_MAX = 1000;
+  let oracle = null; // { current } from the last good read
+  let oBusy = false; // a request is out: the buttons send nothing
+  let oSeq = 0; // a read that left before a tap's request is thrown away
+  let orEditing = false; // the Sunday card's box is open again over an answer (Change)
+  let olOpenFor = ''; // the week whose box is open on the line
+  let olDoneT = 0;
+  let oDraft = { week: '', text: '' };
+
+  const oracleOk = (x) => !!x && typeof x === 'object' && typeof x.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.week) &&
+    typeof x.question === 'string' && !!x.question.trim();
+  const setText = (el, t) => { if (el.textContent !== t) el.textContent = t; };
+  const pastHref = () => 'oracle/?c=' + encodeURIComponent(code);
+
+  function applyOracle(d) {
+    if (!d || typeof d !== 'object' || d.error || !('current' in d)) return;
+    oracle = { current: oracleOk(d.current) && d.current.state === 'open' ? d.current : null };
+  }
+
+  async function oracleGet() {
+    if (oBusy || document.hidden) return;
+    const seq = ++oSeq;
+    try {
+      const r = await fetch(API + '/api/oracle/' + code, { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (seq !== oSeq || oBusy) return;
+      applyOracle(d);
+      render();
+    } catch (e) { /* the hub is away: keep what is on screen */ }
+  }
+
+  /* The hub's row after a save, into the line and the Sunday card. */
+  function oracleSaved(row) {
+    if (oracle && oracle.current && oracle.current.week === row.week) oracle.current = row.state === 'open' ? row : null;
+    const w = weekOf(last && last.data);
+    if (w && w.oracle && w.oracle.week === row.week) {
+      w.oracle = row;
+      store.set(KEY, last);
+    }
+    if (oDraft.week === row.week) oDraft = { week: '', text: '' };
+    for (const id of ['orText', 'olText']) if ($(id).dataset.week === row.week) { $(id).value = ''; delete $(id).dataset.week; }
+  }
+
+  /* A box takes the draft of its week (a new week starts empty); `text` replaces it (Change). */
+  function boxFor(ta, week, text) {
+    if (text !== undefined) {
+      ta.value = text;
+      ta.dataset.week = week;
+      oDraft = { week, text };
+    } else if (ta.dataset.week !== week) {
+      ta.value = oDraft.week === week ? oDraft.text : '';
+      ta.dataset.week = week;
+    }
+  }
+  for (const id of ['orText', 'olText']) {
+    $(id).addEventListener('input', (e) => {
+      const ta = e.target;
+      oDraft = { week: ta.dataset.week || '', text: ta.value };
+      const other = $(id === 'orText' ? 'olText' : 'orText');
+      if (other.dataset.week === oDraft.week) other.value = ta.value;
+      if (ta.value.trim()) { ta.removeAttribute('aria-invalid'); oError(id === 'orText' ? 'orErr' : 'olErr', ''); }
+    });
+  }
+  function oError(id, words) {
+    setText($(id), words);
+    $(id).hidden = !words;
+  }
+
+  /* One request at a time. Returns { row } or { status } (0: the hub did not answer). */
+  async function oracleSend(kind, week, answer) {
+    const body = kind === 'answer' ? { week, answer, source: 'morning' } : { week, source: 'morning' };
+    try {
+      const r = await fetch(API + '/api/oracle/' + code + '/' + kind, {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      let out = null;
+      try { out = await r.json(); } catch (e) { /* not JSON */ }
+      return r.ok && out && oracleOk(out.week) ? { row: out.week } : { status: r.status };
+    } catch (e) {
+      return { status: 0 };
+    }
+  }
+
+  /* Save answer or Not this week, from the Sunday card ('card') or the line ('line'). */
+  async function oracleAct(where, kind) {
+    if (oBusy) return;
+    const card = where === 'card';
+    const o = card ? (weekOf(last && last.data) || {}).oracle : oracle && oracle.current;
+    if (!oracleOk(o)) return;
+    const ta = $(card ? 'orText' : 'olText');
+    const errId = card ? 'orErr' : 'olErr';
+    let answer = '';
+    if (kind === 'answer') {
+      answer = ta.value.replace(/\r\n?/g, '\n').trim().slice(0, ANSWER_MAX);
+      if (!answer) {
+        ta.setAttribute('aria-invalid', 'true');
+        oError(errId, o.state === 'open' ? 'Write a sentence first, or choose Not this week.' : 'Write a sentence first.');
+        ta.focus();
+        return;
+      }
+    }
+    ta.removeAttribute('aria-invalid');
+    oError(errId, '');
+    oBusy = true;
+    oSeq++;
+    render();
+    const got = await oracleSend(kind, o.week, answer);
+    oBusy = false;
+    if (got.row) {
+      oracleSaved(got.row);
+      if (card) {
+        orEditing = false;
+        render();
+        focusIn(kind === 'answer' ? '#orSaid:not([hidden])' : '#orAside:not([hidden])', '#orPast');
+      } else {
+        olOpenFor = '';
+        olDone(kind === 'answer' ? 'Saved. Your answer is in' : 'Put aside for this week. It stays in');
+        render();
+        focusIn('#olDone a');
+      }
+      return;
+    }
+    oError(errId, got.status === 409 ? 'This one is already answered.'
+      : got.status === 0 ? 'Can’t reach the hub. Nothing was saved, try again.' : 'Couldn’t save that. Try again.');
+    render();
+    focusIn(kind === 'answer' ? '#' + ta.id : card ? '#orAsideBtn' : '#olForm [data-ol="aside"]');
+    if (got.status === 409) { load(); oracleGet(); }
+  }
+
+  /* After a save on the line: one short line with the way to Past weeks, then the line goes. */
+  function olDone(words) {
+    const el = $('olDone');
+    clearTimeout(olDoneT);
+    setHTML(el, `${esc(words)} <a href="${esc(pastHref())}">Past weeks <span aria-hidden="true">›</span></a>.`);
+    el.hidden = false;
+    olDoneT = setTimeout(() => {
+      const had = $('olLine').contains(document.activeElement);
+      el.hidden = true;
+      render();
+      if (had) focusIn('#startLink');
+    }, 6000);
+  }
+
+  function olOpen() {
+    const c = oracle && oracle.current;
+    if (!c || oBusy) return;
+    olOpenFor = c.week;
+    boxFor($('olText'), c.week);
+    oError('olErr', '');
+    render();
+    $('olText').focus();
+  }
+  function olClose(back = true) {
+    if (!olOpenFor) return;
+    olOpenFor = '';
+    $('olText').removeAttribute('aria-invalid');
+    oError('olErr', '');
+    render();
+    if (back) focusIn('#olOpen');
+  }
+  function orChange(on) {
+    const o = (weekOf(last && last.data) || {}).oracle;
+    if (!oracleOk(o) || oBusy) return;
+    orEditing = on;
+    $('orText').removeAttribute('aria-invalid');
+    oError('orErr', '');
+    if (on) boxFor($('orText'), o.week, o.answer || '');
+    render();
+    if (on) $('orText').focus();
+    else focusIn('#orChange');
+  }
+
+  /* Sundays: the card on top of the Week view, from this week's row. */
+  function renderOracleCard(w) {
+    const o = w && oracleOk(w.oracle) ? w.oracle : null;
+    const card = $('orCard');
+    card.hidden = !o;
+    if (!o) { orEditing = false; return; }
+    if (card.dataset.week !== o.week) { card.dataset.week = o.week; orEditing = false; }
+    const answered = o.state === 'answered' && typeof o.answer === 'string' && !!o.answer;
+    if (!answered) orEditing = false;
+    const box = o.state === 'open' || orEditing;
+    setText($('orH'), `One question about ${o.label || 'this week'}`);
+    setText($('orQ'), o.question);
+    $('orPast').href = pastHref();
+    setText($('orSaidText'), answered ? o.answer : '');
+    $('orSaid').hidden = !answered || orEditing;
+    $('orAside').hidden = o.state !== 'aside';
+    $('orForm').hidden = !box;
+    if (box && !orEditing) boxFor($('orText'), o.week);
+    $('orAsideBtn').hidden = o.state !== 'open';
+    $('orCancel').hidden = !orEditing;
+    $('orChange').setAttribute('aria-expanded', String(orEditing));
+    for (const b of $('orForm').querySelectorAll('button')) b.disabled = oBusy;
+  }
+
+  /* Every other view: one line under the header while the newest question is open. */
+  function renderOracleLine(weekOn) {
+    const c = oracle && oracle.current;
+    const done = !$('olDone').hidden;
+    if (olOpenFor && (!c || c.week !== olOpenFor || weekOn)) {
+      // Answered somewhere else, a new week, or the Week view took over: the box closes, the draft stays.
+      olOpenFor = '';
+      oError('olErr', '');
+    }
+    $('olLine').hidden = weekOn || (!c && !done);
+    if ($('olLine').hidden) return;
+    const open = !!c && olOpenFor === c.week;
+    $('olLine').classList.toggle('is-open', open);
+    $('olLine').querySelector('.ol-row').hidden = !c;
+    $('olForm').hidden = !open;
+    $('olOpen').hidden = open;
+    $('olOpen').setAttribute('aria-expanded', String(open));
+    $('olPast').href = pastHref();
+    if (c) setText($('olQ'), c.question);
+    if (c) $('olQ').title = c.question;
+    for (const b of $('olForm').querySelectorAll('button')) b.disabled = oBusy;
+  }
+
+  $('orForm').addEventListener('submit', (e) => { e.preventDefault(); oracleAct('card', 'answer'); });
+  $('olForm').addEventListener('submit', (e) => { e.preventDefault(); oracleAct('line', 'answer'); });
+  $('orCard').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || oBusy) return;
+    if (b.id === 'orChange') orChange(true);
+    else if (b.dataset.or === 'cancel') orChange(false);
+    else if (b.dataset.or === 'aside') oracleAct('card', 'aside');
+  });
+  $('olLine').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || oBusy) return;
+    if (b.id === 'olOpen') olOpen();
+    else if (b.dataset.ol === 'cancel') olClose();
+    else if (b.dataset.ol === 'aside') oracleAct('line', 'aside');
+  });
+  // Escape closes a box that was opened (the line's, or Change); Ctrl or Cmd + Enter saves.
+  for (const [form, where] of [['orForm', 'card'], ['olForm', 'line']]) {
+    $(form).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.tagName === 'TEXTAREA') { e.preventDefault(); oracleAct(where, 'answer'); return; }
+      if (e.key !== 'Escape') return;
+      if (where === 'line') { e.preventDefault(); olClose(); } else if (orEditing) { e.preventDefault(); orChange(false); }
+    });
+  }
+
   /* ---------- 01 Start with: tapping it opens the to-do app ---------- */
   function renderStart(t, now) {
     const box = $('start');
@@ -1610,6 +1864,9 @@
     $('wkLabel').textContent = `Week ${w.week} · ${span(w.from, w.to)}`;
     if (!on) return null;
 
+    // The Oracle: this week's question, on top
+    renderOracleCard(w);
+
     // Your week: Claude's three sentences, once written on Sunday morning
     $('wkParaCard').hidden = !w.paragraph;
     if ($('wkPara').textContent !== (w.paragraph || '')) $('wkPara').textContent = w.paragraph || '';
@@ -2395,6 +2652,7 @@
     applyTheme();
     renderHead(now, roll);
     const week = renderWeekView(data, now);
+    renderOracleLine(!!week);
     if (week) {
       const el = document.querySelector('.js-say');
       const s = weekSentence(week);
@@ -2562,13 +2820,14 @@
   energyGet();
   dreadGet();
   archiveGet();
+  oracleGet();
   tick();
 
   // Data every ten minutes and on return. Hiding the page is "the last look".
   setInterval(() => { if (!document.hidden) load(); }, REFRESH);
-  // The energy level and the dread timer every minute and on return (Paul's choice), so a tap in
-  // To-do or Day shows here.
-  setInterval(() => { if (!document.hidden) { energyGet(); dreadGet(); archiveGet(); } }, ENERGY_EVERY);
+  // The energy level, the dread timer, Time to decide and the Oracle's question every minute and on
+  // return (Paul's choice), so a tap in To-do or Day shows here.
+  setInterval(() => { if (!document.hidden) { energyGet(); dreadGet(); archiveGet(); oracleGet(); } }, ENERGY_EVERY);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { saveSeen(); return; }
     visibleSince = Date.now();
@@ -2578,6 +2837,7 @@
     energyGet();
     dreadGet();
     archiveGet();
+    oracleGet();
     tick();
   });
   addEventListener('pagehide', saveSeen);

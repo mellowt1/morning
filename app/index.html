@@ -44,6 +44,28 @@
       <span id="stale" class="stale" role="status" hidden></span>
     </div>
   </header>
+  <!-- The Oracle's line (GET /api/oracle/:code, every minute): this week's question while it is open,
+       with Answer, which opens the same answer box here. Not while Sunday's Week view shows (the card
+       there has it). Hidden once answered or put aside. -->
+  <section id="olLine" class="or-line" aria-labelledby="olK" hidden>
+    <div class="ol-row">
+      <span id="olK" class="ol-k" role="heading" aria-level="2">This week's question</span>
+      <span id="olQ" class="ol-q"></span>
+      <button type="button" id="olOpen" class="pbtn pbtn-done ol-open" aria-expanded="false" aria-controls="olForm" aria-describedby="olQ">Answer</button>
+      <a id="olPast" class="ol-past" href="oracle/">Past weeks <span aria-hidden="true">›</span></a>
+    </div>
+    <form id="olForm" class="or-form ol-form" aria-label="Your answer" novalidate hidden>
+      <label class="or-label" for="olText">Your answer</label>
+      <textarea id="olText" class="or-in" name="answer" rows="3" maxlength="1000" placeholder="A sentence or two is enough"></textarea>
+      <p id="olErr" class="wf-err" role="alert" hidden></p>
+      <div class="or-acts">
+        <button type="submit" id="olSave" class="pbtn pbtn-today">Save answer</button>
+        <button type="button" class="dread-quiet" data-ol="aside">Not this week</button>
+        <button type="button" class="dread-quiet" data-ol="cancel">Cancel</button>
+      </div>
+    </form>
+    <p id="olDone" class="ol-done" role="status" hidden></p>
+  </section>
   <p class="say js-say" aria-live="polite"></p>
   <nav id="apps" class="apps" aria-label="Apps" hidden></nav>
 
@@ -57,6 +79,30 @@
   </div>
 
   <div id="weekView" class="week-view" hidden>
+    <!-- The Oracle (paul-hub src/oracle.js): one question about the week, asked on Sunday morning from
+         Paul's own data (data.week.oracle). Open: the answer box. Answered: "You said" with Change.
+         Put aside: the question and "Put aside.". No question this week: no card. The form is plain
+         DOM that render() never rebuilds, so a draft survives every refresh. -->
+    <section id="orCard" class="card card-para card-oracle" aria-labelledby="orH" style="--i:0" hidden>
+      <div class="card-head">
+        <span id="orH" class="num" role="heading" aria-level="2"></span>
+        <a id="orPast" class="card-link or-past" href="oracle/">Past weeks <span aria-hidden="true">›</span></a>
+      </div>
+      <p id="orQ" class="or-q"></p>
+      <p id="orSaid" class="or-said" tabindex="-1" hidden><span class="or-k">You said:</span> <span id="orSaidText"></span>
+        <button type="button" id="orChange" class="or-text-btn" aria-expanded="false" aria-controls="orForm">Change</button></p>
+      <p id="orAside" class="or-said or-aside" tabindex="-1" hidden>Put aside.</p>
+      <form id="orForm" class="or-form" aria-label="Your answer" novalidate hidden>
+        <label class="or-label" for="orText">Your answer</label>
+        <textarea id="orText" class="or-in" name="answer" rows="3" maxlength="1000" placeholder="A sentence or two is enough"></textarea>
+        <p id="orErr" class="wf-err" role="alert" hidden></p>
+        <div class="or-acts">
+          <button type="submit" id="orSave" class="pbtn pbtn-today">Save answer</button>
+          <button type="button" id="orAsideBtn" class="dread-quiet" data-or="aside">Not this week</button>
+          <button type="button" id="orCancel" class="dread-quiet" data-or="cancel" hidden>Cancel</button>
+        </div>
+      </form>
+    </section>
     <!-- Three sentences Claude writes once each Sunday morning from the cards below. Hidden until written. -->
     <section id="wkParaCard" class="card card-para" aria-label="Your week" style="--i:0" hidden>
       <div class="card-head"><span class="num" role="heading" aria-level="2">Your week</span></div>
