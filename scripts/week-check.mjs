@@ -18,7 +18,7 @@ let failed = false;
 let passes = 0, fails = 0;
 const check = (ok, what) => { if (!ok) { fails++; failed = true; console.error('FAIL:', what); } else { passes++; console.log('ok:', what); } };
 
-function world(now, empty, dreadOver) {
+function world(now, empty, dreadOver, archOver) {
   const quiet = empty ? [] : [
     { id: 'quiet0000001', text: 'Cancel the old phone contract', section: 'soon', days: 31 },
     { id: 'quiet0000002', text: 'Find a tutor for the evening class', section: 'someday', days: 22 },
@@ -48,7 +48,14 @@ function world(now, empty, dreadOver) {
     lies: [{ task: 'task00000011', name: 'Call the insurance about the claim', dread: 5, mins: 6 }, { task: 'task00000012', name: 'book the car service', dread: 4, mins: 12 }],
     byLevel: { wired: 2.5, normal: 3, drained: null }, rated: 7, started: 9, skipped: 6,
   };
+  // Archive: what was let go this week (paul-hub src/archive.js, archiveWeek).
+  const archWeek = archOver !== undefined ? archOver : empty ? { archived: [], handedOff: [], restored: 0 } : {
+    archived: [{ name: 'Learn the ukulele', skips: 9, note: 'Not this year.' }, { name: 'sort the attic', skips: 6, note: '' }],
+    handedOff: [{ name: 'Fix the bike light', who: 'Alex', nextChase: '2026-10-25' }, { name: 'Write to the council', who: 'The landlord', nextChase: null }],
+    restored: 1,
+  };
   const week = () => ({
+    archive: structuredClone(archWeek),
     dread: structuredClone(dreadWeek),
     waiting: waitWeek(),
     thisWeek: structuredClone(flags),
@@ -149,8 +156,8 @@ function world(now, empty, dreadOver) {
 }
 
 const browser = await chromium.launch();
-async function open(viewport, { dark = false, now = SUNDAY, empty = false, dread } = {}) {
-  const w = world(now, empty, dread);
+async function open(viewport, { dark = false, now = SUNDAY, empty = false, dread, archive } = {}) {
+  const w = world(now, empty, dread, archive);
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700, colorScheme: dark ? 'dark' : 'light' });
   const page = await ctx.newPage();
   const errors = [];
@@ -187,7 +194,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet. 2 flagged tasks are still open.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|Biggest lies this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, biggest lies, waiting on, the lessons, then five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|Biggest lies this week|Let go this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, biggest lies, let go, waiting on, the lessons, then five cards in order');
   // 02 Still this week: the flagged tasks still open, Keep for next week or Unflag (with Undo).
   check((await texts(page, '#wkFlag .park-what')).join('|') === 'Book the flights|Call the plumber', name + ': still this week lists the flagged tasks, clean names');
   check(await page.textContent('#wkFlagNote') === '2 left', name + ': still this week says 2 left');
@@ -223,6 +230,16 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await page.textContent('#wkDreadCard .dr-sub') === 'Dreaded 4 or 5, done in 15 minutes or less' && await page.getAttribute('#wkDreadCard .dr-h', 'aria-level') === '3', name + ': the subtitle, the tiles under a level 3 heading');
   check(await page.evaluate(() => { const a = document.getElementById('wkDreadCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), c = document.getElementById('wkDreadCard'); return a.width > v.width * 0.9 && c.scrollWidth <= c.clientWidth; }), name + ': the lies card spans the width, nothing cut off');
   await page.locator('#wkDreadCard').screenshot({ path: file(name + '-dread') });
+  // Let go this week: Archived (name | passed on N | note or no note), Handed off (name | to who | check back day), the footer.
+  const lw = (n) => page.$$eval('#wkArch .lw-list', (lists, n) => [...lists[n].querySelectorAll('.lw')].map((e) => [...e.children].map((c) => c.textContent.trim()).join('|')).join(' / '), n);
+  check(await page.textContent('#wkArchCard .dr-sub') === 'Taken off the list on purpose.' && (await texts(page, '#wkArch .dr-h')).join() === 'Archived,Handed off'
+    && await page.getAttribute('#wkArch .dr-h', 'aria-level') === '3', name + ': let go: the subtitle and two sections under level 3 headings');
+  check(await lw(0) === 'Learn the ukulele|passed on 9|Not this year. / Sort the attic|passed on 6|no note', name + ': let go archived rows: ' + await lw(0));
+  check(await lw(1) === 'Fix the bike light|to Alex|check back Sun 25 Oct / Write to the council|to The landlord|closed', name + ': let go handed-off rows: ' + await lw(1));
+  check(await page.textContent('#wkArchFoot') === 'Brought back this week: 1.', name + ': let go footer');
+  check(await page.evaluate(() => { const a = document.getElementById('wkArchCard').getBoundingClientRect(), v = document.getElementById('weekView').getBoundingClientRect(), c = document.getElementById('wkArchCard'); return a.width > v.width * 0.9 && c.scrollWidth <= c.clientWidth; }), name + ': the let go card spans the width, nothing cut off');
+  check(!/graveyard|headstone|RIP|buried|rest in/i.test(await page.textContent('#wkArchCard')), name + ': let go stays plain: no graveyard words');
+  await page.locator('#wkArchCard').screenshot({ path: file(name + '-archive') });
   // Waiting on: every open item oldest first (who about what, channel, days waiting, amber edge when a
   // chase is due), Answered and Snooze, and what was resolved and chased this week.
   const wrows = () => page.$$eval('#wkWait .ww', (els) => els.map((e) => [e.querySelector('.ww-what').textContent.trim(), e.querySelector('.ww-how').textContent.trim(),
@@ -350,6 +367,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(!(await shown(page, '#wkEnergyCard')), 'empty: no energy card when nothing was set');
   check(!(await shown(page, '#wkWaitCard')), 'empty: no waiting card with nothing open and nothing resolved or chased');
   check(!(await shown(page, '#wkDreadCard')), 'empty: no biggest lies card with nothing started or skipped');
+  check(!(await shown(page, '#wkArchCard')), 'empty: no let go card with nothing archived, handed off or brought back');
   await page.screenshot({ path: file('week-empty-phone'), fullPage: true });
   check(errors.length === 0, 'empty: no page errors ' + errors.join('; '));
   await ctx.close();
@@ -362,6 +380,26 @@ for (const [name, viewport] of [['week-pc-dread-none', { width: 1440, height: 10
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ': no sideways scroll');
   await page.locator('#wkDreadCard').screenshot({ path: file(name) });
   check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
+  await ctx.close();
+}
+// Let go with only what came back: the footer alone; one section only; hidden when the block is null.
+{
+  const { page, ctx, errors } = await open({ width: 390, height: 844 }, { archive: { archived: [], handedOff: [], restored: 2 } });
+  check(await shown(page, '#wkArchCard') && !(await page.$$('#wkArch .dr-h')).length && await page.textContent('#wkArchFoot') === 'Brought back this week: 2.', 'let go: only brought back, the footer alone');
+  check(errors.length === 0, 'let go restored only: no page errors ' + errors.join('; '));
+  await ctx.close();
+}
+for (const [name, viewport] of [['week-pc-archive-one', { width: 1440, height: 1000 }], ['week-phone-archive-one', { width: 390, height: 844 }]]) {
+  const { page, ctx, errors } = await open(viewport, { archive: { archived: [], handedOff: [{ name: 'Renew the parking permit', who: 'Sam', nextChase: '2026-10-21' }], restored: 0 } });
+  check(await shown(page, '#wkArchCard') && (await texts(page, '#wkArch .dr-h')).join() === 'Handed off' && await page.textContent('#wkArchFoot') === 'Brought back this week: 0.', name + ': only handed off, one section');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ': no sideways scroll');
+  await page.locator('#wkArchCard').screenshot({ path: file(name) });
+  check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
+  await ctx.close();
+}
+{
+  const { page, ctx } = await open({ width: 390, height: 844 }, { archive: null });
+  check(!(await shown(page, '#wkArchCard')) && await shown(page, '#weekView'), 'archive null: no let go card, the rest of the week shows');
   await ctx.close();
 }
 {
