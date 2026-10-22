@@ -13,7 +13,8 @@
     "week-check": "node scripts/week-check.mjs",
     "hiscores-check": "node scripts/hiscores-check.mjs",
     "lift-check": "node scripts/lift-check.mjs",
-    "oracle-check": "node scripts/oracle-check.mjs"
+    "oracle-check": "node scripts/oracle-check.mjs",
+    "sky-check": "node scripts/sky-check.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
