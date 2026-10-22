@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Network</title>
+<meta name="description" content="The people you know, by sector, who introduced whom, and who to get back to.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#CBD1D8">
+<meta name="color-scheme" content="light">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="network.css">
+</head>
+<body>
+<main id="app" class="page">
+  <header class="top">
+    <a id="back" class="back" href="../">‹ Morning</a>
+    <h1>Network</h1>
+    <div class="find">
+      <label for="q" class="sr">Search people</label>
+      <input id="q" class="search" type="search" placeholder="Search a name, organisation or topic" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      <button type="button" id="fadeOnly" class="chip" aria-pressed="false"><span>Fading<span class="long"> only</span></span></button>
+    </div>
+    <div class="acts">
+      <button type="button" id="importBtn" class="btn">Import LinkedIn</button>
+      <button type="button" id="addBtn" class="btn btn-go">Add person</button>
+    </div>
+    <p id="status" class="status" role="status"></p>
+  </header>
+
+  <!-- The map (GET /api/network/:code, paul-hub src/network.js): a zone per sector, a node per person.
+       PC: the 2 x 2 grid of zones with Other as a band under it; phone: one band per sector that scrolls
+       sideways. The lines are drawn under the nodes; the names sit on their zone's colour. -->
+  <section id="mapWrap" class="mapwrap" aria-labelledby="mapH">
+    <h2 id="mapH" class="sr">Map</h2>
+    <div id="empty" class="empty" hidden>
+      <p>No one yet. Add a person or import your LinkedIn connections.</p>
+      <div class="empty-acts">
+        <button type="button" class="btn" data-open="import">Import LinkedIn</button>
+        <button type="button" class="btn btn-go" data-open="add">Add person</button>
+      </div>
+    </div>
+    <div id="map" class="map"></div>
+    <div id="away" class="away" hidden>
+      <p>Can’t reach the hub.</p>
+      <button type="button" id="retry" class="btn">Retry</button>
+    </div>
+  </section>
+
+  <div id="foot" class="foot">
+    <p id="legend" class="legend">Dashed arrow: introduced · Line: work together · Faded: no contact for 6 months</p>
+    <div class="foot-acts">
+      <button type="button" id="sortBtn" class="btn btn-amber" aria-controls="side" hidden></button>
+      <button type="button" id="importBtn2" class="btn foot-import">Import LinkedIn</button>
+    </div>
+  </div>
+
+  <!-- With nobody open: People to get back to (or a sector's list, or To sort). -->
+  <section id="side" class="side" aria-labelledby="sideH" hidden>
+    <div class="side-head">
+      <h2 id="sideH" tabindex="-1"></h2>
+      <button type="button" id="sideClose" class="x" aria-label="Close" hidden>×</button>
+    </div>
+    <p id="sideSub" class="side-sub"></p>
+    <div id="sideBody"></div>
+  </section>
+
+  <div id="scrim" class="scrim" hidden></div>
+  <!-- A person: the right-hand panel on the PC, a sheet on the phone. -->
+  <section id="card" class="card" aria-labelledby="cardH" hidden>
+    <div id="cardBody"></div>
+  </section>
+
+  <p id="toast" class="toast" role="status" hidden></p>
+</main>
+<p id="nocode" class="nocode" hidden>Open Morning from your private link first; this page uses the same one.</p>
+
+<dialog id="reach" class="dlg dlg-sheet" aria-labelledby="reachH">
+  <form id="reachForm" class="sheet" novalidate>
+    <div class="dlg-head">
+      <h2 id="reachH">Reach out</h2>
+      <button type="button" class="x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="task-prev">
+      <span class="task-k">The task in To-do</span>
+      <span id="reachText" class="task-t"></span>
+    </div>
+    <div class="grp" role="group" aria-labelledby="reachWhereK">
+      <span id="reachWhereK" class="grp-k">Where</span>
+      <div class="chips" data-pick="section">
+        <button type="button" class="chip" data-v="today" aria-pressed="false">Today</button>
+        <button type="button" class="chip" data-v="soon" aria-pressed="true">Soon</button>
+      </div>
+    </div>
+    <div class="grp" role="group" aria-labelledby="reachEnergyK">
+      <span id="reachEnergyK" class="grp-k">Energy</span>
+      <div class="chips" data-pick="energy">
+        <button type="button" class="chip" data-v="wired" aria-pressed="false">Wired</button>
+        <button type="button" class="chip" data-v="normal" aria-pressed="true">Normal</button>
+        <button type="button" class="chip" data-v="drained" aria-pressed="false">Drained</button>
+      </div>
+    </div>
+    <p class="hint">The task links back to this card. Ticking it off in To-do sets Last contact to that day.</p>
+    <p id="reachErr" class="err" role="alert" hidden></p>
+    <button type="submit" id="reachGo" class="btn btn-go btn-wide">Make the task</button>
+  </form>
+</dialog>
+
+<dialog id="sent" class="dlg dlg-sheet" aria-labelledby="sentH">
+  <form id="sentForm" class="sheet" novalidate>
+    <div class="dlg-head">
+      <h2 id="sentH">Sent a message</h2>
+      <button type="button" class="x" data-close aria-label="Close">×</button>
+    </div>
+    <p id="sentIntro" class="hint hint-top"></p>
+    <div class="fld">
+      <label for="sentWhat">About</label>
+      <input id="sentWhat" class="in" name="what" maxlength="160" autocomplete="off" required>
+    </div>
+    <div class="grp" role="group" aria-labelledby="sentHowK">
+      <span id="sentHowK" class="grp-k">How you sent it</span>
+      <div class="chips" data-pick="channel">
+        <button type="button" class="chip" data-v="email" aria-pressed="true">Email</button>
+        <button type="button" class="chip" data-v="phone" aria-pressed="false">Phone</button>
+        <button type="button" class="chip" data-v="letter" aria-pressed="false">Letter</button>
+        <button type="button" class="chip" data-v="in-person" aria-pressed="false">In person</button>
+      </div>
+    </div>
+    <div class="grp" role="group" aria-labelledby="sentDaysK">
+      <span id="sentDaysK" class="grp-k">Chase after</span>
+      <div class="chips" data-pick="chaseDays">
+        <button type="button" class="chip" data-v="3" aria-pressed="false">3 days</button>
+        <button type="button" class="chip" data-v="7" aria-pressed="true">7 days</button>
+        <button type="button" class="chip" data-v="14" aria-pressed="false">14 days</button>
+      </div>
+    </div>
+    <p class="hint">When they answer, Last contact moves to that day.</p>
+    <p id="sentErr" class="err" role="alert" hidden></p>
+    <button type="submit" id="sentGo" class="btn btn-go btn-wide">Start waiting</button>
+  </form>
+</dialog>
+
+<dialog id="form" class="dlg dlg-full" aria-labelledby="pfH">
+  <form id="pf" class="pf" novalidate>
+    <div class="pf-top">
+      <button type="button" class="link-btn" data-close>Cancel</button>
+      <h2 id="pfH">Add a person</h2>
+      <button type="submit" id="pfSave" class="btn btn-go">Save</button>
+    </div>
+    <div class="pf-body">
+      <p id="pfErr" class="err" role="alert" hidden></p>
+      <div class="fld">
+        <label for="pfName">Name</label>
+        <input id="pfName" class="in" maxlength="120" autocomplete="off" required>
+      </div>
+      <div class="two">
+        <div class="fld"><label for="pfOrg">Organisation</label><input id="pfOrg" class="in" maxlength="120" autocomplete="off"></div>
+        <div class="fld"><label for="pfRole">Role</label><input id="pfRole" class="in" maxlength="120" autocomplete="off"></div>
+      </div>
+      <div class="grp" role="group" aria-labelledby="pfSecK">
+        <span id="pfSecK" class="grp-k">Sector</span>
+        <div id="pfSec" class="chips"></div>
+        <p id="pfSecHint" class="hint" hidden></p>
+      </div>
+      <div class="two two-wide">
+        <div class="fld"><label for="pfWhere">Where you met</label><input id="pfWhere" class="in" maxlength="120" autocomplete="off"></div>
+        <div class="fld"><label for="pfWhen">When</label><input id="pfWhen" class="in" type="month" placeholder="2026-03"></div>
+      </div>
+      <div class="grp" role="group" aria-labelledby="pfTiesK">
+        <span id="pfTiesK" class="grp-k">How you are connected</span>
+        <div id="pfTies" class="tags"></div>
+        <div id="picker" class="picker" hidden>
+          <div class="grp" role="group" aria-labelledby="pkKindK">
+            <span id="pkKindK" class="grp-k grp-k-small">How</span>
+            <div class="chips" data-pick="kind">
+              <button type="button" class="chip" data-v="by" aria-pressed="true">Introduced by</button>
+              <button type="button" class="chip" data-v="to" aria-pressed="false">Introduced to</button>
+              <button type="button" class="chip" data-v="with" aria-pressed="false">Works with</button>
+            </div>
+          </div>
+          <div class="fld">
+            <label for="pkQ">Find a person</label>
+            <input id="pkQ" class="in" type="search" autocomplete="off" spellcheck="false" placeholder="Type a name or organisation">
+          </div>
+          <ul id="pkList" class="pk-list" aria-label="People"></ul>
+          <button type="button" id="pkDone" class="link-btn">Done</button>
+        </div>
+      </div>
+      <div class="grp" role="group" aria-labelledby="pfTopK">
+        <span id="pfTopK" class="grp-k">Topics</span>
+        <div id="pfTopics" class="tags"></div>
+        <div id="topicAdd" class="topic-add" hidden>
+          <label for="pfTopic" class="sr">New topic</label>
+          <input id="pfTopic" class="in" maxlength="40" autocomplete="off" placeholder="A topic">
+          <button type="button" id="pfTopicGo" class="btn">Add</button>
+        </div>
+      </div>
+      <div class="fld">
+        <label for="pfNotes">Your notes</label>
+        <textarea id="pfNotes" class="in ta" rows="3" maxlength="1000"></textarea>
+      </div>
+      <div class="two">
+        <div class="fld"><label for="pfEmail">Email</label><input id="pfEmail" class="in" type="email" maxlength="254" autocomplete="off"></div>
+        <div class="fld"><label for="pfPhone">Phone</label><input id="pfPhone" class="in" type="tel" maxlength="40" autocomplete="off"></div>
+      </div>
+      <div class="fld">
+        <label for="pfLinkedin">LinkedIn link</label>
+        <input id="pfLinkedin" class="in" type="url" maxlength="200" autocomplete="off" placeholder="https://www.linkedin.com/in/…">
+      </div>
+      <div class="fld fld-date">
+        <label for="pfLast">Last contact</label>
+        <input id="pfLast" class="in" type="date">
+      </div>
+      <div id="pfRemove" class="pf-remove" hidden>
+        <button type="button" id="rmAsk" class="btn btn-red-line">Remove this person</button>
+        <div id="rmConfirm" class="rm-confirm" hidden>
+          <p id="rmText"></p>
+          <div class="rm-acts">
+            <button type="button" id="rmGo" class="btn btn-red">Remove</button>
+            <button type="button" id="rmKeep" class="btn">Keep</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="imp" class="dlg dlg-wide" aria-labelledby="impH">
+  <div class="imp">
+    <div class="dlg-head">
+      <h2 id="impH">Import your LinkedIn connections</h2>
+      <button type="button" class="x" data-close aria-label="Close">×</button>
+    </div>
+    <p class="hint hint-top">You download the file yourself: LinkedIn › Settings › Data privacy › Get a copy of your data › Connections. Nothing here talks to LinkedIn. Your browser reads the file and sends it to your hub, which keeps names, companies, positions, profile links and the day you connected. Email addresses are never kept.</p>
+    <div id="drop" class="drop">
+      <span id="impFileName" class="drop-name" hidden></span>
+      <span id="impCounts" class="drop-counts"></span>
+      <button type="button" id="impPick" class="btn">Choose Connections.csv</button>
+      <input id="impFile" type="file" accept=".csv,text/csv" hidden>
+    </div>
+    <div id="impTable" class="imp-table" role="region" aria-label="Connections in the file" tabindex="0" hidden></div>
+    <p id="impNote" class="hint" hidden></p>
+    <p id="impErr" class="err" role="alert" hidden></p>
+    <p id="impDone" class="imp-done" role="status" hidden></p>
+    <div class="imp-acts">
+      <button type="button" id="impCancel" class="btn" data-close>Cancel</button>
+      <button type="button" id="impGo" class="btn btn-go" hidden></button>
+    </div>
+  </div>
+</dialog>
+
+<script src="network.js"></script>
+</body>
+</html>
