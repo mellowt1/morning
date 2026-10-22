@@ -35,6 +35,7 @@ Everything arrives in one answer from `GET /api/morning/:code` on `paul-hub` (th
 | Waiting on | the hub's `waiting` table (paul-hub `src/waiting.js`): a Chases due tile in Today, a card with the oldest five open items and Add (POST `/api/waiting/:code`), and on Sundays every open item with Answered and Snooze. Hidden until the hub sends the block | every open |
 | Dread meter | the hub's timer (paul-hub `src/dread.js`, `GET/POST /api/dread/:code`): Start on the energy pick starts it; while one runs (from Morning, To-do or Day) Start with holds that task with "Running since", How much do you dread it? (1 to 5), Skip and Stop. On Sundays the Week view has Biggest lies this week (`week.dread`) | every minute and on return |
 | Oracle question | the hub's `oracle` table (paul-hub `src/oracle.js`): on Sundays from 06:00 one question about the week. Sunday's Week view has it on top (`week.oracle`) with Save answer and Not this week; other days one line under the header while it is open (`GET /api/oracle/:code`), with Answer. Past weeks (`oracle/`) lists every question with the answer, Put aside or Not answered yet | every minute and on return |
+| Constellation | the hub's log (paul-hub `src/sky.js`, `GET /api/sky/:code`), read only: its own page (`constellation/`, "Constellation ›" in the head of Lately) draws the apps on the hub as stars on a night sky around the Hub, brighter for more events in the last 7 days, dim with an amber "Quiet 5 h" when quiet past its limit, and a line between two apps that told each other something. Tap a star or a line for what was sent and received. Live sends each new event as a small dot from the app that sent it to the apps that react; Last day and Last week replay the log in a minute, with a scrubber. With Reduce Motion nothing travels: the counts sit on the lines and a replay steps one event at a time. Only names, labels, counts and times reach the page | every 30 s while it is open and on return |
 | Yesterday's wins | the to-do list, items finished yesterday, up to five names | every open |
 | Coming up | Odysseus pushes the next 7 days of events every 15 minutes, merged with the fixed events | every open; "Calendar as of" when the last push is over an hour old |
 | Countdowns and fixed events | Worker secret `FIXED_EVENTS` | every open |
@@ -70,6 +71,7 @@ npm run shots                  # phone and laptop, light and dark, into verify-s
 npm run check-arsenal          # the page's own ESPN fallback, with the Worker mocked
 npm run extras-shots           # Start with, wins, birthdays, NOS, with the Worker mocked
 npm run tonight-shots          # the Tonight line from the kitchen, with the Worker mocked
+npm run sky-check              # the Constellation page against a mocked /api/sky, PC and phone
 npm run icons                  # redraws app/icons/ from the sunrise mark
 ```
 
