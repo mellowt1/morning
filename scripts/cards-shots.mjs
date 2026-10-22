@@ -374,7 +374,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   s = await st(page);
   check(w.sets.length === 1 && w.sets[0].level === 'drained' && w.sets[0].source === 'morning', 'energy: tapping Drained sends level drained: ' + JSON.stringify(w.sets));
   check(s.dial.join() === 'Wired,Normal,Drained*', 'energy: Drained is pressed: ' + s.dial);
-  check(s.start === 'Return the lamp' && s.meta === 'Today' && s.note === 'Drained · 1 of 3 that fit' && !s.go && s.acts.join() === 'Not this one,Surprise me',
+  check(s.start === 'Return the lamp' && s.meta === 'Today' && s.note === 'Drained · 1 of 3 that fit' && !s.go && s.acts.join() === 'Start,Not this one,Surprise me',
     'energy: Start with shows the pick: ' + JSON.stringify(s));
   check(s.tasks[0] === 'Email the landlord about the heating' && s.tasks.length === 3, 'energy: Today lists the first to-do once the pick holds Start with: ' + s.tasks);
   await page.screenshot({ path: file('energy-pc'), fullPage: true });
@@ -389,11 +389,11 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await tap(page, '[data-pick="surprise"]');
   check(w.picks[1].mode === 'surprise' && w.picks[1].skip.join() === 'task00000001' && w.picks[1].current === 'task00000002' && !w.picks[1].skipped, 'energy: Surprise me is not a skip: ' + JSON.stringify(w.picks[1]));
   s = await st(page);
-  check(s.start === 'Sort the receipts' && s.meta === 'Soon · 16:00' && s.note === 'Drained · 2 of 3 that fit' && s.acts.join() === 'Not this one,Surprise me', 'energy: the surprise: ' + JSON.stringify(s));
+  check(s.start === 'Sort the receipts' && s.meta === 'Soon · 16:00' && s.note === 'Drained · 2 of 3 that fit' && s.acts.join() === 'Start,Not this one,Surprise me', 'energy: the surprise: ' + JSON.stringify(s));
   // Turn the rest down: every task that fits is gone, Start again clears the skips.
   await tap(page, '[data-pick="skip"]');
   s = await st(page);
-  check(s.start === 'Text a friend' && s.acts.join() === 'Not this one', 'energy: with one left, no Surprise me: ' + JSON.stringify(s));
+  check(s.start === 'Text a friend' && s.acts.join() === 'Start,Not this one', 'energy: with one left, no Surprise me: ' + JSON.stringify(s));
   await tap(page, '[data-pick="skip"]');
   s = await st(page);
   check(w.picks[3].skip.join() === 'task00000001,task00000003,task00000002', 'energy: the skip list grows: ' + JSON.stringify(w.picks[3]));
@@ -432,7 +432,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   const p = await openE(pw, phone);
   s = await st(p.page);
   check(s.dial.length === 0 && s.phoneDial.join() === 'Wired,Normal,Drained*' && s.phoneDialH.every((h) => h >= 44), 'energy phone: the dial in Start with: ' + JSON.stringify(s));
-  check(s.start === 'Return the lamp' && s.acts.join() === 'Not this one,Surprise me' && !s.overflow, 'energy phone: the pick and its buttons, no sideways scroll: ' + JSON.stringify(s));
+  check(s.start === 'Return the lamp' && s.acts.join() === 'Start,Not this one,Surprise me' && !s.overflow, 'energy phone: the pick and its buttons, no sideways scroll: ' + JSON.stringify(s));
   await p.page.screenshot({ path: file('energy-phone'), fullPage: true });
   await tap(p.page, '#startDial [data-energy="normal"]');
   check(pw.sets.length === 1 && pw.sets[0].level === 'normal', 'energy phone: the dial in Start with sends: ' + JSON.stringify(pw.sets));
@@ -442,6 +442,227 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   check(s.start === 'That was every task that fits normal.' && s.acts.join() === 'Start again' && !s.overflow, 'energy phone: every task turned down: ' + JSON.stringify(s));
   await p.page.locator('#start').screenshot({ path: file('energy-phone-out') });
   await p.ctx.close();
+}
+
+// The Dread meter (paul-hub src/dread.js, mocked like the real routes): Start on the pick (a double tap
+// sends once), the running strip with its question, rating and changing it, keyboard, Skip, Stop, a rate
+// the hub refuses (409), a timer started in To-do or Day, the minute poll, the copy on this device with
+// the hub away, the phone, and no task names in the console.
+{
+  const tasks = [
+    { id: 'task00000001', name: 'Return the lamp', section: 'today', due: null, time: null },
+    { id: 'task00000002', name: 'Text a friend', section: 'soon', due: null, time: null },
+  ];
+  const iso = (hhmm) => new Date(at(0, hhmm)).toISOString();
+  const dworld = ({ level = 'drained', running = null } = {}) => {
+    const w = { level, running, posts: [], gets: 0, stopped: null, down: false };
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    w.energy = (r) => {
+      if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      if (w.down) return r.abort();
+      const on = !!w.level;
+      return r.fulfill({ json: { level: w.level, setAt: on ? iso('12:00') : null, until: on ? iso('16:00') : null, source: on ? 'todo' : null,
+        pick: on ? { task: tasks[0], count: 2, left: 2, position: 1 } : null }, headers: h });
+    };
+    w.dread = async (r) => {
+      const q = r.request();
+      if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+      if (w.down) return r.abort();
+      if (q.method() === 'GET') {
+        w.gets++;
+        const out = { running: w.running, stopped: w.stopped };
+        w.stopped = null;
+        return r.fulfill({ json: out, headers: h });
+      }
+      const path = new URL(q.url()).pathname.split('/').pop();
+      const b = q.postDataJSON();
+      w.posts.push({ path, body: b });
+      await new Promise((ok) => setTimeout(ok, 150)); // network time, so a double tap lands while the first is out
+      if (path === 'start') {
+        const t = tasks.find((x) => x.id === b.task);
+        if (!t) return r.fulfill({ status: 404, json: { error: 'no such open task' }, headers: h });
+        w.running = { task: t.id, name: t.name, section: t.section, startedAt: new Date(NOON).toISOString(), dread: b.dread || null, level: w.level, source: b.source, mins: 0 };
+        return r.fulfill({ json: { running: w.running }, headers: h });
+      }
+      if (path === 'rate') {
+        if (!w.running || w.running.task !== b.task) return r.fulfill({ status: 409, json: { error: 'not running' }, headers: h });
+        w.running = { ...w.running, dread: b.dread };
+        return r.fulfill({ json: { running: w.running }, headers: h });
+      }
+      const was = w.running;
+      w.running = null;
+      return r.fulfill({ json: { running: null, stopped: was ? { task: was.task, name: was.name, mins: 3, dread: was.dread, done: false } : null }, headers: h });
+    };
+    return w;
+  };
+  const logs = [];
+  const openD = async (w, viewport, clock = 'fixed') => {
+    const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700 });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => logs.push(m.text()));
+    if (clock === 'fixed') await page.clock.setFixedTime(new Date(NOON));
+    else await page.clock.install({ time: new Date(NOON) });
+    await page.addInitScript((d) => { try { localStorage.setItem('morning.enteredOn', JSON.stringify(d)); } catch (e) {} }, day(0));
+    await page.route('**/api/morning/**', (r) => r.fulfill({ json: answer(), headers: { 'Access-Control-Allow-Origin': '*' } }));
+    await page.route('**/api/energy/**', w.energy);
+    await page.route('**/api/dread/**', w.dread);
+    await page.route('**/site.**espn.com/**', (r) => r.abort());
+    await page.goto(BASE + '?c=' + CODE);
+    if (clock !== 'fixed') await page.clock.runFor(1000);
+    await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);
+    return { ctx, page };
+  };
+  const ds = (page) => page.evaluate(() => {
+    const vis = (el) => !!el && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
+    const t = (sel) => { const el = document.querySelector(sel); return vis(el) ? el.textContent.trim() : ''; };
+    const box = document.getElementById('start');
+    const startBtn = document.querySelector('#startActs [data-dread="start"]');
+    return {
+      start: t('#start .start-text'), meta: t('#start .start-meta'), note: t('#start .start-note'),
+      metaInk: getComputedStyle(document.querySelector('#start .start-meta')).color,
+      running: box.classList.contains('is-running'), tilt: getComputedStyle(box).transform,
+      acts: [...document.querySelectorAll('#startActs button')].filter(vis).map((b) => b.textContent.trim()),
+      startFill: startBtn ? getComputedStyle(startBtn).backgroundColor : '',
+      q: t('#startDread .dread-q'),
+      group: (document.querySelector('#startDread [role="radiogroup"]') || { getAttribute: () => '' }).getAttribute('aria-labelledby'),
+      chips: [...document.querySelectorAll('#startDread .dread-chip')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-checked') === 'true' ? '*' : '')),
+      chipH: [...document.querySelectorAll('#startDread button')].filter(vis).map((b) => Math.round(b.getBoundingClientRect().height)),
+      chipFont: (() => { const c = document.querySelector('#startDread .dread-chip'); return c ? getComputedStyle(c).fontFamily : ''; })(),
+      quiet: [...document.querySelectorAll('#startDread .dread-quiet')].filter(vis).map((b) => b.textContent.trim()),
+      label: document.getElementById('startLink').getAttribute('aria-label'),
+      focus: document.activeElement ? (document.activeElement.dataset.rate || document.activeElement.dataset.dread || document.activeElement.id || document.activeElement.tagName) : '',
+      tasks: [...document.querySelectorAll('#todayList .task:not(.task-done)')].map((li) => li.innerText.trim()),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  const tap = async (page, sel, settle = 450) => { await page.click(sel); await page.waitForTimeout(settle); };
+
+  // The PC: the pick has Start, green, first.
+  const w = dworld();
+  const { ctx, page } = await openD(w, laptop);
+  let s = await ds(page);
+  check(s.start === 'Return the lamp' && s.acts.join() === 'Start,Not this one,Surprise me' && s.startFill === 'rgb(36, 127, 81)' && !s.running && !s.q && !s.chips.length,
+    'dread: the pick has a green Start before Not this one and Surprise me: ' + JSON.stringify(s));
+  check(w.gets >= 1, 'dread: the timer is read on opening: ' + w.gets);
+  await page.locator('#start').screenshot({ path: file('dread-pc-pick') });
+  // Start: one POST, no dread; the strip holds the task, running, with the question.
+  await page.evaluate(() => { const b = document.querySelector('[data-dread="start"]'); b.click(); b.click(); });
+  await page.waitForTimeout(450);
+  s = await ds(page);
+  check(w.posts.length === 1 && w.posts[0].path === 'start' && JSON.stringify(w.posts[0].body) === JSON.stringify({ source: 'morning', task: 'task00000001' }),
+    'dread: Start sends start once for a double tap, without a dread: ' + JSON.stringify(w.posts));
+  check(s.running && s.start === 'Return the lamp' && s.meta === 'Running since 13:00' && s.metaInk === 'rgb(33, 122, 75)' && !s.note && !s.acts.length && s.tilt === 'none',
+    'dread: the running strip, square, green Running since, no pick buttons: ' + JSON.stringify(s));
+  check(s.q === 'How much do you dread it?' && s.group === 'dreadQ' && s.chips.join() === '1,2,3,4,5' && s.quiet.join() === 'Skip,Stop' && /Barlow Condensed/.test(s.chipFont),
+    'dread: the question, five numbers in Barlow Condensed, Skip and Stop: ' + JSON.stringify(s));
+  check(s.chipH.every((x) => x >= 44) && s.focus === '1', 'dread: 44 px buttons, the focus on the 1: ' + JSON.stringify({ h: s.chipH, focus: s.focus }));
+  check(s.label === 'Start with: Return the lamp, Running since 13:00. Opens the to-do app.' && s.tasks.length === 3, 'dread: the link says it runs, Today unchanged: ' + JSON.stringify(s));
+  const row = await page.evaluate(() => [...document.querySelectorAll('#startDread .dread-chip, #startDread .dread-quiet')].map((b) => Math.round(b.getBoundingClientRect().top)));
+  check(row.length === 7 && row.every((y) => y === row[0]), 'dread: on the PC the numbers, Skip and Stop share one line: ' + row);
+  await page.locator('#start').screenshot({ path: file('dread-pc-running') });
+  // Rate 4, then change it to 2: the chosen one is checked and keeps the focus.
+  await tap(page, '#startDread [data-rate="4"]');
+  s = await ds(page);
+  check(w.posts[1].path === 'rate' && JSON.stringify(w.posts[1].body) === JSON.stringify({ source: 'morning', task: 'task00000001', dread: 4 }) && s.chips.join() === '1,2,3,4*,5' && s.focus === '4',
+    'dread: 4 sends rate and shows checked: ' + JSON.stringify({ post: w.posts[1], chips: s.chips, focus: s.focus }));
+  await page.locator('#start').screenshot({ path: file('dread-pc-rated') });
+  // Keyboard: arrows walk the numbers, Enter picks.
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(450);
+  s = await ds(page);
+  check(w.posts[2].path === 'rate' && w.posts[2].body.dread === 2 && s.chips.join() === '1,2*,3,4,5' && s.focus === '2', 'dread: the rating changes by keyboard to 2: ' + JSON.stringify({ post: w.posts[2], chips: s.chips, focus: s.focus }));
+  // Skip hides the question here only; Stop stays and takes the focus.
+  await tap(page, '#startDread [data-dread="skip"]', 100);
+  s = await ds(page);
+  check(w.posts.length === 3 && !s.q && !s.chips.length && s.quiet.join() === 'Stop' && s.focus === 'stop' && s.running, 'dread: Skip hides the question, nothing sent: ' + JSON.stringify(s));
+  await page.locator('#start').screenshot({ path: file('dread-pc-skipped') });
+  // Stop: the body is only the source (never done); back to the pick, the focus on Start.
+  await tap(page, '#startDread [data-dread="stop"]');
+  s = await ds(page);
+  check(w.posts[3].path === 'stop' && JSON.stringify(w.posts[3].body) === JSON.stringify({ source: 'morning' }), 'dread: Stop sends only the source: ' + JSON.stringify(w.posts[3]));
+  check(!s.running && s.acts.join() === 'Start,Not this one,Surprise me' && s.meta === 'Today' && !s.q && s.focus === 'start' && s.tilt !== 'none', 'dread: back to the pick: ' + JSON.stringify(s));
+  // A rating the hub refuses (the timer was stopped elsewhere): Morning asks again and shows the pick.
+  await tap(page, '[data-dread="start"]');
+  w.running = null;
+  const gets = w.gets;
+  await tap(page, '#startDread [data-rate="3"]', 600);
+  s = await ds(page);
+  check(w.posts.at(-1).path === 'rate' && w.gets === gets + 1 && !s.running && s.acts[0] === 'Start', 'dread: a 409 asks the hub again, back to the pick: ' + JSON.stringify({ gets: w.gets - gets, s }));
+  // A timer started in Day shows on return to the page.
+  w.running = { task: 'task00000002', name: 'Text a friend', section: 'soon', startedAt: iso('12:40'), dread: null, level: 'drained', source: 'day', mins: 20 };
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(450);
+  s = await ds(page);
+  check(s.running && s.start === 'Text a friend' && s.meta === 'Running since 12:40, started in Day' && s.chips.join() === '1,2,3,4,5', 'dread: a timer from Day shows on return: ' + JSON.stringify(s));
+  // The hub away: the copy on this device paints first.
+  w.down = true;
+  await page.reload();
+  await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+  await page.waitForTimeout(300);
+  s = await ds(page);
+  check(s.running && s.start === 'Text a friend' && s.meta === 'Running since 12:40, started in Day', 'dread: the last answer paints with the hub away: ' + JSON.stringify(s));
+  await ctx.close();
+
+  // A timer started in To-do, rated 5, with no level on: Start with holds it, Today leaves it out.
+  {
+    const tw = dworld({ level: null, running: { task: 'task00000009', name: 'Call the dentist', section: 'today', startedAt: iso('09:14'), dread: 5, level: null, source: 'todo', mins: 226 } });
+    const t = await openD(tw, laptop);
+    s = await ds(t.page);
+    check(s.running && s.start === 'Call the dentist' && s.meta === 'Running since 09:14, started in To-do' && s.chips.join() === '1,2,3,4,5*' && s.quiet.join() === 'Skip,Stop' && !s.acts.length,
+      'dread: a timer from To-do holds Start with, its 5 checked: ' + JSON.stringify(s));
+    check(s.tasks.join('|') === 'Email the landlord about the heating|Book the train', 'dread: Today leaves the running task out: ' + s.tasks);
+    await t.page.locator('#start').screenshot({ path: file('dread-pc-todo') });
+    await t.page.screenshot({ path: file('dread-pc'), fullPage: true });
+    // Stopped in To-do: the next read shows the first Today task again.
+    tw.running = null;
+    await t.page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await t.page.waitForTimeout(450);
+    s = await ds(t.page);
+    check(!s.running && s.start === 'Email the landlord about the heating' && !s.acts.length && !s.q, 'dread: no timer and no level, Start with as before: ' + JSON.stringify(s));
+    await t.ctx.close();
+  }
+  // The minute poll: a start on the phone shows on the PC within a minute.
+  {
+    const mw = dworld();
+    const m = await openD(mw, laptop, 'install');
+    const before = mw.gets;
+    mw.running = { task: 'task00000001', name: 'Return the lamp', section: 'today', startedAt: iso('12:59'), dread: 3, level: 'drained', source: 'todo', mins: 1 };
+    await m.page.clock.runFor(61000);
+    await m.page.waitForTimeout(300);
+    s = await ds(m.page);
+    check(mw.gets > before && s.running && s.meta === 'Running since 12:59, started in To-do' && s.chips.join() === '1,2,3*,4,5', 'dread: read again within a minute: ' + JSON.stringify({ gets: mw.gets - before, meta: s.meta }));
+    await m.ctx.close();
+  }
+  // The phone: the five numbers fill the strip, Skip and Stop under them, nothing scrolls sideways.
+  {
+    const pw = dworld();
+    const p = await openD(pw, phone);
+    await tap(p.page, '[data-dread="start"]');
+    await tap(p.page, '#startDread [data-rate="5"]');
+    s = await ds(p.page);
+    const geo = await p.page.evaluate(() => {
+      const r = (el) => el.getBoundingClientRect();
+      const chips = [...document.querySelectorAll('#startDread .dread-chip')].map(r);
+      const row = r(document.querySelector('#startDread .dread-row'));
+      return { first: Math.round(chips[0].left - row.left), last: Math.round(row.right - chips[4].right), stop: Math.round(row.right - r(document.querySelector('[data-dread="stop"]')).right),
+        under: r(document.querySelector('[data-dread="skip"]')).top >= chips[0].bottom };
+    });
+    check(s.running && s.chips.join() === '1,2,3,4,5*' && s.chipH.every((x) => x >= 44) && !s.overflow, 'dread phone: running, 44 px, no sideways scroll: ' + JSON.stringify(s));
+    check(geo.first === 0 && geo.last === 0 && geo.stop === 0 && geo.under, 'dread phone: the numbers span the strip, Skip and Stop under them, Stop on the right: ' + JSON.stringify(geo));
+    await p.page.screenshot({ path: file('dread-phone'), fullPage: true });
+    await p.page.locator('#start').screenshot({ path: file('dread-phone-running') });
+    await tap(p.page, '#startDread [data-dread="stop"]');
+    s = await ds(p.page);
+    check(!s.running && s.acts.join() === 'Start,Not this one,Surprise me' && !s.overflow, 'dread phone: Stop goes back to the pick: ' + JSON.stringify(s));
+    await p.page.locator('#start').screenshot({ path: file('dread-phone-pick') });
+    await p.ctx.close();
+  }
+  check(!logs.some((l) => /Return the lamp|Text a friend|Call the dentist/.test(l)), 'dread: no task names in the console: ' + logs.length + ' lines');
 }
 
 // Waiting on (paul-hub src/waiting.js, mocked like the real routes): the Chases due tile, the card's
