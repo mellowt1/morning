@@ -6,7 +6,7 @@
  * while open. All times are shown in The Hague's time, whatever the device says.
  *
  * Layout: a greeting, the date with the sun as its full stop, one sentence about the day,
- * then the cards. Start with (the loudest thing), Today (fact tiles, the next three to-dos),
+ * then the cards. Start with (the loudest thing), Time to decide (a task passed on 5+ times), Today (fact tiles, the next three to-dos),
  * Waiting on, Read for you, the week (PC), Projects, Arsenal, Lately and Hiscores. (Desk moved into To-do, 2026-10-19.)
  *
  * Motion ("Alive", approved 27 Sept 2026 through the prototype): the clock rolls on the
@@ -469,6 +469,356 @@
     all[(all.indexOf(chip) + step + all.length) % all.length].focus();
   });
 
+  /* ---------- Time to decide (Archive, approved 2026-10-22: Direction D, plain) ----------
+   * The hub (paul-hub src/archive.js) lists the tasks passed on 5 or more times, most first. The card
+   * shows the first one only, with "Passed on N times": Do it now (the Dread meter's Start, then the
+   * running strip as today), Hand it off (a Waiting on item with handoff: true; Morning cannot tick a
+   * task, so the task stays in To-do and this screen stops asking about it), Archive (an optional note
+   * of up to 80 characters; the task leaves the list) and Later (hidden until the next skip). Read with
+   * the energy level, every minute and on return; the last answer is kept on this device.
+   * "Archived (N)" opens the ledger, where Restore puts a task back in Soon. Task names and notes
+   * never go to the console. */
+  const AKEY = 'morning.archive.' + code;
+  const HKEY = 'morning.handed.' + code;
+  const NOTE_MAX = 80;
+  let arch = store.get(AKEY); // { at, data: { due, archived, limit } }
+  let handed = store.get(HKEY) || {}; // task id -> when it was handed off on this device
+  const aGone = new Set(); // later or archived here: off the card until the hub agrees
+  let aBusy = false; // a request is out: the buttons send nothing
+  let aSeq = 0; // a poll that left before a tap's request is thrown away
+  let aMode = ''; // '' | 'archive' | 'hand': the panel that is open
+  let aTask = ''; // the task the open panel (and its draft) belongs to
+  let aNames = null; // the last names used in Waiting on, from the hub, once per page
+  const dh = { channel: 'email', days: 7 }; // Paul's defaults (2026-10-21)
+
+  function applyArchive(d) {
+    if (!d || typeof d !== 'object' || d.error || !Array.isArray(d.due)) return;
+    const due = d.due.filter((x) => x && typeof x.task === 'string' && typeof x.name === 'string' && x.name);
+    arch = { at: Date.now(), data: { due, archived: Math.max(0, Number(d.archived) || 0), limit: Number(d.limit) || 5 } };
+    store.set(AKEY, arch);
+    // Once the hub stops listing a task (ticked in To-do, archived, a Later it took), forget it here.
+    const ids = new Set(due.map((x) => x.task));
+    for (const id of [...aGone]) if (!ids.has(id)) aGone.delete(id);
+    let changed = false;
+    for (const id of Object.keys(handed)) if (!ids.has(id) || Date.now() - handed[id] > 30 * 864e5) { delete handed[id]; changed = true; }
+    if (changed) store.set(HKEY, handed);
+  }
+
+  /* The tasks to decide on, the hub's order; not one acted on here, nor the one a timer runs on. */
+  function decideList(now = Date.now()) {
+    const d = arch && arch.data;
+    if (!d) return [];
+    const run = dreadRunning(now);
+    return d.due.filter((x) => !aGone.has(x.task) && !handed[x.task] && !(run && run.task === x.task));
+  }
+  const archivedCount = () => (arch && arch.data ? arch.data.archived : 0);
+
+  async function archiveGet() {
+    if (aBusy || document.hidden) return;
+    const seq = ++aSeq;
+    try {
+      const r = await fetch(API + '/api/archive/' + code, { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (seq !== aSeq || aBusy) return;
+      applyArchive(d);
+      render();
+    } catch (e) { /* the hub is away: keep what is on screen */ }
+  }
+
+  /* A 404 means the task is already gone (or no longer archived): what was asked for has happened. */
+  async function archivePost(path, body) {
+    const r = await fetch(API + '/api/archive/' + code + '/' + path, {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ source: 'morning' }, body)),
+    });
+    if (!r.ok && r.status !== 404) throw new Error('status ' + r.status);
+    try { return await r.json(); } catch (e) { return {}; }
+  }
+
+  let aToastT = 0;
+  function decideToast(words) {
+    const el = $('decideToast');
+    clearTimeout(aToastT);
+    el.firstChild.textContent = words;
+    el.hidden = false;
+    aToastT = setTimeout(() => { el.hidden = true; render(); }, 6000);
+  }
+  function decideError(words) {
+    $('decideErr').textContent = words;
+    $('decideErr').hidden = !words;
+  }
+  function dhError(words) {
+    $('dhErr').textContent = words;
+    $('dhErr').hidden = !words;
+  }
+
+  /* Open a panel in place of the buttons, or close it (`back` puts the focus on the button that opened it). */
+  function decidePanel(mode, task, back = true) {
+    const was = aMode;
+    if (mode && task !== aTask) {
+      // A new task: the drafts start over.
+      $('decideArch').reset();
+      $('decideHand').reset();
+      dh.channel = 'email';
+      dh.days = 7;
+      dhSync();
+      dhError('');
+    }
+    aMode = mode;
+    if (mode) { aTask = task; clearTimeout(aToastT); $('decideToast').hidden = true; } // the last toast is old news
+    $('decideArch').hidden = mode !== 'archive';
+    $('decideHand').hidden = mode !== 'hand';
+    $('decideActs').hidden = !!mode;
+    for (const b of $('decideActs').querySelectorAll('[aria-expanded]')) b.setAttribute('aria-expanded', String(b.dataset.decide === mode));
+    if (mode === 'archive') $('daNote').focus();
+    else if (mode === 'hand') { dhNamesShow(); $('dhWho').focus(); }
+    else if (back && was) focusIn(`#decideActs [data-decide="${was === 'hand' ? 'hand' : 'archive'}"]`);
+  }
+
+  function dhSync() {
+    for (const seg of $('decideHand').querySelectorAll('[data-dh]')) {
+      for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(dh[seg.dataset.dh])));
+    }
+    const who = $('dhWho').value.trim().toLowerCase();
+    for (const b of $('dhNames').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.name.toLowerCase() === who));
+  }
+
+  /* Chips of the last names used: the hub's list once per page, or the names on Morning's Waiting on card. */
+  function dhNamesShow() {
+    const own = waitItems((waitOf(last && last.data) || {}).items).map((x) => x.who);
+    const names = [...new Set([...(aNames || []), ...own].map((n) => String(n).trim()).filter(Boolean))].slice(0, 6);
+    setHTML($('dhNames'), names.map((n) => `<button type="button" class="dh-name" data-name="${esc(n)}" aria-pressed="false">${esc(n)}</button>`).join(''));
+    $('dhNames').hidden = !names.length;
+    dhSync();
+    if (aNames) return;
+    aNames = [];
+    fetch(API + '/api/waiting/' + code, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d || !Array.isArray(d.names)) return;
+      aNames = d.names.filter((n) => typeof n === 'string');
+      if (aMode === 'hand') dhNamesShow();
+    }).catch(() => {});
+  }
+
+  function renderDecide(data, now) {
+    const box = $('decide');
+    const list = decideList(now.valueOf());
+    let x = list[0] || null;
+    // An open panel stays with its task while that task is still to decide on.
+    if (aMode) {
+      const held = list.find((t) => t.task === aTask);
+      if (held) x = held;
+      else decidePanel('', '', false);
+    }
+    box.hidden = !x && $('decideToast').hidden;
+    $('decideBody').hidden = !x;
+    const n = archivedCount();
+    $('archLink').hidden = !n;
+    $('archLink').textContent = `Archived (${n})`;
+    if (!x) { $('decidePassed').textContent = ''; return; }
+    box.dataset.task = x.task;
+    const passed = `Passed on ${x.skips} times`;
+    if ($('decidePassed').textContent !== passed) $('decidePassed').textContent = passed;
+    const name = cap(x.name);
+    const strip = $('decideStrip');
+    if (strip.firstChild.textContent !== name) strip.firstChild.textContent = name;
+    const meta = [SECTION_NAME[x.section] || cap(String(x.section || 'Soon'))];
+    // Today's tasks come with Morning's data: a date on the task shows too.
+    const t = data && ok(data.todos) ? data.todos.items.find((i) => taskName(i.text).name === name) : null;
+    if (t && taskName(t.text).due) meta.push(taskName(t.text).due);
+    strip.lastChild.textContent = meta.join(' · ');
+    for (const b of box.querySelectorAll('button[data-decide], #daSend, #dhSend')) b.disabled = aBusy;
+  }
+
+  /* Later, Archive and Hand it off take the task off this card at once; a failure brings it back. */
+  async function decideAct(kind) {
+    const task = aTask || $('decide').dataset.task;
+    const x = decideList().find((t) => t.task === task);
+    if (!x || aBusy) return;
+    aBusy = true;
+    aSeq++;
+    decideError('');
+    render();
+    let okay = false;
+    let words = '';
+    try {
+      if (kind === 'later') {
+        await archivePost('later', { task });
+        aGone.add(task);
+        words = 'Later. It comes back after the next skip.';
+      } else if (kind === 'archive') {
+        const note = $('daNote').value.replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX);
+        await archivePost('archive', note ? { task, note } : { task });
+        aGone.add(task);
+        if (arch && arch.data) { arch.data.archived++; store.set(AKEY, arch); }
+        words = 'Archived. Restore it from Archived if you need it back.';
+      } else {
+        words = await handOff(x);
+        if (!words) { aBusy = false; render(); return; } // the form says what went wrong
+      }
+      okay = true;
+    } catch (e) {
+      decideError('Couldn’t save that. Try again.');
+    }
+    aBusy = false;
+    if (okay) {
+      decidePanel('', '', false);
+      decideToast(words);
+    }
+    render();
+    if (okay) {
+      focusIn('#decideBody:not([hidden]) [data-decide="now"]', '#startLink');
+      if (kind !== 'later') load(); // the list (and Waiting on) changed
+      archiveGet();
+    }
+  }
+
+  /* Hand it off: a Waiting on item for the task, marked handoff. Returns the toast's words, or '' when
+   * the form shows an error instead. */
+  async function handOff(x) {
+    const who = $('dhWho').value.trim();
+    if (!who) {
+      $('dhWho').setAttribute('aria-invalid', 'true');
+      dhError('Who is needed.');
+      $('dhWho').focus();
+      return '';
+    }
+    $('dhWho').removeAttribute('aria-invalid');
+    dhError('');
+    const body = { who, what: x.name, channel: dh.channel, chaseDays: dh.days, sourceItem: x.task, handoff: true, source: 'morning' };
+    let r;
+    try {
+      r = await fetch(API + '/api/waiting/' + code, {
+        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+    } catch (e) {
+      dhError('Can’t reach the hub. Nothing was handed off, try again.');
+      return '';
+    }
+    let out = null;
+    try { out = await r.json(); } catch (e) { /* not JSON */ }
+    if (r.status === 409) { dhError('This task is already in Waiting on.'); return ''; }
+    if (!r.ok || !out || !out.item) {
+      dhError(out && typeof out.error === 'string' && out.error ? `Not handed off: ${out.error}` : 'Not handed off. Try again.');
+      return '';
+    }
+    waitInsert(out.item);
+    handed[x.task] = Date.now();
+    store.set(HKEY, handed);
+    return `Handed off to ${who}. It is in Waiting on; tick the task off in To-do.`;
+  }
+
+  $('decide').addEventListener('click', (e) => {
+    const chip = e.target.closest('#dhNames button[data-name]');
+    if (chip) { $('dhWho').value = chip.dataset.name; $('dhWho').removeAttribute('aria-invalid'); dhError(''); dhSync(); return; }
+    const seg = e.target.closest('[data-dh] button');
+    if (seg) {
+      const k = seg.closest('[data-dh]').dataset.dh;
+      dh[k] = k === 'days' ? Number(seg.dataset.v) : seg.dataset.v;
+      dhSync();
+      return;
+    }
+    const b = e.target.closest('button[data-decide]');
+    if (!b || aBusy) return;
+    const act = b.dataset.decide;
+    const task = $('decide').dataset.task;
+    if (act === 'back') { decidePanel(''); return; }
+    if (act === 'archive' || act === 'hand') { decidePanel(act, task); return; }
+    if (act === 'later') { aTask = task; decideAct('later'); return; }
+    if (act === 'now' && task) {
+      // Do it now: the Dread meter's Start; the strip above then holds the task, running.
+      dSkipped = '';
+      decideError('');
+      dreadSend('/start', { task }, () => (dreadRunning() ? focusIn('#startDread [data-rate]', '#startLink') : decideError('Couldn’t start it. Try again.')));
+    }
+  });
+  $('dhWho').addEventListener('input', () => { if ($('dhWho').value.trim()) { $('dhWho').removeAttribute('aria-invalid'); dhError(''); } dhSync(); });
+  $('decideArch').addEventListener('submit', (e) => { e.preventDefault(); decideAct('archive'); });
+  $('decideHand').addEventListener('submit', (e) => { e.preventDefault(); decideAct('hand'); });
+  for (const f of ['decideArch', 'decideHand']) {
+    $(f).addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); decidePanel(''); } });
+  }
+
+  /* ---------- Archived: the ledger (a dialog) ---------- */
+  let ledger = null; // { items } once read, 'error' when the hub did not answer
+  const ledgerBusy = new Set();
+  let lgToastT = 0;
+  const lgDate = (ms) => (Number.isFinite(ms) ? dm(ymd(ms)) : '–');
+
+  function renderLedger() {
+    const box = $('ledgerBody');
+    if (ledger === null) { setHTML(box, emptyRow('Loading…')); return; }
+    if (ledger === 'error') { setHTML(box, retryRow('Can’t reach the hub.').replace('data-retry', 'data-ledger-retry')); return; }
+    const items = ledger.items;
+    if (!items.length) { setHTML(box, emptyRow('Nothing archived.')); return; }
+    const rows = items.map((x) => {
+      const name = esc(cap(x.name || 'A task'));
+      const busy = ledgerBusy.has(x.task) ? ' disabled' : '';
+      return `<tbody class="lg-item"><tr class="lg-row"><th scope="row" class="lg-name">${name}</th>` +
+        `<td class="lg-added" data-k="Added">${esc(lgDate(x.added))}</td><td class="lg-off" data-k="Off">${esc(lgDate(Date.parse(x.archived)))}</td>` +
+        `<td class="lg-skips" data-k="Skips">${esc(Number(x.skips) || 0)}</td>` +
+        `<td class="lg-act"><button type="button" class="pbtn pbtn-done" data-restore="${esc(x.task)}" aria-label="Restore: ${name}"${busy}>Restore</button></td></tr>` +
+        (x.note ? `<tr class="lg-note"><td colspan="5">${esc(x.note)}</td></tr>` : '') + '</tbody>';
+    }).join('');
+    setHTML(box, `<table class="lg"><thead><tr><th scope="col">Task</th><th scope="col">Added</th><th scope="col">Off</th><th scope="col">Skips</th>` +
+      `<th scope="col"><span class="sr">Restore</span></th></tr></thead>${rows}</table>`);
+  }
+
+  async function ledgerGet() {
+    try {
+      const r = await fetch(API + '/api/archive/' + code + '/list', { cache: 'no-store' });
+      if (!r.ok) throw new Error('status ' + r.status);
+      const d = await r.json();
+      ledger = { items: (Array.isArray(d.items) ? d.items : []).filter((x) => x && typeof x.task === 'string') };
+    } catch (e) {
+      ledger = 'error';
+    }
+    renderLedger();
+  }
+
+  function ledgerOpen() {
+    const dlg = $('ledger');
+    ledger = null;
+    $('ledgerToast').hidden = true;
+    renderLedger();
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    ledgerGet();
+  }
+
+  document.addEventListener('click', (e) => {
+    const open = e.target.closest('[data-ledger]');
+    if (open) { e.preventDefault(); ledgerOpen(); }
+  });
+  $('ledger').addEventListener('click', async (e) => {
+    if (e.target.closest('[data-ledger-close]')) { $('ledger').close(); return; }
+    if (e.target.closest('[data-ledger-retry]')) { ledger = null; renderLedger(); ledgerGet(); return; }
+    const b = e.target.closest('button[data-restore]');
+    if (!b || ledgerBusy.has(b.dataset.restore)) return;
+    const task = b.dataset.restore;
+    ledgerBusy.add(task);
+    renderLedger();
+    let words;
+    try {
+      await archivePost('restore', { task });
+      if (ledger && ledger.items) ledger.items = ledger.items.filter((x) => x.task !== task);
+      if (arch && arch.data) { arch.data.archived = Math.max(0, arch.data.archived - 1); store.set(AKEY, arch); }
+      words = 'Back in Soon.';
+    } catch (err) {
+      words = 'Couldn’t restore that. Try again.';
+    }
+    ledgerBusy.delete(task);
+    renderLedger();
+    const t = $('ledgerToast');
+    clearTimeout(lgToastT);
+    t.firstChild.textContent = words;
+    t.hidden = false;
+    lgToastT = setTimeout(() => { t.hidden = true; }, 6000);
+    focusIn('#ledgerBody [data-restore]', '#ledger [data-ledger-close]');
+    render();
+    if (words === 'Back in Soon.') { load(); archiveGet(); }
+  });
+  // The opener may have been rebuilt meanwhile: after the dialog's own focus return, find it again.
+  $('ledger').addEventListener('close', () => setTimeout(() => focusIn('#decide:not([hidden]) #archLink:not([hidden])', '#todayList [data-ledger]', '#startLink'), 0));
+
   /* ---------- 01 Start with: tapping it opens the to-do app ---------- */
   function renderStart(t, now) {
     const box = $('start');
@@ -723,6 +1073,9 @@
       // What was ticked off today stays in sight, struck through, so the card moves through the day.
       const won = t.doneToday && Array.isArray(t.doneToday.items) ? t.doneToday.items.slice(0, 3) : [];
       if (won.length) html += `<ul class="rows rows-done">${won.map((x) => `<li class="row task task-done"><span class="tick" aria-hidden="true"></span><span>${esc(taskName(x).name)}</span></li>`).join('')}</ul>`;
+      // The ledger's way in when Time to decide is not showing (the card has its own).
+      const n = archivedCount();
+      if (n && $('decide').hidden) html += `<button type="button" class="more-link arch-more" data-ledger>Archived (${n})</button>`;
     }
     setHTML($('todayList'), html);
   }
@@ -1278,6 +1631,7 @@
 
     renderEnergyWeek(w.energy);
     renderDreadWeek(w.dread && typeof w.dread === 'object' ? w.dread : null);
+    renderArchWeek(w.archive && typeof w.archive === 'object' ? w.archive : null);
     renderWaitWeek(w.waiting && typeof w.waiting === 'object' ? w.waiting : null, now);
     renderLessons(w);
 
@@ -1422,6 +1776,31 @@
     }).join(''));
     const foot = `From ${plural(started, 'started task', 'started tasks')}. Skipped this week: ${skipped} (Not this one, snoozes, moved out of Today).`;
     if ($('wkDreadFoot').textContent !== foot) $('wkDreadFoot').textContent = foot;
+  }
+
+  /* Let go this week (paul-hub src/archive.js, archiveWeek): what was archived (name, how often it was
+   * passed on, the note) and handed off (to whom, when to check back), and how many came back. An empty
+   * section is left out; the card is hidden when the block is null or all three are empty. */
+  function renderArchWeek(a) {
+    const archived = a && Array.isArray(a.archived) ? a.archived.filter((x) => x && x.name) : [];
+    const handedOff = a && Array.isArray(a.handedOff) ? a.handedOff.filter((x) => x && x.name && x.who) : [];
+    const restored = a ? Math.max(0, Number(a.restored) || 0) : 0;
+    $('wkArchCard').hidden = !a || (!archived.length && !handedOff.length && !restored);
+    if ($('wkArchCard').hidden) return;
+    const row = (name, mid, end, quiet) => `<li class="lw"><span class="lw-name">${esc(cap(name))}</span>` +
+      `<span class="lw-mid">${esc(mid)}</span><span class="lw-end${quiet ? ' lw-quiet' : ''}">${esc(end)}</span></li>`;
+    let html = '';
+    if (archived.length) {
+      html += '<span class="dr-h" role="heading" aria-level="3">Archived</span><ul class="lw-list">' +
+        archived.map((x) => row(x.name, `passed on ${Number(x.skips) || 0}`, x.note || 'no note', !x.note)).join('') + '</ul>';
+    }
+    if (handedOff.length) {
+      html += '<span class="dr-h" role="heading" aria-level="3">Handed off</span><ul class="lw-list">' +
+        handedOff.map((x) => row(x.name, 'to ' + x.who, isDate(x.nextChase) ? 'check back ' + shortDate(x.nextChase) : 'closed', !isDate(x.nextChase))).join('') + '</ul>';
+    }
+    setHTML($('wkArch'), html);
+    const foot = `Brought back this week: ${restored}.`;
+    if ($('wkArchFoot').textContent !== foot) $('wkArchFoot').textContent = foot;
   }
 
   /* Waiting on (Sundays): every open item, oldest first, with Answered and Snooze
@@ -2026,6 +2405,7 @@
     findFresh(data, now);
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
     renderStart(data && data.todos, now);
+    renderDecide(data, now);
     renderToday(data, now);
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos, data && data.links);
@@ -2181,13 +2561,14 @@
   load();
   energyGet();
   dreadGet();
+  archiveGet();
   tick();
 
   // Data every ten minutes and on return. Hiding the page is "the last look".
   setInterval(() => { if (!document.hidden) load(); }, REFRESH);
   // The energy level and the dread timer every minute and on return (Paul's choice), so a tap in
   // To-do or Day shows here.
-  setInterval(() => { if (!document.hidden) { energyGet(); dreadGet(); } }, ENERGY_EVERY);
+  setInterval(() => { if (!document.hidden) { energyGet(); dreadGet(); archiveGet(); } }, ENERGY_EVERY);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { saveSeen(); return; }
     visibleSince = Date.now();
@@ -2196,6 +2577,7 @@
     load();
     energyGet();
     dreadGet();
+    archiveGet();
     tick();
   });
   addEventListener('pagehide', saveSeen);

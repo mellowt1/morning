@@ -86,6 +86,14 @@
       <div id="wkDreadLevels" class="dr-levels"></div>
       <p id="wkDreadFoot" class="dr-foot"></p>
     </section>
+    <!-- Let go this week: what was archived and handed off on purpose, and how many came back
+         (data.week.archive, paul-hub src/archive.js). Hidden when null or all three are empty. -->
+    <section id="wkArchCard" class="card card-para card-arch" aria-label="Let go this week" style="--i:0" hidden>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">Let go this week</span></div>
+      <p class="dr-sub">Taken off the list on purpose.</p>
+      <div id="wkArch"></div>
+      <p id="wkArchFoot" class="dr-foot"></p>
+    </section>
     <!-- Waiting on: everything still open, oldest first, with Answered and Snooze (data.week.waiting). Hidden with nothing open and nothing this week. -->
     <section id="wkWaitCard" class="card card-para card-wait-wk" aria-label="Waiting on" style="--i:0" hidden>
       <div class="card-head"><span class="num" role="heading" aria-level="2">Waiting on</span><span id="wkWaitNote" class="card-note"></span></div>
@@ -138,6 +146,60 @@
         </a>
         <div id="startActs" class="start-acts" hidden></div>
         <div id="startDread" class="start-dread" hidden></div>
+      </section>
+
+      <!-- Time to decide (Archive, paul-hub src/archive.js): a task passed on 5 or more times, the first
+           one only. Do it now starts the Dread meter, Hand it off makes a Waiting on item, Archive takes it
+           off the list (with an optional note), Later hides it until the next skip. The two forms are
+           plain DOM that render() never rebuilds, so a draft survives the minute poll. -->
+      <section id="decide" class="card card-decide" aria-labelledby="decideH" style="--i:0" hidden>
+        <div class="card-head">
+          <span id="decideH" class="num" role="heading" aria-level="2">Time to decide</span>
+          <span id="decidePassed" class="card-note decide-passed"></span>
+        </div>
+        <div id="decideBody" class="decide-body">
+          <div id="decideStrip" class="decide-strip"><span class="decide-name"></span><span class="decide-meta"></span></div>
+          <div id="decideActs" class="decide-acts" role="group" aria-labelledby="decideH" aria-describedby="decideStrip">
+            <button type="button" class="pbtn pbtn-today" data-decide="now">Do it now</button>
+            <button type="button" class="pbtn pbtn-done" data-decide="hand" aria-expanded="false" aria-controls="decideHand">Hand it off</button>
+            <button type="button" class="pbtn pbtn-done" data-decide="archive" aria-expanded="false" aria-controls="decideArch">Archive</button>
+            <button type="button" class="dread-quiet decide-later" data-decide="later">Later</button>
+          </div>
+          <form id="decideArch" class="wait-form decide-form" aria-label="Archive this task" novalidate hidden>
+            <label class="wf-row"><span class="wf-k">A note, if you want one</span><input id="daNote" class="wf-in" name="note" maxlength="80" autocomplete="off" placeholder="Optional"></label>
+            <div class="wf-acts">
+              <button type="submit" id="daSend" class="pbtn pbtn-today">Archive</button>
+              <button type="button" class="pbtn pbtn-drop" data-decide="back">Back</button>
+            </div>
+          </form>
+          <form id="decideHand" class="wait-form decide-form" aria-label="Hand this task off" novalidate hidden>
+            <label class="wf-row"><span class="wf-k">Who</span><input id="dhWho" class="wf-in" name="who" maxlength="60" autocomplete="off" required></label>
+            <div id="dhNames" class="dh-names" role="group" aria-label="Recent names" hidden></div>
+            <div class="wf-row" role="group" aria-labelledby="dhHowK"><span id="dhHowK" class="wf-k">How</span>
+              <div class="seg wf-seg" data-dh="channel">
+                <button type="button" data-v="email" aria-pressed="true">Email</button>
+                <button type="button" data-v="phone" aria-pressed="false">Phone</button>
+                <button type="button" data-v="letter" aria-pressed="false">Letter</button>
+                <button type="button" data-v="in-person" aria-pressed="false">In person</button>
+              </div>
+            </div>
+            <div class="wf-row" role="group" aria-labelledby="dhDaysK"><span id="dhDaysK" class="wf-k">Chase after</span>
+              <div class="seg wf-seg" data-dh="days">
+                <button type="button" data-v="3" aria-pressed="false">3 days</button>
+                <button type="button" data-v="7" aria-pressed="true">7 days</button>
+                <button type="button" data-v="14" aria-pressed="false">14 days</button>
+              </div>
+            </div>
+            <p id="dhErr" class="wf-err" role="alert" hidden></p>
+            <div class="wf-acts">
+              <button type="submit" id="dhSend" class="pbtn pbtn-today">Hand it off</button>
+              <button type="button" class="pbtn pbtn-drop" data-decide="back">Back</button>
+            </div>
+          </form>
+        </div>
+        <p id="decideErr" class="wf-err decide-err" role="alert" hidden></p>
+        <div id="decideToast" class="park-toast decide-toast" role="status" hidden><span></span></div>
+        <button type="button" id="archLink" class="decide-link" data-ledger hidden></button>
       </section>
 
       <section class="card card-today" aria-label="Today" style="--i:1">
@@ -269,6 +331,18 @@
   <footer class="foot">
     <span id="asOf" class="as-of"></span>
   </footer>
+
+  <!-- Archived: the ledger of tasks taken off the list (GET /api/archive/:code/list), newest first,
+       with Restore (back in Soon). Opens from "Archived (N)". -->
+  <dialog id="ledger" class="ledger" aria-labelledby="ledgerH">
+    <div class="ledger-head">
+      <h2 id="ledgerH" class="ledger-title">Archived</h2>
+      <button type="button" class="pbtn pbtn-done" data-ledger-close>Close</button>
+    </div>
+    <p class="ledger-sub">Taken off the list on purpose. Restore puts a task back in Soon.</p>
+    <div id="ledgerToast" class="park-toast" role="status" hidden><span></span></div>
+    <div id="ledgerBody"></div>
+  </dialog>
 </div>
 
 <script src="arsenal.js"></script>

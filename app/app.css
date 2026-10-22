@@ -1016,3 +1016,96 @@ button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-
   .dr-took { grid-area: took; }
   .dr-tile { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; }
 }
+
+/* ---------- Time to decide (Archive, approved 2026-10-22: Direction D, plain) ----------
+ * A rack card under Start with: the heading and "Passed on N times", the task as a paper strip with
+ * a neutral holder edge, then Do it now (green), Hand it off, Archive and a quiet Later on the right.
+ * Archive and Hand it off open a paper form in place of the buttons. "Archived (N)" opens the ledger. */
+.card-decide { padding-bottom: 14px; gap: 10px; }
+.card-decide .card-head { align-items: baseline; }
+.card-decide .card-head .num { padding-bottom: 0; }
+.decide-passed { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.decide-body { display: flex; flex-direction: column; gap: 10px; }
+.decide-body[hidden], .card-decide [hidden] { display: none; }
+.decide-strip { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: var(--paper); color: var(--paper-ink); border-radius: 2px; border-left: 8px solid var(--h-task); box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+.decide-name { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 26px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.decide-meta { font-size: 15px; font-weight: 500; color: var(--paper-2); }
+.decide-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.decide-acts .pbtn:disabled, .decide-form .pbtn:disabled { opacity: .6; cursor: progress; }
+.decide-later { margin-left: auto; color: var(--muted); }
+.decide-later:hover { color: var(--ink); }
+.decide-later:focus-visible, .decide-link:focus-visible, .dh-name:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.decide-form { margin: 0; }
+.card-decide .decide-form .wf-row { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.card-decide .decide-form .wf-err, .card-decide .decide-form .wf-acts { margin-left: 0; }
+.decide-err { margin: 0; }
+.decide-toast { margin: 0; }
+.dh-names { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.dh-name { min-height: 44px; padding: 0 14px; border: 1px solid var(--btn-rule); border-radius: 3px; background: var(--paper); color: var(--paper-ink); font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.dh-name[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.decide-link, .arch-more { align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; }
+.decide-link { margin: -4px 0 -10px; }
+.decide-link:hover, .arch-more:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+@media (min-width: 720px) {
+  .decide-name { font-size: 30px; }
+}
+@media (min-width: 720px) and (pointer: fine) {
+  .dh-name { min-height: 36px; }
+  .decide-link, .arch-more { min-height: 36px; }
+}
+@media (max-width: 719.98px) {
+  #decide { order: 1; }
+  /* The three buttons and Later on one line at 375 px. */
+  .decide-acts { gap: 6px; }
+  .decide-acts .pbtn { padding: 0 12px; }
+  .decide-later { padding: 0 6px; }
+}
+
+/* The ledger: a dialog over the page, Task | Added | Off | Skips | Restore, the note under its row.
+ * On the phone each task is a block: the name, then Added, Off and Skips on one line, Restore right. */
+.ledger { width: min(760px, calc(100vw - 32px)); max-height: min(86vh, 900px); padding: 22px 24px 18px; border: 0; border-radius: 6px; background: var(--card); color: var(--ink); box-shadow: 0 20px 50px rgba(20, 28, 38, .35); }
+.ledger::backdrop { background: rgba(21, 24, 28, .45); }
+.ledger-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.ledger-title { margin: 0; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 28px; font-weight: 700; }
+.ledger-sub { margin: 4px 0 12px; font-size: 15px; color: var(--muted); }
+.ledger .park-toast { margin: 0 0 10px; }
+.lg { width: 100%; border-collapse: collapse; font-size: 16px; }
+.lg thead th { padding: 0 10px 8px 0; font-size: 14px; font-weight: 600; color: var(--muted); text-align: left; border-bottom: 1px solid var(--rule); }
+.lg-item + .lg-item, .lg-item:first-of-type { border-top: 1px solid var(--rule); }
+.lg-row > * { padding: 10px 10px 10px 0; text-align: left; vertical-align: middle; }
+.lg-name { font-weight: 600; overflow-wrap: anywhere; }
+.lg-added, .lg-off, .lg-skips { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 18px; font-weight: 600; white-space: nowrap; }
+.lg-added, .lg-off { color: var(--muted); }
+.lg-act { padding-right: 0; text-align: right; }
+.lg-note td { padding: 0 0 12px; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
+.lg-row:has(+ .lg-note) > * { padding-bottom: 4px; }
+.lg-act .pbtn:disabled { opacity: .6; cursor: progress; }
+@media (max-width: 719.98px) {
+  .ledger { padding: 18px 16px 14px; max-height: 88vh; }
+  .lg, .lg tbody, .lg tr, .lg td, .lg th { display: block; }
+  .lg thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .lg-item { padding: 10px 0; }
+  .lg .lg-row { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr); grid-template-areas: "name name name name" "added off skips act"; align-items: center; column-gap: 14px; row-gap: 2px; }
+  .lg-row > * { padding: 0; }
+  .lg-row:has(+ .lg-note) > * { padding-bottom: 0; }
+  .lg-name { grid-area: name; }
+  .lg-added { grid-area: added; } .lg-off { grid-area: off; } .lg-skips { grid-area: skips; }
+  .lg-act { grid-area: act; justify-self: end; }
+  .lg-row td[data-k]::before { content: attr(data-k) " "; font-family: 'Barlow', sans-serif; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .lg-note td { padding: 4px 0 0; }
+}
+
+/* Let go this week (Sundays): name | passed on N | the note; name | to who | check back day. */
+.lw-list { margin: 0; padding: 0; list-style: none; }
+.lw { display: grid; grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr); gap: 14px; align-items: center; min-height: 48px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.lw-name { font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
+.lw-mid { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 19px; font-weight: 600; white-space: nowrap; }
+.lw-end { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.lw-quiet { color: var(--muted); }
+.card-arch .dr-h:first-of-type { margin-top: 6px; }
+@media (max-width: 719.98px) {
+  .lw { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "name name" "mid end"; row-gap: 2px; column-gap: 16px; padding: 10px 0; }
+  .lw-name { grid-area: name; }
+  .lw-mid { grid-area: mid; }
+  .lw-end { grid-area: end; }
+}
