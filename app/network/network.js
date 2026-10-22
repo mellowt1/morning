@@ -29,7 +29,7 @@
   if (!CODE_RE.test(code)) { $('app').hidden = true; $('nocode').hidden = false; return; }
   $('back').href = '../?c=' + encodeURIComponent(code);
   const BASE = API + '/api/network/' + code;
-  const TODO = '../todo/?c=' + encodeURIComponent(code);
+  const TODO = '../../todo/?c=' + encodeURIComponent(code); // from /morning/network/ to /todo/
 
   /* ---------- Sectors: the zone colours are the approved ones; Other is the neutral fifth ---------- */
   const SEC = {

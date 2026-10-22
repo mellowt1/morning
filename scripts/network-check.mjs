@@ -432,7 +432,7 @@ const zoneOf = (s, sector) => s.zones[ORDER.indexOf(sector)];
   s = await snap(page);
   const rp = lastPost(hub);
   check(rp.path === `/person/${id('anna')}/reach` && JSON.stringify(rp.body) === '{"section":"today","energy":"wired"}', 'reach: posts the section and energy picked: ' + JSON.stringify(rp.body));
-  check(!s.dialog && s.card.state.join() === 'Reach out task in To-do' && s.card.stateHref === '../todo/?c=' + CODE && s.toast === 'Reach out to Anna de Vries is in To-do · Today', 'reach: the card shows the task in To-do: ' + s.card.state);
+  check(!s.dialog && s.card.state.join() === 'Reach out task in To-do' && s.card.stateHref === '../../todo/?c=' + CODE && s.toast === 'Reach out to Anna de Vries is in To-do · Today', 'reach: the card shows the task in To-do: ' + s.card.state);
   await page.click('[data-act="reach"]');
   await wait(page);
   await page.click('#reachGo');

@@ -743,7 +743,7 @@
   async function addStep(g, text, focus, typed = true) {
     const t = str(text, 200);
     if (!t) { focusEl('#stepIn'); return; }
-    await gapAct(g, '/step', { text: t }, { focus, after: () => { if (typed) drafts.step[g.key] = ''; } });
+    await gapAct(g, '/step', typed ? { text: t } : { text: t, source: 'claude' }, { focus, after: () => { if (typed) drafts.step[g.key] = ''; } });
   }
   async function askOptions(g) {
     if (thinking.has(g.key)) return;
