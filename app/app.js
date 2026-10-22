@@ -962,7 +962,7 @@
   function olDone(words) {
     const el = $('olDone');
     clearTimeout(olDoneT);
-    setHTML(el, `${esc(words)} <a href="${esc(pastHref())}">Past weeks <span aria-hidden="true">›</span></a>.`);
+    setHTML(el, `${esc(words)} <a href="${esc(pastHref())}">Past weeks</a>.`);
     el.hidden = false;
     olDoneT = setTimeout(() => {
       const had = $('olLine').contains(document.activeElement);
