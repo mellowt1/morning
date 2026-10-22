@@ -18,7 +18,10 @@ let failed = false;
 let passes = 0, fails = 0;
 const check = (ok, what) => { if (!ok) { fails++; failed = true; console.error('FAIL:', what); } else { passes++; console.log('ok:', what); } };
 
-function world(now, empty, dreadOver, archOver) {
+const ORACLE_Q = 'You flagged "Book the flights" for this week twice and it is still open. What is stopping you?';
+const ORACLE_ROW = { week: '2026-10-12', label: 'Week 42', question: ORACLE_Q, state: 'open', answer: null, askedAt: '2026-10-18T04:05:00.000Z', answeredAt: null };
+
+function world(now, empty, dreadOver, archOver, oracleOver) {
   const quiet = empty ? [] : [
     { id: 'quiet0000001', text: 'Cancel the old phone contract', section: 'soon', days: 31 },
     { id: 'quiet0000002', text: 'Find a tutor for the evening class', section: 'someday', days: 22 },
@@ -54,7 +57,10 @@ function world(now, empty, dreadOver, archOver) {
     handedOff: [{ name: 'Fix the bike light', who: 'Alex', nextChase: '2026-10-25' }, { name: 'Write to the council', who: 'The landlord', nextChase: null }],
     restored: 1,
   };
+  // The Oracle: this week's question (paul-hub src/oracle.js), answered or put aside through its own routes.
+  const oracleRow = oracleOver !== undefined ? structuredClone(oracleOver) : empty ? null : structuredClone(ORACLE_ROW);
   const week = () => ({
+    oracle: structuredClone(oracleRow),
     archive: structuredClone(archWeek),
     dread: structuredClone(dreadWeek),
     waiting: waitWeek(),
@@ -106,6 +112,18 @@ function world(now, empty, dreadOver, archOver) {
   return {
     posts: [],
     lessonPosts: [],
+    oraclePosts: [],
+    oracleStatus: 0,
+    oracleGets: 0,
+    oracle(sub, body) {
+      if (!sub) { this.oracleGets++; return { json: { current: oracleRow && oracleRow.question && oracleRow.state === 'open' ? structuredClone(oracleRow) : null } }; }
+      this.oraclePosts.push({ sub, body });
+      if (this.oracleStatus) return { status: this.oracleStatus, json: { error: 'already answered' } };
+      if (!oracleRow || body.week !== oracleRow.week) return { status: 404, json: { error: 'no question that week' } };
+      if (sub === 'answer') Object.assign(oracleRow, { state: 'answered', answer: body.answer, answeredAt: new Date(now).toISOString() });
+      else Object.assign(oracleRow, { state: 'aside', answeredAt: new Date(now).toISOString() });
+      return { json: { week: structuredClone(oracleRow) } };
+    },
     waitPosts: [],
     wait(url, body) {
       this.waitPosts.push({ url, body });
@@ -156,8 +174,9 @@ function world(now, empty, dreadOver, archOver) {
 }
 
 const browser = await chromium.launch();
-async function open(viewport, { dark = false, now = SUNDAY, empty = false, dread, archive } = {}) {
-  const w = world(now, empty, dread, archive);
+const consoleLines = [];
+async function open(viewport, { dark = false, now = SUNDAY, empty = false, dread, archive, oracle } = {}) {
+  const w = world(now, empty, dread, archive, oracle);
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700, colorScheme: dark ? 'dark' : 'light' });
   const page = await ctx.newPage();
   const errors = [];
@@ -179,6 +198,16 @@ async function open(viewport, { dark = false, now = SUNDAY, empty = false, dread
     await new Promise((ok) => setTimeout(ok, 120)); // network time, so a double tap lands while the first is out
     return r.fulfill({ status: out.status || 200, json: out.json, headers: h });
   });
+  await page.route('**/api/oracle/**', async (r) => {
+    const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+    const q = r.request();
+    if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+    const sub = new URL(q.url()).pathname.split('/').slice(4)[0] || '';
+    const out = w.oracle(sub, q.method() === 'POST' ? q.postDataJSON() : null);
+    if (q.method() === 'POST') await new Promise((ok) => setTimeout(ok, 120)); // so a double tap lands while the first is out
+    return r.fulfill({ status: out.status || 200, json: out.json, headers: h });
+  });
+  page.on('console', (m) => consoleLines.push(m.text()));
   await page.route('**/site.**espn.com/**', (r) => r.abort());
   await page.goto(BASE + '?c=' + CODE);
   await page.waitForFunction(() => document.querySelector('.js-say').textContent.length > 0);
@@ -194,7 +223,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet. 2 flagged tasks are still open.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'Your week|The mirror|Energy this week|Biggest lies this week|Let go this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': Your week, the mirror, energy, biggest lies, let go, waiting on, the lessons, then five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'One question about Week 42|Your week|The mirror|Energy this week|Biggest lies this week|Let go this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': the Oracle\'s question, Your week, the mirror, energy, biggest lies, let go, waiting on, the lessons, then five cards in order');
   // 02 Still this week: the flagged tasks still open, Keep for next week or Unflag (with Undo).
   check((await texts(page, '#wkFlag .park-what')).join('|') === 'Book the flights|Call the plumber', name + ': still this week lists the flagged tasks, clean names');
   check(await page.textContent('#wkFlagNote') === '2 left', name + ': still this week says 2 left');
@@ -406,6 +435,155 @@ for (const [name, viewport] of [['week-pc-archive-one', { width: 1440, height: 1
   const { page, ctx } = await open({ width: 390, height: 844 }, { dread: null });
   check(!(await shown(page, '#wkDreadCard')) && await shown(page, '#weekView'), 'dread null: no biggest lies card, the rest of the week shows');
   await ctx.close();
+}
+// The Oracle question on top of the Week view (paul-hub src/oracle.js, mocked like the real routes): the
+// heading and Past weeks, the question in large type, the box, Save answer (nothing empty, the POST body, a
+// double tap sends once) then "You said" with Change, Change and Escape, Not this week, a refusal, an answer
+// already on the hub, no card when null or without a question; Sunday's Today and Monday have the line.
+{
+  const ostate = (page) => page.evaluate(() => {
+    const vis = (el) => !!el && !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0;
+    const t = (sel) => { const el = document.querySelector(sel); return vis(el) ? el.textContent.replace(/\s+/g, ' ').trim() : ''; };
+    const card = document.getElementById('orCard');
+    const q = document.getElementById('orQ');
+    const ta = document.getElementById('orText');
+    const a = document.activeElement;
+    return {
+      shown: vis(card), first: [...document.querySelectorAll('#weekView > .card')].find(vis)?.id || '',
+      bg: getComputedStyle(card).backgroundColor,
+      head: t('#orH'), level: document.getElementById('orH').getAttribute('aria-level'), past: t('#orPast'), pastHref: document.getElementById('orPast').getAttribute('href'),
+      q: t('#orQ'), qSize: getComputedStyle(q).fontSize, qWeight: getComputedStyle(q).fontWeight, qMax: getComputedStyle(q).maxWidth,
+      form: vis(document.getElementById('orForm')), label: t('#orForm .or-label'), labelFor: document.querySelector('#orForm .or-label').htmlFor,
+      rows: ta.rows, max: ta.maxLength, ph: ta.placeholder, value: ta.value,
+      btns: [...document.querySelectorAll('#orForm button')].filter(vis).map((b) => b.textContent.trim()),
+      saveFill: getComputedStyle(document.getElementById('orSave')).backgroundColor,
+      said: t('#orSaidText'), saidShown: vis(document.getElementById('orSaid')), change: vis(document.getElementById('orChange')),
+      aside: t('#orAside'), err: t('#orErr'), invalid: ta.getAttribute('aria-invalid'),
+      targets: [...card.querySelectorAll('button, a')].filter(vis).map((b) => Math.round(b.getBoundingClientRect().height)),
+      line: vis(document.getElementById('olLine')), lineQ: t('#olQ'),
+      focus: a ? (a.id || a.textContent.trim()) : '',
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  const ANSWER = 'It was the only thing on Friday\nand I had slept well.';
+  for (const [name, viewport] of [['week-pc-oracle', { width: 1440, height: 1000 }], ['week-phone-oracle', { width: 390, height: 844 }]]) {
+    const pc = viewport.width >= 1100;
+    const { page, ctx, w, errors } = await open(viewport);
+    let s = await ostate(page);
+    check(s.shown && s.first === 'orCard' && s.bg === 'rgb(255, 255, 255)', name + ': a white card at the very top of the Week view: ' + JSON.stringify({ first: s.first, bg: s.bg }));
+    check(s.head === 'One question about Week 42' && s.level === '2' && s.past === 'Past weeks ›' && s.pastHref === 'oracle/?c=' + CODE,
+      name + ': the heading and Past weeks: ' + JSON.stringify({ head: s.head, past: s.past, href: s.pastHref }));
+    check(s.q === ORACLE_Q && s.qSize === (pc ? '30px' : '24px') && s.qWeight === '500' && s.qMax === '900px', name + ': the question in large type: ' + JSON.stringify({ size: s.qSize, weight: s.qWeight, max: s.qMax }));
+    check(s.form && s.label === 'Your answer' && s.labelFor === 'orText' && s.rows === 3 && s.max === 1000 && s.ph === 'A sentence or two is enough',
+      name + ': Your answer, 3 rows, 1000 characters, the placeholder: ' + JSON.stringify({ label: s.label, rows: s.rows, max: s.max, ph: s.ph }));
+    check(s.btns.join() === 'Save answer,Not this week' && s.saveFill === 'rgb(36, 127, 81)', name + ': Save answer (green) and Not this week: ' + JSON.stringify({ btns: s.btns, fill: s.saveFill }));
+    check(!s.line && !s.overflow && (pc || s.targets.every((x) => x >= 44)), name + ': no line over the Week view, nothing sideways, 44 px on the phone: ' + JSON.stringify({ line: s.line, targets: s.targets }));
+    await page.locator('#orCard').screenshot({ path: file(name + '-open') });
+    if (pc) await page.screenshot({ path: file(name), fullPage: true });
+    else await page.screenshot({ path: file(name) });
+    // Nothing written: nothing sent, the box says so and keeps the focus.
+    await page.click('#orSave');
+    await page.waitForTimeout(150);
+    s = await ostate(page);
+    check(!w.oraclePosts.length && s.err === 'Write a sentence first, or choose Not this week.' && s.focus === 'orText' && s.invalid === 'true', name + ': nothing written, nothing sent: ' + JSON.stringify({ err: s.err, focus: s.focus }));
+    // Save answer: one POST for a double tap, trimmed; then "You said" with Change, the box gone, the focus on the answer.
+    await page.fill('#orText', '  ' + ANSWER + '  ');
+    s = await ostate(page);
+    check(!s.err && s.invalid === null, name + ': typing clears the error');
+    await page.evaluate(() => { const b = document.getElementById('orSave'); b.click(); b.click(); });
+    await page.waitForTimeout(500);
+    s = await ostate(page);
+    check(w.oraclePosts.length === 1 && w.oraclePosts[0].sub === 'answer' && JSON.stringify(w.oraclePosts[0].body) === JSON.stringify({ week: '2026-10-12', answer: ANSWER, source: 'morning' }),
+      name + ': Save answer posts once: ' + JSON.stringify(w.oraclePosts));
+    check(s.saidShown && s.said === ANSWER.replace(/\s+/g, ' ') && s.change && !s.form && s.q === ORACLE_Q && s.focus === 'orSaid',
+      name + ': You said, with Change, the box gone: ' + JSON.stringify({ said: s.said, form: s.form, focus: s.focus }));
+    check(await page.$eval('#orSaid', (e) => e.innerText.startsWith('You said: It was the only thing on Friday\nand I had slept well.')), name + ': the answer keeps its line break');
+    await page.locator('#orCard').screenshot({ path: file(name + '-answered') });
+    // Change: the box again with the answer in it, Save answer and Cancel; Escape puts it back, the focus on Change.
+    await page.click('#orChange');
+    await page.waitForTimeout(100);
+    s = await ostate(page);
+    check(s.form && s.value === ANSWER && s.focus === 'orText' && s.btns.join() === 'Save answer,Cancel' && !s.saidShown && await page.getAttribute('#orChange', 'aria-expanded') === 'true',
+      name + ': Change opens the box with the answer: ' + JSON.stringify({ value: s.value, btns: s.btns, focus: s.focus }));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+    s = await ostate(page);
+    check(!s.form && s.saidShown && s.focus === 'orChange', name + ': Escape closes it, the focus back on Change: ' + JSON.stringify({ form: s.form, focus: s.focus }));
+    await page.click('#orChange');
+    await page.fill('#orText', 'Fewer plans that week.');
+    await page.click('#orSave');
+    await page.waitForTimeout(400);
+    s = await ostate(page);
+    check(w.oraclePosts.length === 2 && w.oraclePosts[1].body.answer === 'Fewer plans that week.' && s.said === 'Fewer plans that week.' && !s.form, name + ': a changed answer is saved: ' + JSON.stringify(w.oraclePosts[1]));
+    check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
+    await ctx.close();
+  }
+  // Not this week: the aside POST; the question stays with "Put aside.", no box.
+  for (const [name, viewport] of [['week-pc-oracle-aside', { width: 1440, height: 1000 }], ['week-phone-oracle-aside', { width: 390, height: 844 }]]) {
+    const { page, ctx, w, errors } = await open(viewport);
+    await page.fill('#orText', 'half a thought');
+    await page.click('#orAsideBtn');
+    await page.waitForTimeout(400);
+    const s = await ostate(page);
+    check(w.oraclePosts.length === 1 && w.oraclePosts[0].sub === 'aside' && JSON.stringify(w.oraclePosts[0].body) === JSON.stringify({ week: '2026-10-12', source: 'morning' }),
+      name + ': Not this week posts aside: ' + JSON.stringify(w.oraclePosts));
+    check(s.shown && s.q === ORACLE_Q && s.aside === 'Put aside.' && !s.form && !s.saidShown && s.focus === 'orAside', name + ': the question with Put aside., no box: ' + JSON.stringify({ aside: s.aside, form: s.form, focus: s.focus }));
+    await page.locator('#orCard').screenshot({ path: file(name) });
+    check(errors.length === 0, name + ': no page errors ' + errors.join('; '));
+    await ctx.close();
+  }
+  // A refusal (answered somewhere else meanwhile): the words show, nothing is lost.
+  {
+    const { page, ctx, w } = await open({ width: 1440, height: 1000 });
+    w.oracleStatus = 409;
+    await page.click('#orAsideBtn');
+    await page.waitForTimeout(400);
+    const s = await ostate(page);
+    check(s.err === 'This one is already answered.' && s.form && s.focus === 'orAsideBtn', 'oracle: a 409 says it is already answered: ' + JSON.stringify({ err: s.err, focus: s.focus }));
+    await ctx.close();
+  }
+  // Answered on the hub already: You said, no box. Put aside already: Put aside.
+  {
+    const { page, ctx } = await open({ width: 390, height: 844 }, { oracle: { ...ORACLE_ROW, state: 'answered', answer: 'The flights wait for the dates.', answeredAt: '2026-10-18T09:00:00.000Z' } });
+    const s = await ostate(page);
+    check(s.shown && s.said === 'The flights wait for the dates.' && s.change && !s.form && !s.aside, 'oracle: an answer from the hub shows as You said: ' + JSON.stringify(s));
+    await ctx.close();
+  }
+  {
+    const { page, ctx } = await open({ width: 390, height: 844 }, { oracle: { ...ORACLE_ROW, state: 'aside', answeredAt: '2026-10-18T09:00:00.000Z' } });
+    const s = await ostate(page);
+    check(s.shown && s.aside === 'Put aside.' && !s.form && !s.change, 'oracle: put aside on the hub shows Put aside.');
+    await ctx.close();
+  }
+  // No card when the block is null or has no question; the rest of the week shows.
+  for (const [what, oracle] of [['null', null], ['no question', { ...ORACLE_ROW, question: null }], ['an empty question', { ...ORACLE_ROW, question: '  ' }]]) {
+    const { page, ctx } = await open({ width: 390, height: 844 }, { oracle });
+    const s = await ostate(page);
+    check(!s.shown && s.first === 'wkParaCard' && !s.line, 'oracle ' + what + ': no card, Your week first, no line: ' + JSON.stringify({ shown: s.shown, first: s.first }));
+    await ctx.close();
+  }
+  // Sunday's Today: the line under the header has the open question; back on Week it goes.
+  {
+    const { page, ctx, w } = await open({ width: 1440, height: 1000 });
+    await page.click('#viewSwitch [data-view="today"]');
+    await page.waitForTimeout(100);
+    let s = await ostate(page);
+    check(s.line && s.lineQ === ORACLE_Q && w.oracleGets >= 1, 'oracle: Sunday\'s Today shows the line: ' + JSON.stringify({ line: s.line, gets: w.oracleGets }));
+    await page.click('#viewSwitch [data-view="week"]');
+    await page.waitForTimeout(100);
+    s = await ostate(page);
+    check(!s.line && s.shown, 'oracle: back on Week, the card and no line');
+    await ctx.close();
+  }
+  // Monday: the line, and no card.
+  {
+    const { page, ctx, errors } = await open({ width: 1440, height: 1000 }, { now: MONDAY });
+    const s = await ostate(page);
+    check(s.line && s.lineQ === ORACLE_Q && !s.shown, 'oracle: Monday has the line, no card');
+    check(errors.length === 0, 'oracle Monday: no page errors ' + errors.join('; '));
+    await ctx.close();
+  }
+  check(!consoleLines.some((x) => x.includes('Book the flights') || x.includes('slept well') || x.includes('Fewer plans')), 'oracle: no question or answer in the console: ' + consoleLines.length + ' lines');
 }
 {
   const { page, ctx, errors } = await open({ width: 1440, height: 1000 }, { now: MONDAY });
