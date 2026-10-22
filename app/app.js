@@ -704,7 +704,7 @@
     waitInsert(out.item);
     handed[x.task] = Date.now();
     store.set(HKEY, handed);
-    return `Handed off to ${who}. It is in Waiting on; tick the task off in To-do.`;
+    return `Handed off to ${who}. It is ticked off and in Waiting on.`;
   }
 
   $('decide').addEventListener('click', (e) => {

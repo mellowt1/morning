@@ -1217,7 +1217,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   s = await as(page);
   check(w.waitPosts.length === 1 && JSON.stringify(w.waitPosts[0]) === JSON.stringify({ who: 'Alex', what: 'Write to the council', channel: 'phone', chaseDays: 7, sourceItem: 'task00000023', handoff: true, source: 'morning' }),
     'decide: Hand it off posts once, handoff true with sourceItem: ' + JSON.stringify(w.waitPosts));
-  check(s.shown && !s.name && !s.acts.length && s.toast === 'Handed off to Alex. It is in Waiting on; tick the task off in To-do.' && s.focus === 'startLink',
+  check(s.shown && !s.name && !s.acts.length && s.toast === 'Handed off to Alex. It is ticked off and in Waiting on.' && s.focus === 'startLink',
     'decide: nothing left, the card keeps only the toast, focus on Start with: ' + JSON.stringify(s));
   await page.waitForTimeout(6200);
   s = await as(page);
