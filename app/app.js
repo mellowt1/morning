@@ -484,7 +484,8 @@
    * the desktop app opens: Paul's choice). Every Dread meter answer carries `offer` while a timer runs:
    * "Music for this?" at the foot of Start with, with Not now. Both come from answers Morning reads
    * anyway, so nothing polls for them. Playlists are set up in To-do only; Morning sends played and
-   * notnow and nothing else, and nothing plays by itself. Playlist names never go to the console. */
+   * notnow, and on Play also asks the hub to start the playlist through Spotify's Web API (paul-hub
+   * src/spotify.js, approved 2026-10-24). Nothing plays without a tap. Playlist names never go to the console. */
   const SPOTIFY = /^spotify:playlist:[A-Za-z0-9]{22}$/;
   const sGone = new Set(); // timers (their startedAt) whose offer was answered on this screen: hidden at once
 
@@ -520,24 +521,35 @@
     `${disc(12)}<span class="music-text">Music for this? <b>${esc(o.title)}</b><span class="sr">, plays in the Spotify app</span></span></a>` +
     `<button type="button" class="dread-quiet music-not" data-music="notnow" data-started="${esc(o.startedAt)}">Not now</button>`;
 
-  /* Play or Not now: one small POST that never holds the link up. keepalive, so it still goes while the
-   * Spotify app takes over; sent as plain text, so there is no preflight for a keepalive request to wait
-   * on (the hub reads the body as JSON whatever the type). */
-  function soundSend(path, body) {
+  /* One small POST to the hub that never holds the link up, and whose answer nobody waits for.
+   * keepalive, so it still goes while the Spotify app takes over; sent as plain text, so there is no
+   * preflight for a keepalive request to wait on (the hub reads the body as JSON whatever the type). */
+  function hubPost(path, body) {
     try {
-      fetch(API + '/api/soundtrack/' + code + '/' + path, {
-        method: 'POST', cache: 'no-store', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-        body: JSON.stringify(Object.assign({ source: 'morning' }, body)),
+      fetch(API + path, {
+        method: 'POST', cache: 'no-store', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(body),
       }).catch(() => {});
     } catch (e) { /* never in the way of the link */ }
+  }
+  const soundSend = (path, body) => hubPost('/api/soundtrack/' + code + '/' + path, Object.assign({ source: 'morning' }, body));
+
+  /* Which Spotify the hub should start the music on (paul-hub src/spotify.js): the phone's on an
+   * iPhone, iPad, iPod or Android (an iPad that calls itself a Mac gives itself away by its touch
+   * screen), the computer's everywhere else. */
+  function deviceKind() {
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod|Android/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'phone' : 'computer';
   }
 
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[data-play]');
     if (a) {
-      // The link opens Spotify by itself: no preventDefault here, ever.
+      // The link opens Spotify by itself: no preventDefault here, ever. At the same tap the hub is
+      // asked to really start the playlist on this kind of device (it waits for the app to come up).
       const level = LEVEL_NAME[a.dataset.level] ? a.dataset.level : null;
       if (!level) return;
+      const uri = a.getAttribute('href');
+      if (SPOTIFY.test(uri)) hubPost('/api/spotify/' + code + '/play', { uri, kind: deviceKind() });
       const offer = offerNow(dreadRunning());
       if (a.dataset.play === 'offer') soundSend('played', { level, startedAt: a.dataset.started, from: 'offer' });
       else soundSend('played', { level, from: 'dial' });
