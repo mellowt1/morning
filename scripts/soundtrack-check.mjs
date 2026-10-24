@@ -5,7 +5,9 @@
 // a timer runs, "Music for this?" at the foot of Start with, Play from it (from "offer" with startedAt)
 // and Not now (notnow with startedAt, hidden at once, before the hub answers); the offer follows a level
 // change and goes with no playlist; keyboard focus, 44 px, contrast, nothing moving, no names in the
-// console. Every value here is made up.
+// console. Every Play tap also asks the hub to really start the playlist (POST /api/spotify/:code/play,
+// paul-hub src/spotify.js) once, with the uri and the kind of device: "computer" on the PC, "phone" on an
+// iPhone and on an iPad that calls itself a Mac; Not now never does. Every value here is made up.
 //   PORT=8095 npm run serve, then: APP=http://localhost:8095/morning/ npm run soundtrack-check
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
@@ -53,7 +55,7 @@ const tasks = [
  * The offer stands while a timer runs, its level has a playlist, and neither Play nor Not now was
  * tapped for that timer (the hub's rule, made small). */
 function world({ level = null, running = null } = {}) {
-  const w = { level, running, posts: [], energyPosts: [], dreadPosts: [], gone: new Set(), gets: { energy: 0, dread: 0 }, hold: 0 };
+  const w = { level, running, posts: [], spotify: [], energyPosts: [], dreadPosts: [], gone: new Set(), gets: { energy: 0, dread: 0 }, hold: 0, spotifyAnswer: null };
   const h = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
   const play = () => (w.level && LISTS[w.level] ? { level: w.level, title: LISTS[w.level].title, url: 'https://open.spotify.com/playlist/' + LISTS[w.level].pid, uri: URI(w.level) } : null);
   const offer = () => { const p = play(); return w.running && p && !w.gone.has(w.running.startedAt) ? { ...p, startedAt: w.running.startedAt } : null; };
@@ -100,19 +102,36 @@ function world({ level = null, running = null } = {}) {
     if (w.hold) await new Promise((ok) => setTimeout(ok, w.hold)); // a slow hub: the page must not wait for it
     return r.fulfill({ json: { ok: true }, headers: h });
   };
+  // POST /api/spotify/:code/play (paul-hub src/spotify.js): the hub starts the playlist on that kind of device.
+  w.spot = async (r) => {
+    const q = r.request();
+    if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: h });
+    w.spotify.push({ path: new URL(q.url()).pathname, body: q.postDataJSON(), type: q.headers()['content-type'] || '' });
+    if (w.hold) await new Promise((ok) => setTimeout(ok, w.hold));
+    const a = w.spotifyAnswer || { status: 200, json: { ok: true, device: 'Made-up device' } };
+    return r.fulfill({ status: a.status, json: a.json, headers: h });
+  };
   return w;
 }
+const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1';
+const IPAD_AS_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15';
+const PLAY_PATH = '/api/spotify/' + CODE + '/play';
+// Exactly one play POST since `from`, for this uri and kind, as plain text.
+const onePlay = (w, from, uri, kind) => w.spotify.length === from + 1 && w.spotify[from].path === PLAY_PATH &&
+  JSON.stringify(w.spotify[from].body) === JSON.stringify({ uri, kind }) && /^text\/plain/.test(w.spotify[from].type);
 
 const browser = await chromium.launch();
 const errors = [];
 const logs = [];
-async function open(w, viewport, { clock = 'fixed', reduce = false } = {}) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700, reducedMotion: reduce ? 'reduce' : 'no-preference' });
+async function open(w, viewport, { clock = 'fixed', reduce = false, ua = null, touchPoints = null } = {}) {
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, hasTouch: viewport.width < 700, reducedMotion: reduce ? 'reduce' : 'no-preference', ...(ua ? { userAgent: ua } : {}) });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => logs.push(m.text()));
   if (clock === 'fixed') await page.clock.setFixedTime(new Date(NOW));
   else await page.clock.install({ time: new Date(NOW) });
+  // An iPad on iPadOS says Macintosh; only its touch points give it away.
+  if (touchPoints !== null) await page.addInitScript((n) => Object.defineProperty(Navigator.prototype, 'maxTouchPoints', { get: () => n, configurable: true }), touchPoints);
   await page.addInitScript(() => {
     try { localStorage.setItem('morning.enteredOn', JSON.stringify('2026-10-23')); } catch (e) { /* none */ }
     // What the page asks fetch for on the soundtrack routes (keepalive), and whether a Play link's click
@@ -121,7 +140,7 @@ async function open(w, viewport, { clock = 'fixed', reduce = false } = {}) {
     window.__sound = [];
     window.__clicks = [];
     const f = window.fetch;
-    window.fetch = (u, init) => { if (/\/api\/soundtrack\//.test(String(u))) window.__sound.push({ path: String(u).split('/').pop(), keepalive: !!(init && init.keepalive) }); return f(u, init); };
+    window.fetch = (u, init) => { if (/\/api\/(soundtrack|spotify)\//.test(String(u))) window.__sound.push({ path: String(u).split('/').pop(), keepalive: !!(init && init.keepalive) }); return f(u, init); };
     window.addEventListener('click', (e) => {
       const a = e.target.closest && e.target.closest('a[href^="spotify:"]');
       if (!a) return;
@@ -134,6 +153,7 @@ async function open(w, viewport, { clock = 'fixed', reduce = false } = {}) {
   await page.route('**/api/energy/**', w.energy);
   await page.route('**/api/dread/**', w.dread);
   await page.route('**/api/soundtrack/**', w.sound);
+  await page.route('**/api/spotify/**', w.spot);
   await page.route('**/site.**espn.com/**', (r) => r.abort());
   await page.goto(BASE + '?c=' + CODE);
   if (clock !== 'fixed') await page.clock.runFor(1000);
@@ -222,7 +242,10 @@ const PHONE = { width: 390, height: 844 };
   check(clicks.length === 1 && clicks[0].href === URI('drained') && clicks[0].blocked === false, 'pc: Play is a real link the page never blocks: ' + JSON.stringify(clicks));
   check(w.posts.length === 1 && w.posts[0].path === 'played' && JSON.stringify(w.posts[0].body) === JSON.stringify({ source: 'morning', level: 'drained', from: 'dial' }),
     'pc: Play sends played with from dial and no startedAt: ' + JSON.stringify(w.posts));
-  check(sound.length === 1 && sound[0].keepalive && /^text\/plain/.test(w.posts[0].type), 'pc: played goes with keepalive, as plain text (no preflight): ' + JSON.stringify({ sound, type: w.posts[0] && w.posts[0].type }));
+  check(sound.length === 2 && sound.every((x) => x.keepalive) && sound.map((x) => x.path).sort().join() === 'play,played' && /^text\/plain/.test(w.posts[0].type),
+    'pc: played and the hub\'s play go with keepalive, as plain text (no preflight): ' + JSON.stringify({ sound, type: w.posts[0] && w.posts[0].type }));
+  check(onePlay(w, 0, URI('drained'), 'computer') && (await page.getAttribute('#readouts a.play', 'href')) === URI('drained'),
+    'pc: the same tap asks the hub once to start Low tide on the computer; the link is unchanged: ' + JSON.stringify(w.spotify));
   w.hold = 0;
 
   // 5. The level changes on the dial: the row follows the new answer (a long name stays in its read-out).
@@ -282,8 +305,8 @@ const PHONE = { width: 390, height: 844 };
   s = await st(page);
   check(!s.offer && s.running && s.focus === 'stop', 'offer: Not now hides the line at once, the focus on Stop: ' + JSON.stringify({ offer: s.offer, focus: s.focus }));
   await page.waitForTimeout(200);
-  check(w.posts.length === 1 && w.posts[0].path === 'notnow' && JSON.stringify(w.posts[0].body) === JSON.stringify({ source: 'morning', startedAt: iso('13:00') }),
-    'offer: Not now sends notnow with the startedAt: ' + JSON.stringify(w.posts));
+  check(w.posts.length === 1 && w.posts[0].path === 'notnow' && JSON.stringify(w.posts[0].body) === JSON.stringify({ source: 'morning', startedAt: iso('13:00') }) && w.spotify.length === 0,
+    'offer: Not now sends notnow with the startedAt, and starts no music: ' + JSON.stringify({ posts: w.posts, spotify: w.spotify }));
   await page.waitForTimeout(1400);
   w.hold = 0;
   // The hub's next answer has no offer (null): it stays hidden.
@@ -298,6 +321,7 @@ const PHONE = { width: 390, height: 844 };
   await tap(page, '[data-dread="start"]');
   s = await st(page);
   check(!!s.offer && s.offer.started === iso('13:05'), 'offer: a new timer offers again: ' + JSON.stringify(s.offer));
+  const sp = w.spotify.length;
   await page.click('#startMusic a.music-go');
   await page.waitForTimeout(300);
   s = await st(page);
@@ -305,6 +329,7 @@ const PHONE = { width: 390, height: 844 };
   check(clicks.length === 1 && clicks[0].href === URI('drained') && clicks[0].blocked === false, 'offer: Play is a real link the page never blocks: ' + JSON.stringify(clicks));
   check(w.posts.length === 2 && w.posts[1].path === 'played' && JSON.stringify(w.posts[1].body) === JSON.stringify({ source: 'morning', level: 'drained', startedAt: iso('13:05'), from: 'offer' }),
     'offer: Play sends played with from offer and the startedAt: ' + JSON.stringify(w.posts[1]));
+  check(onePlay(w, sp, URI('drained'), 'computer'), 'offer: the same tap asks the hub once to start Low tide on the computer: ' + JSON.stringify(w.spotify.slice(sp)));
   check(!s.offer && s.focus === 'stop' && s.pc && s.pc.href === URI('drained'), 'offer: after Play the line goes, the focus on Stop, Play under the dial stays: ' + JSON.stringify({ offer: s.offer, focus: s.focus }));
 
   // 9. The offer follows the level: a new timer on Drained, then Wired on the dial, then Normal (no playlist).
@@ -327,10 +352,12 @@ const PHONE = { width: 390, height: 844 };
   await tap(page, '#readouts [data-energy="drained"]');
   s = await st(page);
   check(!!s.offer && s.offer.href === URI('drained'), 'offer: back on Drained the offer is back: ' + JSON.stringify(s.offer));
+  const sp2 = w.spotify.length;
   await page.click('#readouts a.play');
   await page.waitForTimeout(300);
   s = await st(page);
   check(!s.offer && w.posts.at(-1).body.from === 'dial' && !('startedAt' in w.posts.at(-1).body), 'offer: Play under the dial ends the offer too: ' + JSON.stringify({ offer: s.offer, post: w.posts.at(-1) }));
+  check(onePlay(w, sp2, URI('drained'), 'computer') && s.pc && s.pc.href === URI('drained'), 'offer: that tap asks the hub once too, the link unchanged: ' + JSON.stringify(w.spotify.slice(sp2)));
   await ctx.close();
 }
 
@@ -371,7 +398,8 @@ const PHONE = { width: 390, height: 844 };
 // 12. The phone: the dial sits in Start with, so Play does too, under it; the offer at the foot of the strip.
 {
   const w = world({ level: 'drained' });
-  const { ctx, page } = await open(w, PHONE, { reduce: true });
+  const { ctx, page } = await open(w, PHONE, { reduce: true, ua: IPHONE });
+  check(/iPhone/.test(await page.evaluate(() => navigator.userAgent)), 'phone: the browser says iPhone');
   let s = await st(page);
   check(!s.pc && s.phone && s.phone.href === URI('drained') && s.phone.title === 'Low tide' && s.phone.sub === 'Spotify app' && s.phone.label === 'Play Low tide in the Spotify app',
     'phone: Play under the dial in Start with: ' + JSON.stringify(s.phone));
@@ -380,6 +408,8 @@ const PHONE = { width: 390, height: 844 };
   await page.click('#startDial a.play');
   await page.waitForTimeout(250);
   check(w.posts.length === 1 && JSON.stringify(w.posts[0].body) === JSON.stringify({ source: 'morning', level: 'drained', from: 'dial' }), 'phone: Play sends played from the dial: ' + JSON.stringify(w.posts));
+  check(onePlay(w, 0, URI('drained'), 'phone') && (await page.getAttribute('#startDial a.play', 'href')) === URI('drained') && (await page$(page, '__clicks')).every((c) => !c.blocked),
+    'phone: the same tap asks the hub once to start Low tide on the phone; the link unchanged, not blocked: ' + JSON.stringify(w.spotify));
   await page.mouse.move(1, 1);
   await page.screenshot({ path: file('soundtrack-phone') });
   // A timer: the offer line at the foot of the strip.
@@ -392,9 +422,21 @@ const PHONE = { width: 390, height: 844 };
     'phone: the offer at the foot of the strip, Not now on the right, 44 px, nothing sideways: ' + JSON.stringify(s.offer));
   await page.screenshot({ path: file('soundtrack-phone-offer'), fullPage: true });
   await page.locator('#start').screenshot({ path: file('soundtrack-phone-start') });
+  // Play from the offer on the phone: the hub is asked for the phone's Spotify.
+  let sp = w.spotify.length;
+  await page.click('#startMusic a.music-go');
+  await page.waitForTimeout(300);
+  check(onePlay(w, sp, URI('drained'), 'phone') && w.posts.at(-1).body.from === 'offer', 'phone: Music for this? asks the hub once to start it on the phone: ' + JSON.stringify(w.spotify.slice(sp)));
+  // A new timer, and Not now: notnow only, no music.
+  await tap(page, '#startDread [data-dread="stop"]');
+  w.posts.length = 0;
+  w.gone.clear();
+  w.nextStart = iso('13:03');
+  await tap(page, '[data-dread="start"]');
+  sp = w.spotify.length;
   await tap(page, '#startMusic [data-music="notnow"]', 300);
   s = await st(page);
-  check(!s.offer && w.posts.length === 1 && w.posts[0].path === 'notnow' && w.posts[0].body.startedAt === iso('13:01'), 'phone: Not now sends notnow and hides the line: ' + JSON.stringify(w.posts));
+  check(!s.offer && w.posts.length === 1 && w.posts[0].path === 'notnow' && w.posts[0].body.startedAt === iso('13:03') && w.spotify.length === sp, 'phone: Not now sends notnow, hides the line, starts no music: ' + JSON.stringify(w.posts));
   // The long name wraps inside the strip instead of running off the phone.
   await tap(page, '#startDread [data-dread="stop"]');
   w.nextStart = iso('13:02');
@@ -403,6 +445,24 @@ const PHONE = { width: 390, height: 844 };
   s = await st(page);
   check(s.offer && s.offer.href === URI('wired') && !s.overflow && s.phone && s.phone.inside && s.phone.cut, 'phone: a long name wraps in the offer and ends in an ellipsis under the dial: ' + JSON.stringify({ offer: s.offer, phone: s.phone }));
   await page.locator('#start').screenshot({ path: file('soundtrack-phone-long') });
+  await ctx.close();
+}
+
+// 13. Which device: an iPad that says Macintosh (touch points 5) is a phone; a Mac (no touch) is a
+// computer. A hub that is not connected, or away (503), changes nothing on the page.
+for (const [name, viewport, opts, kind, answer] of [
+  ['ipad as a mac', { width: 1024, height: 768 }, { ua: IPAD_AS_MAC, touchPoints: 5 }, 'phone', { status: 200, json: { ok: false, why: 'not connected' } }],
+  ['mac', PC, { ua: IPAD_AS_MAC, touchPoints: 0 }, 'computer', { status: 503, json: { error: 'not configured' } }],
+]) {
+  const w = world({ level: 'drained' });
+  w.spotifyAnswer = answer;
+  const { ctx, page } = await open(w, viewport, opts);
+  const sel = viewport.width >= 1100 ? '#readouts a.play' : '#startDial a.play';
+  await page.click(sel);
+  await page.waitForTimeout(300);
+  const clicks = await page$(page, '__clicks');
+  check(onePlay(w, 0, URI('drained'), kind) && clicks.length === 1 && !clicks[0].blocked && (await page.getAttribute(sel, 'href')) === URI('drained') && w.posts.length === 1,
+    name + ': kind ' + kind + ', the link still opens, played still sent, with the hub answering ' + answer.status + ': ' + JSON.stringify(w.spotify));
   await ctx.close();
 }
 
