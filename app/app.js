@@ -245,6 +245,8 @@
   let eSkipLevel = null; // null until the first answer, so a reload starts a fresh round
   let eBusy = false; // a tap's request is out: a second tap sends nothing
   let eSeq = 0; // a poll that left before a tap's request is thrown away
+  let answers = 0; // the hub's energy and dread answers this visit, counted, so the soundtrack knows which came last
+  let eAnswer = 0;
 
   /* A battery: its fill says the level (a full one for Wired, a sliver for Drained). */
   const battery = (fill) => `<svg class="batt" width="18" height="11" viewBox="0 0 20 12" aria-hidden="true" focusable="false">` +
@@ -275,6 +277,7 @@
       d = Object.assign({}, d, { pick: held.pick });
     }
     energy = { at: Date.now(), data: d };
+    eAnswer = ++answers;
     store.set(EKEY, energy);
   }
 
@@ -305,6 +308,9 @@
     } catch (e) { /* nothing changes on screen */ }
     eBusy = false;
     render();
+    // A new level while a timer runs: read the timer again, so "Music for this?" follows the level
+    // (the soundtrack, below). Not a poll: once, after the tap.
+    if (!path && dreadRunning()) dreadGet();
   }
 
   document.addEventListener('click', (e) => {
@@ -363,6 +369,7 @@
   let dSkipped = ''; // task|startedAt whose question was skipped on this screen
   let dBusy = false; // a tap's request is out: a second tap sends nothing
   let dSeq = 0; // a poll that left before a tap's request is thrown away
+  let dAnswer = 0; // see `answers` above
 
   /* The timer that runs, or null (also once the hub would have stopped it). */
   function dreadRunning(now = Date.now()) {
@@ -374,7 +381,9 @@
 
   function applyDread(d) {
     if (!d || typeof d !== 'object' || d.error || !('running' in d)) return;
-    dread = { at: Date.now(), running: d.running && typeof d.running === 'object' ? d.running : null };
+    // `offer` is the soundtrack's "Music for this?" (below), null without a timer or once answered.
+    dread = { at: Date.now(), running: d.running && typeof d.running === 'object' ? d.running : null, offer: d.offer && typeof d.offer === 'object' ? d.offer : null };
+    dAnswer = ++answers;
     store.set(DKEY, dread);
   }
 
@@ -467,6 +476,87 @@
     e.preventDefault();
     const all = [...document.querySelectorAll('#startDread .dread-chip')];
     all[(all.indexOf(chip) + step + all.length) % all.length].focus();
+  });
+
+  /* ---------- The Energy soundtrack (approved 2026-10-24) ----------
+   * The hub (paul-hub src/soundtrack.js) puts `play` on every energy answer: the level's first Spotify
+   * playlist, or null. Under the dial, Play opens it in the Spotify app (a spotify: link, so on the PC
+   * the desktop app opens: Paul's choice). Every Dread meter answer carries `offer` while a timer runs:
+   * "Music for this?" at the foot of Start with, with Not now. Both come from answers Morning reads
+   * anyway, so nothing polls for them. Playlists are set up in To-do only; Morning sends played and
+   * notnow and nothing else, and nothing plays by itself. Playlist names never go to the console. */
+  const SPOTIFY = /^spotify:playlist:[A-Za-z0-9]{22}$/;
+  const sGone = new Set(); // timers (their startedAt) whose offer was answered on this screen: hidden at once
+
+  /* A play or an offer from an answer, checked: a level, a name and a playlist link, or null. */
+  function cleanPlay(p) {
+    if (!p || typeof p !== 'object' || !LEVEL_NAME[p.level] || typeof p.uri !== 'string' || !SPOTIFY.test(p.uri)) return null;
+    const title = typeof p.title === 'string' ? p.title.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+    return title ? { level: p.level, title, uri: p.uri } : null;
+  }
+
+  /* Play for the level on the dial, or null (no level, its time is up, or no playlist for it). */
+  function playNow() {
+    const lv = energyLevel();
+    const p = lv && cleanPlay(energy.data.play);
+    return p && p.level === lv ? p : null;
+  }
+
+  /* "Music for this?" for the timer that runs, or null. Whether it stands comes from the Dread meter's
+   * answer; which playlist from whichever answer came last, so after a level change (the dial here, or
+   * To-do) it is the new level's playlist, and nothing when that level has none. */
+  function offerNow(run) {
+    const o = run && dread && dread.offer && dread.offer.startedAt === run.startedAt ? cleanPlay(dread.offer) : null;
+    if (!o || sGone.has(run.startedAt)) return null;
+    const p = eAnswer > dAnswer ? playNow() : o;
+    return p ? Object.assign({}, p, { startedAt: run.startedAt }) : null;
+  }
+
+  /* The green disc with a white triangle. */
+  const disc = (size) => `<span class="play-disc" aria-hidden="true"><svg width="${size}" height="${size}" viewBox="0 0 14 14" focusable="false"><path d="M4 2.2v9.6l8-4.8z" fill="currentColor"/></svg></span>`;
+  const playHTML = (p) => (p ? `<a class="play" href="${esc(p.uri)}" data-play="dial" data-level="${p.level}" title="${esc(p.title)}" aria-label="Play ${esc(p.title)} in the Spotify app">` +
+    `${disc(11)}<span class="play-text"><span class="play-title">${esc(p.title)}</span><span class="play-sub">Spotify app</span></span></a>` : '');
+  const offerHTML = (o) => `<a class="music-go" href="${esc(o.uri)}" data-play="offer" data-level="${o.level}" data-started="${esc(o.startedAt)}">` +
+    `${disc(12)}<span class="music-text">Music for this? <b>${esc(o.title)}</b><span class="sr">, plays in the Spotify app</span></span></a>` +
+    `<button type="button" class="dread-quiet music-not" data-music="notnow" data-started="${esc(o.startedAt)}">Not now</button>`;
+
+  /* Play or Not now: one small POST that never holds the link up. keepalive, so it still goes while the
+   * Spotify app takes over; sent as plain text, so there is no preflight for a keepalive request to wait
+   * on (the hub reads the body as JSON whatever the type). */
+  function soundSend(path, body) {
+    try {
+      fetch(API + '/api/soundtrack/' + code + '/' + path, {
+        method: 'POST', cache: 'no-store', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: JSON.stringify(Object.assign({ source: 'morning' }, body)),
+      }).catch(() => {});
+    } catch (e) { /* never in the way of the link */ }
+  }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[data-play]');
+    if (a) {
+      // The link opens Spotify by itself: no preventDefault here, ever.
+      const level = LEVEL_NAME[a.dataset.level] ? a.dataset.level : null;
+      if (!level) return;
+      const offer = offerNow(dreadRunning());
+      if (a.dataset.play === 'offer') soundSend('played', { level, startedAt: a.dataset.started, from: 'offer' });
+      else soundSend('played', { level, from: 'dial' });
+      // The music is on: the hub drops the offer after any Play, and so does this screen, once the link has gone.
+      if (offer) {
+        sGone.add(offer.startedAt);
+        setTimeout(() => { render(); if (a.dataset.play === 'offer') focusIn('#startDread [data-dread="stop"]'); }, 0);
+      }
+      return;
+    }
+    const b = e.target.closest && e.target.closest('#start button[data-music="notnow"]');
+    if (!b) return;
+    e.preventDefault();
+    const at = b.dataset.started;
+    if (!at || sGone.has(at)) return;
+    sGone.add(at);
+    soundSend('notnow', { startedAt: at });
+    render();
+    focusIn('#startDread [data-dread="stop"]');
   });
 
   /* ---------- Time to decide (Archive, approved 2026-10-22: Direction D, plain) ----------
@@ -1080,7 +1170,7 @@
     const ep = energyPick();
     const first = ok(t) && t.items.length ? taskName(t.items[0].text).name : '';
     link.href = '../todo/?c=' + encodeURIComponent(code);
-    setHTML($('startDial'), WIDE.matches ? '' : dialHTML(energyLevel()));
+    setKeep($('startDial'), WIDE.matches ? '' : dialHTML(energyLevel()) + playHTML(playNow()));
     const note = box.querySelector('.start-note');
     const meta = box.querySelector('.start-meta');
     const text = box.querySelector('.start-text');
@@ -1118,6 +1208,10 @@
     const sel = had && (had.dataset.rate ? `[data-rate="${had.dataset.rate}"]` : '[data-dread="stop"]');
     if (setHTML(dbox, run ? dreadHTML(run) : '') && sel) { const el = dbox.querySelector(sel); if (el) el.focus(); }
     dbox.hidden = !run;
+    // "Music for this?" while the timer runs and the hub offers it.
+    const offer = offerNow(run);
+    setKeep($('startMusic'), offer ? offerHTML(offer) : '');
+    $('startMusic').hidden = !offer;
     link.setAttribute('aria-label', name ? 'Start with: ' + cap(name) + (metaText ? ', ' + metaText : '') + '. Opens the to-do app.' : '');
     if (text.textContent !== cap(name)) text.textContent = cap(name);
     meta.textContent = metaText;
@@ -1173,6 +1267,15 @@
     el.dataset.html = html;
     el.innerHTML = html;
     return true;
+  }
+
+  /* setHTML for a box the minute's render may rebuild under the keyboard (the dial with Play, the
+   * offer): the focus goes back to the same dial button, Play link or Not now. */
+  function setKeep(el, html) {
+    const had = el.contains(document.activeElement) ? document.activeElement : null;
+    const d = had ? had.dataset : {};
+    const sel = d.energy ? `[data-energy="${d.energy}"]` : d.play ? `[data-play="${d.play}"]` : d.music ? `[data-music="${d.music}"]` : '';
+    if (setHTML(el, html) && sel) { const n = el.querySelector(sel); if (n) n.focus(); }
   }
 
   /* The kitchen's tile. The Worker reads the kitchen with its own code; this page never sees it. */
@@ -2615,10 +2718,10 @@
       tiles.push(readout('Arsenal', live ? 'Live' : kd === today ? hm(k) : kd === addDays(today, 1) ? 'Tomorrow' : DAYS[weekday(kd)],
         `${live || kd === today ? '' : hm(k) + ' '}${n.home ? `Arsenal v ${n.opponent}` : `${n.opponent} v Arsenal`}`));
     }
-    // Energy: the dial (the phone has it in Start with instead)
-    tiles.push(`<div class="ro ro-energy"><span class="ro-k">Energy</span>${dialHTML(energyLevel())}</div>`);
+    // Energy: the dial, and Play under it while the level has a playlist (the phone has both in Start with instead)
+    tiles.push(`<div class="ro ro-energy"><span class="ro-k">Energy</span>${dialHTML(energyLevel())}${playHTML(playNow())}</div>`);
     box.hidden = !tiles.length;
-    setHTML(box, tiles.join(''));
+    setKeep(box, tiles.join(''));
   }
 
   function renderSay(data, now) {

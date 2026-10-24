@@ -1001,6 +1001,30 @@ button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-
 }
 @media (prefers-reduced-motion: reduce) { .dread-chip { transition: none; } }
 
+/* ---------- The Energy soundtrack (approved 2026-10-24, board SoundMorning) ----------
+ * Play under the dial: a green disc with a white triangle, the playlist's name and "Spotify app"
+ * under it, one 44 px link. While a timer runs, one quiet line at the foot of Start with: the disc,
+ * "Music for this? <name>" and a quiet Not now on the right. Nothing moves. */
+.play { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; margin-top: 6px; padding: 2px 4px 2px 0; border-radius: 3px; color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.play-disc { display: flex; flex: none; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
+.play-disc svg { display: block; margin-left: 1px; } /* a triangle looks centred a hair right of centre */
+.play-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.play-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; font-weight: 600; }
+.play-sub { font-size: 13px; font-weight: 500; color: var(--muted); }
+@media (hover: hover) { /* not on touch, where a tapped link would keep its hover look */
+  .play:hover .play-title, .music-go:hover b { text-decoration: underline; text-underline-offset: 3px; }
+  .play:hover .play-disc, .music-go:hover .play-disc { background: var(--accent-fill-press); }
+}
+.play:focus-visible, .music-go:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.start-dial .play { color: var(--paper-ink); }
+.start-dial .play-sub { color: var(--paper-2); }
+.start-music { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--paper-rule); }
+.music-go { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; min-height: 44px; border-radius: 3px; color: var(--paper-ink); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.music-go .play-disc { width: 30px; height: 30px; }
+.music-text { min-width: 0; font-size: 16px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.music-text b { font-weight: 600; }
+.music-not { flex: none; }
+
 /* Biggest lies this week (Sundays): name, "dreaded N" in amber, "took N min"; then three tiles, the
  * average dread per energy level; then one line of counts. */
 .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
