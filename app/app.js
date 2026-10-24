@@ -571,6 +571,262 @@
     focusIn('#startDread [data-dread="stop"]');
   });
 
+  /* ---------- Restless? (approved 2026-10-24, wave 2 Phase 4) ----------
+   * Paul's list of things to do with spare energy, held by the hub (paul-hub src/restless.js). The card
+   * shows only while the energy level is wired. Before Go: how long he has, from today's next timed
+   * event (30 min, 1 h, until that event, or All evening; with nothing else on today, All evening).
+   * Go picks one that fits. Another turns it down for this round (the round's ids go along, so nothing
+   * comes twice), Not for me hides it until tomorrow, Done logs it; those two go back to Go with a short
+   * line, and the round starts over. Add one is a small form where only What is needed. The whole list,
+   * with Edit and Delete, is restless/. Read when the card appears; item names never go to the console. */
+  const R_KIND = { move: 'Move', build: 'Build', outside: 'Outside', social: 'Social', learn: 'Learn', home: 'Home' };
+  const R_ID = /^[a-z0-9]{12}$/;
+  let rOn = false; // the card is showing (the level is wired)
+  let rItem = null; // the one picked, or null before Go
+  let rShown = []; // ids shown this round, sent with Another
+  let rFit = 0; // how many fitted when it was picked
+  let rDark = false; // the hub left outside things out: it is dark in The Hague
+  let rChip = null; // the time chosen: '30', '60', 'until' or 'all' (null: the default)
+  let rMins = null; // the minutes that went with the pick
+  let rLabel = ''; // and its words, for "Picked from 6 that fit 1 h 40"
+  let rMsg = ''; // the short line: done, not for me, nothing fits, the hub away
+  let rTotal = null; // how many are on the list (null: not known yet)
+  let rBusy = false; // a request is out: a second tap sends nothing
+  let rfBusy = false;
+
+  /* 45 -> "45 min", 100 -> "1 h 40", 120 -> "2 h". */
+  const spanText = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + String(m % 60).padStart(2, '0') : ''}`);
+
+  /* An item from the hub, checked: its id and words, or null. */
+  function restItem(it) {
+    if (!it || typeof it !== 'object' || typeof it.id !== 'string' || !R_ID.test(it.id) || typeof it.text !== 'string' || !it.text.trim()) return null;
+    return { id: it.id, text: it.text.trim(), kind: R_KIND[it.kind] ? it.kind : null, mins: Number.isFinite(it.mins) ? it.mins : null,
+      place: it.place === 'inside' || it.place === 'outside' ? it.place : null, costs: typeof it.costs === 'boolean' ? it.costs : null };
+  }
+  /* "Move · 45 min · outside · free": what is known, nothing for what is not. */
+  const restMeta = (it) => [R_KIND[it.kind], it.mins ? (it.mins >= 120 ? '2 h+' : spanText(it.mins)) : '', it.place || '',
+    it.costs === true ? 'costs money' : it.costs === false ? 'free' : ''].filter(Boolean).join(' · ');
+
+  /* Today's next timed event: { mins until it, at, title }, or null when nothing else is on today. */
+  function restFree(data, now) {
+    if (!data) return null;
+    const t = now.valueOf();
+    const today = ymd(now);
+    const list = (calendarDays(data, now).find((d) => d.date === today) || { list: [] }).list;
+    const nx = list.find((e) => !e.allDay && e.s > t);
+    return nx ? { mins: Math.max(1, Math.floor((nx.s - t) / MIN)), at: hm(nx.s), title: nx.title } : null;
+  }
+
+  /* The time chips, the gap to the next event among them when there is one. */
+  function restChips(free) {
+    const out = [{ k: '30', label: '30 min', mins: 30, words: '30 min' }, { k: '60', label: '1 h', mins: 60, words: '1 h' }];
+    if (free) out.push({ k: 'until', label: 'until ' + free.at, mins: free.mins, words: spanText(free.mins) });
+    out.push({ k: 'all', label: 'All evening', mins: null, words: 'all evening' });
+    return out;
+  }
+
+  function restReset(msg = '') {
+    rItem = null;
+    rShown = [];
+    rFit = 0;
+    rMsg = msg;
+  }
+
+  async function restPost(path, body) {
+    const r = await fetch(API + '/api/restless/' + code + '/' + path, {
+      method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ source: 'morning' }, body)),
+    });
+    let out = null;
+    try { out = await r.json(); } catch (e) { /* none */ }
+    return { ok: r.ok, out };
+  }
+
+  /* How many are on the list, so an empty list says so before Go. */
+  async function restCount() {
+    try {
+      const r = await fetch(API + '/api/restless/' + code, { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      rTotal = d && d.counts && Number.isFinite(d.counts.total) ? d.counts.total : Array.isArray(d.items) ? d.items.length : rTotal;
+      render();
+    } catch (e) { /* the hub is away: Go still tries */ }
+  }
+
+  async function restPick(another) {
+    if (rBusy) return;
+    if (!another) {
+      const c = restChips(restFree(last && last.data, new Date())).find((x) => x.k === rChip) || { mins: null, words: 'all evening' };
+      rMins = c.mins;
+      rLabel = c.words;
+      rShown = [];
+    }
+    const turned = another && rItem ? rItem.id : null;
+    rBusy = true;
+    rMsg = '';
+    render();
+    let focus = null;
+    try {
+      const { ok, out } = await restPost('pick', turned ? { mins: rMins, skip: rShown, another: turned } : { mins: rMins, skip: [] });
+      if (ok && out && 'item' in out) {
+        const it = restItem(out.item);
+        rDark = !!out.dark;
+        if (it) {
+          rItem = it;
+          rFit = Number(out.fit) || 1;
+          rShown.push(it.id);
+          rTotal = Math.max(rTotal || 0, 1);
+          focus = another ? '#restPicked [data-rest="another"]' : '#restPicked [data-rest="done"]';
+        } else if (another) {
+          restReset('That’s all that fits. Try more time.');
+          focus = '#restGoBtn';
+        } else {
+          rMsg = `Nothing fits ${rLabel}. Try more time.`;
+          rBusy = false;
+          await restCount();
+          if (rTotal === 0) rMsg = '';
+          focus = rTotal === 0 ? '#restAdd' : '#restGoBtn';
+        }
+      } else rMsg = 'Couldn’t pick one. Try again.';
+    } catch (e) { rMsg = 'Can’t reach the hub. Try again.'; }
+    rBusy = false;
+    render();
+    if (focus) focusIn(focus);
+  }
+
+  /* Done or Not for me: a short line, then back to Go and a new round. */
+  async function restMark(kind) {
+    const it = rItem;
+    if (!it || rBusy) return;
+    rBusy = true;
+    rMsg = '';
+    render();
+    let back = false;
+    try {
+      const { ok } = await restPost(kind, { id: it.id });
+      if (ok) { restReset(kind === 'done' ? `Done: ${it.text}.` : `Not for me today: ${it.text}.`); back = true; }
+      else rMsg = 'Not saved. Try again.';
+    } catch (e) { rMsg = 'Can’t reach the hub. Nothing changed, try again.'; }
+    rBusy = false;
+    render();
+    if (back) focusIn('#restGoBtn');
+  }
+
+  function renderRestless(data, now) {
+    const box = $('restless');
+    const on = energyLevel() === 'wired';
+    if (on !== rOn) {
+      rOn = on;
+      restReset();
+      if (on) restCount();
+    }
+    box.hidden = !on;
+    if (!on) return;
+    $('restList').href = 'restless/?c=' + encodeURIComponent(code);
+    const free = restFree(data, now);
+    const line = free ? `You have ${spanText(free.mins)} until ${cap(free.title)}` : 'Nothing else on today';
+    if ($('restFree').textContent !== line) $('restFree').textContent = line;
+    const chips = restChips(free);
+    if (!chips.some((c) => c.k === rChip)) rChip = free ? 'until' : 'all';
+    const had = $('restChips').contains(document.activeElement) ? document.activeElement.dataset.chip : null;
+    if (setHTML($('restChips'), chips.map((c) => `<button type="button" class="rest-chip" data-chip="${c.k}" aria-pressed="${c.k === rChip}">${esc(c.label)}</button>`).join('')) && had) {
+      focusIn(`#restChips [data-chip="${had}"]`);
+    }
+    const adding = !$('restForm').hidden;
+    const empty = rTotal === 0 && !rItem;
+    $('restGo').hidden = !!rItem || empty || adding;
+    $('restPicked').hidden = !rItem || adding;
+    $('restEmpty').hidden = !empty || adding;
+    $('restMsg').hidden = !rMsg;
+    if ($('restMsg').textContent !== rMsg) $('restMsg').textContent = rMsg;
+    let fit = '';
+    if (rItem) {
+      const strip = $('restStrip');
+      const name = cap(rItem.text);
+      if (strip.firstChild.textContent !== name) strip.firstChild.textContent = name;
+      strip.lastChild.textContent = restMeta(rItem);
+      strip.lastChild.hidden = !strip.lastChild.textContent;
+      fit = (rFit === 1 ? `The only one that fits ${rLabel}` : `Picked from ${rFit} that fit ${rLabel}`) + (rDark ? ', nothing outside after dark' : '');
+    }
+    if ($('restFit').textContent !== fit) $('restFit').textContent = fit;
+    box.querySelector('.rest-foot').hidden = adding;
+    for (const b of box.querySelectorAll('#restGo button, #restPicked button')) b.disabled = rBusy;
+  }
+
+  $('restless').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-chip]');
+    if (chip) {
+      rChip = chip.dataset.chip;
+      render();
+      return;
+    }
+    const fb = e.target.closest('#restForm [data-rf] button');
+    if (fb) {
+      const on = fb.getAttribute('aria-pressed') !== 'true';
+      for (const x of fb.parentElement.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === fb && on));
+      return;
+    }
+    if (e.target.closest('#restAdd')) { restForm(true); return; }
+    const b = e.target.closest('[data-rest]');
+    if (!b || b.disabled) return;
+    const act = b.dataset.rest;
+    if (act === 'go') restPick(false);
+    else if (act === 'another') restPick(true);
+    else if (act === 'done' || act === 'notforme') restMark(act);
+    else if (act === 'cancel') restForm(false);
+  });
+
+  /* Add one: open (the focus on What) or close (the draft and the chips cleared, the focus back on Add one). */
+  function restForm(on) {
+    const form = $('restForm');
+    form.hidden = !on;
+    $('restAdd').setAttribute('aria-expanded', String(on));
+    if (!on) {
+      form.reset();
+      for (const x of form.querySelectorAll('[data-rf] button')) x.setAttribute('aria-pressed', 'false');
+      rfError('');
+    }
+    render();
+    if (on) $('rfText').focus();
+    else focusIn('#restAdd');
+  }
+  function rfError(words) {
+    $('rfErr').textContent = words;
+    $('rfErr').hidden = !words;
+    if (words) $('rfText').setAttribute('aria-invalid', 'true'); else $('rfText').removeAttribute('aria-invalid');
+  }
+  $('restForm').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); restForm(false); } });
+  $('rfText').addEventListener('input', () => { if ($('rfText').value.trim()) rfError(''); });
+  $('restForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (rfBusy) return;
+    const text = $('rfText').value.replace(/\s+/g, ' ').trim();
+    if (!text) { rfError('What is it? A few words are enough.'); $('rfText').focus(); return; }
+    const body = { text };
+    for (const seg of $('restForm').querySelectorAll('[data-rf]')) {
+      const b = seg.querySelector('[aria-pressed="true"]');
+      if (!b) continue;
+      const v = b.dataset.v;
+      body[seg.dataset.rf] = seg.dataset.rf === 'mins' ? Number(v) : seg.dataset.rf === 'costs' ? v === 'true' : v;
+    }
+    rfBusy = true;
+    $('rfSend').disabled = true;
+    rfError('');
+    let added = false;
+    try {
+      const { ok, out } = await restPost('add', body);
+      if (ok && out && out.item) added = true;
+      else rfError(out && typeof out.error === 'string' && out.error ? `Not added: ${out.error}` : 'Not added. Try again.');
+    } catch (err) {
+      rfError('Can’t reach the hub. Nothing was added, try again.');
+    }
+    rfBusy = false;
+    $('rfSend').disabled = false;
+    if (!added) return;
+    rTotal = (rTotal || 0) + 1;
+    rMsg = `Added: ${text}.`;
+    restForm(false);
+  });
+
   /* ---------- Time to decide (Archive, approved 2026-10-22: Direction D, plain) ----------
    * The hub (paul-hub src/archive.js) lists the tasks passed on 5 or more times, most first. The card
    * shows the first one only, with "Passed on N times": Do it now (the Dread meter's Start, then the
@@ -1832,6 +2088,7 @@
     if ($('waitCount').textContent !== count) $('waitCount').textContent = count;
     $('waitNet').href = 'network/?c=' + encodeURIComponent(code);
     $('waitSkills').href = 'skills/?c=' + encodeURIComponent(code);
+    $('waitRest').href = 'restless/?c=' + encodeURIComponent(code);
     const today = ymd(now);
     const shown = items.slice(0, WAIT_SHOWN);
     const rows = shown.map((x) => {
@@ -2005,6 +2262,7 @@
     }
 
     renderEnergyWeek(w.energy);
+    renderRestWeek(w.restless && typeof w.restless === 'object' ? w.restless : null);
     renderDreadWeek(w.dread && typeof w.dread === 'object' ? w.dread : null);
     renderArchWeek(w.archive && typeof w.archive === 'object' ? w.archive : null);
     renderWaitWeek(w.waiting && typeof w.waiting === 'object' ? w.waiting : null, now);
@@ -2128,6 +2386,33 @@
       if (most[lv] && PART_NAME[most[lv]]) facts.push(`${LEVEL_NAME[lv]} most: ${most[lv]}s`);
     }
     setHTML($('wkEnergyFacts'), facts.map((f) => `<span>${esc(f)}</span>`).join(''));
+  }
+
+  /* Spare energy this week (paul-hub src/restless.js, restlessWeek): how often the dial said wired, what
+   * Paul did with it (the item, its kind, the day and part of the day) and how many he passed on, then
+   * a small bar per kind. Hidden when he was never wired and did nothing from the list. */
+  const partOf = (ms) => { const h = +hm(ms).slice(0, 2); return h < 5 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening'; };
+  function renderRestWeek(r) {
+    const wired = r ? Math.max(0, Number(r.wired) || 0) : 0;
+    const done = r && Array.isArray(r.done) ? r.done.filter((x) => x && typeof x.text === 'string' && Number.isFinite(Date.parse(x.at))) : [];
+    const skipped = r ? Math.max(0, Number(r.skipped) || 0) : 0;
+    $('wkRestCard').hidden = !r || (!wired && !done.length);
+    if ($('wkRestCard').hidden) return;
+    const line = (wired === 0 ? 'Not wired this week.' : wired === 1 ? 'Wired once.' : `Wired ${wired} times.`) +
+      ` You did ${plural(done.length, 'thing', 'things')} with it and passed on ${skipped || 'none'}.`;
+    if ($('wkRestLine').textContent !== line) $('wkRestLine').textContent = line;
+    setHTML($('wkRestDone'), done.length
+      ? `<ul class="rw-list">${done.map((x) => {
+        const at = Date.parse(x.at);
+        const when = [R_KIND[x.kind], `${SHORT[weekday(ymd(at))]} ${partOf(at)}`].filter(Boolean).join(' · ');
+        return `<li class="rw"><span class="rw-name">${esc(cap(x.text))}</span><span class="rw-when">${esc(when)}</span></li>`;
+      }).join('')}</ul>`
+      : emptyRow('Nothing from the list this week.'));
+    const by = r.byKind && typeof r.byKind === 'object' ? r.byKind : {};
+    const n = (k) => Math.max(0, Number(by[k]) || 0);
+    const top = Math.max(1, ...Object.keys(R_KIND).map(n));
+    setHTML($('wkRestKinds'), Object.entries(R_KIND).map(([k, word]) =>
+      `<div class="rk"><span class="rk-k">${word}</span><span class="rk-bar" aria-hidden="true"><i style="width:${Math.round((n(k) / top) * 100)}%"></i></span><span class="rk-n">${n(k)}</span></div>`).join(''));
   }
 
   /* Biggest lies this week (paul-hub src/dread.js, dreadWeek): tasks dreaded 4 or 5 and done in 15
@@ -2781,6 +3066,7 @@
     findFresh(data, now);
     if (data && !seen) saveSeen(); // the first ever open: remember it, mark nothing
     renderStart(data && data.todos, now);
+    renderRestless(data, now);
     renderDecide(data, now);
     renderToday(data, now);
     renderApps(data && data.links);

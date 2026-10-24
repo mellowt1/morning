@@ -892,6 +892,11 @@ details.fold[open] > summary .tag::after { content: ''; }
 .card-wait .card-head .pbtn { flex: none; }
 /* Network › (morning/network/) beside Add, 44 px tall on touch like Constellation ›. */
 .wait-side { display: inline-flex; align-items: center; gap: 16px; min-width: 0; }
+/* With Restless › as a third link the side no longer fits beside the heading on a phone: it goes to
+ * its own line under it, on the right, and the heading stays on one line. */
+.card-wait .card-head { flex-wrap: wrap; row-gap: 8px; }
+.card-wait .card-head .num { white-space: nowrap; }
+.card-wait .wait-side { margin-left: auto; }
 .wait-net { display: inline-flex; align-items: center; gap: .3em; min-height: 44px; margin: -12px 0; padding: 0; white-space: nowrap; }
 /* Skills › beside Network ›: under 400 px the head keeps "2 open" together and the links sit closer. */
 .card-wait .sub-count { white-space: nowrap; }
@@ -1197,3 +1202,72 @@ button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-
   .or-past, .ol-past, .ol-done a, .feed-sky, .wait-net { min-height: 34px; margin: -6px 0; }
   .or-text-btn { min-height: 34px; margin: -8px 0 -8px 2px; }
 }
+
+/* ---------- Restless? (approved 2026-10-24, boards RestMorning, RestAdd, RestWeek) ----------
+ * A rack card under Start with, only while the dial says wired. How long Paul has (one line, then
+ * chips, the chosen one filled ink) and Go in green; the pick as a paper strip with a sage holder edge,
+ * its name big in Barlow Condensed, then Done (green), Not for me and Another; under them how many
+ * fitted and Add one, which opens a paper form in place of the rest. Nothing moves. */
+.card-rest { gap: 10px; padding-bottom: 10px; }
+.card-rest .card-head { align-items: baseline; }
+.card-rest .card-head .num { padding-bottom: 0; }
+.card-rest [hidden] { display: none !important; }
+.rest-list { display: inline-flex; align-items: center; gap: .3em; min-height: 44px; margin: -12px 0; padding: 0; white-space: nowrap; }
+.rest-free { margin: 0; font-size: 16px; font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
+.rest-msg { margin: 0; padding: 8px 12px; border-radius: 3px; background: var(--inner); color: var(--ink); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.rest-go, .rest-picked { display: flex; flex-direction: column; gap: 10px; }
+.rest-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rest-chip { min-height: 44px; padding: 0 14px; border: 1px solid var(--btn-rule); border-radius: 3px; background: var(--rack-hi); color: var(--ink); font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rest-chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); font-weight: 600; }
+.rest-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rest-acts .pbtn { padding: 0 18px; }
+.rest-acts .pbtn:disabled { opacity: .6; cursor: progress; }
+/* 44 px here on the PC too (Morning lets buttons and fields shrink to 34 to 40 px with a mouse). */
+.card-rest .pbtn { min-height: 44px; }
+.card-rest .wf-in { height: 44px; }
+.rest-gobtn { min-width: 120px; }
+.rest-strip { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; background: var(--paper); color: var(--paper-ink); border-radius: 2px; border-left: 10px solid #9DB8A6; box-shadow: 0 1px 0 rgba(30, 40, 55, .14); }
+.rest-name { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 30px; font-weight: 700; line-height: 1.08; overflow-wrap: anywhere; }
+.rest-meta { font-size: 15px; font-weight: 500; color: var(--paper-2); }
+.rest-empty p { margin: 0; font-size: 17px; font-weight: 500; }
+.rest-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding-top: 2px; border-top: 1px solid var(--rule); }
+.rest-fit { flex: 1 1 200px; min-width: 0; font-size: 14px; color: var(--muted); }
+.rest-fit:empty { display: none; }
+.rest-add { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-left: auto; padding: 0 4px; border: 0; background: none; color: var(--accent-fill-press); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rest-form { margin: 0; }
+.card-rest .rest-form .wf-row { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
+.card-rest .rest-form .wf-err, .card-rest .rest-form .wf-acts { margin-left: 0; }
+.rest-form .wf-seg button { min-height: 44px; }
+.rest-form .wf-acts .pbtn { padding: 0 18px; }
+.rf-hint { margin: 0; font-size: 14px; color: var(--paper-2); }
+.rest-chip:focus-visible, .rest-add:focus-visible, .rest-list:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+@media (hover: hover) {
+  .rest-chip:not([aria-pressed="true"]):hover { background: var(--paper); }
+  .rest-add:hover, .rest-list:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+@media (min-width: 720px) {
+  .rest-name { font-size: 36px; }
+}
+@media (max-width: 719.98px) {
+  #restless { order: 1; }
+  .rest-form .wf-seg[data-rf="kind"] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rest-acts .pbtn { padding: 0 14px; }
+}
+
+/* Spare energy this week (Sundays): one line, what was done (name, then kind and when), a bar per kind. */
+.rw-list { margin: 0; padding: 0; list-style: none; }
+.rw { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 9px 0; border-top: 1px solid var(--rule); }
+.rw-name { flex: 1 1 220px; min-width: 0; font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.rw-when { flex: none; font-size: 15px; color: var(--muted); white-space: nowrap; }
+.rw-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 40px; }
+.rw-side .dr-h { margin-top: 16px; }
+@media (min-width: 720px) {
+  .rw-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  .rw-side .dr-h { margin-top: 0; }
+}
+.rk-bars { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
+.rk { display: grid; grid-template-columns: 80px minmax(0, 1fr) 28px; gap: 10px; align-items: center; min-height: 22px; }
+.rk-k { font-size: 15px; font-weight: 500; }
+.rk-bar { height: 10px; border-radius: 2px; background: var(--inner); overflow: hidden; }
+.rk-bar i { display: block; height: 100%; background: var(--accent-fill); }
+.rk-n { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 18px; font-weight: 600; text-align: right; }

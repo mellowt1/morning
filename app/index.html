@@ -122,6 +122,19 @@
       <div id="wkEnergy" class="en-grid"></div>
       <p id="wkEnergyFacts" class="en-facts"></p>
     </section>
+    <!-- Spare energy this week: how often the dial said wired, what Paul did from the Restless list and
+         what he passed on, and a bar per kind (data.week.restless). Hidden when never wired and nothing done. -->
+    <section id="wkRestCard" class="card card-para card-rest-wk" aria-label="Spare energy this week" style="--i:0" hidden>
+      <div class="card-head"><span class="num" role="heading" aria-level="2">Spare energy this week</span></div>
+      <p id="wkRestLine" class="dr-sub"></p>
+      <div class="rw-grid">
+        <div id="wkRestDone"></div>
+        <div class="rw-side">
+          <span class="dr-h" role="heading" aria-level="3">By kind</span>
+          <div id="wkRestKinds" class="rk-bars"></div>
+        </div>
+      </div>
+    </section>
     <!-- Biggest lies: tasks dreaded 4 or 5 and done in 15 minutes or less, the average dread per energy
          level, and how many were started and skipped (data.week.dread). Hidden with nothing started or skipped. -->
     <section id="wkDreadCard" class="card card-para card-dread" aria-label="Biggest lies this week" style="--i:0" hidden>
@@ -195,6 +208,75 @@
         <div id="startActs" class="start-acts" hidden></div>
         <div id="startDread" class="start-dread" hidden></div>
         <div id="startMusic" class="start-music" hidden></div>
+      </section>
+
+      <!-- Restless? (paul-hub src/restless.js): only while the energy level is wired. How long Paul has
+           comes from today's next timed event (30 min, 1 h, until that event, All evening), then Go
+           picks one thing from his list that fits; Done, Not for me, Another. Add one is plain DOM that
+           render() never rebuilds, so a draft survives the minute's render. The list is restless/. -->
+      <section id="restless" class="card card-rest" aria-labelledby="restH" style="--i:0" hidden>
+        <div class="card-head">
+          <span id="restH" class="num" role="heading" aria-level="2">Restless?</span>
+          <a id="restList" class="card-link rest-list" href="restless/">The list <span aria-hidden="true">›</span></a>
+        </div>
+        <p id="restFree" class="rest-free"></p>
+        <p id="restMsg" class="rest-msg" role="status"></p>
+        <div id="restGo" class="rest-go">
+          <div id="restChips" class="rest-chips" role="group" aria-label="How long have you got?"></div>
+          <div class="rest-acts"><button type="button" id="restGoBtn" class="pbtn pbtn-today rest-gobtn" data-rest="go">Go</button></div>
+        </div>
+        <div id="restPicked" class="rest-picked" hidden>
+          <div id="restStrip" class="rest-strip"><span class="rest-name"></span><span class="rest-meta"></span></div>
+          <div class="rest-acts" role="group" aria-labelledby="restH" aria-describedby="restStrip">
+            <button type="button" class="pbtn pbtn-today" data-rest="done">Done</button>
+            <button type="button" class="pbtn pbtn-done" data-rest="notforme">Not for me</button>
+            <button type="button" class="pbtn pbtn-done" data-rest="another">Another</button>
+          </div>
+        </div>
+        <div id="restEmpty" class="rest-empty" hidden><p>Nothing on the list yet.</p></div>
+        <div class="rest-foot">
+          <span id="restFit" class="rest-fit"></span>
+          <button type="button" id="restAdd" class="rest-add" aria-expanded="false" aria-controls="restForm"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Add one</button>
+        </div>
+        <form id="restForm" class="wait-form rest-form" aria-label="Add to the Restless list" novalidate hidden>
+          <label class="wf-row"><span class="wf-k">What</span><input id="rfText" class="wf-in" name="text" maxlength="80" autocomplete="off" required></label>
+          <div class="wf-row" role="group" aria-labelledby="rfKindK"><span id="rfKindK" class="wf-k">Kind</span>
+            <div class="seg wf-seg" data-rf="kind">
+              <button type="button" data-v="move" aria-pressed="false">Move</button>
+              <button type="button" data-v="build" aria-pressed="false">Build</button>
+              <button type="button" data-v="outside" aria-pressed="false">Outside</button>
+              <button type="button" data-v="social" aria-pressed="false">Social</button>
+              <button type="button" data-v="learn" aria-pressed="false">Learn</button>
+              <button type="button" data-v="home" aria-pressed="false">Home</button>
+            </div>
+          </div>
+          <div class="wf-row" role="group" aria-labelledby="rfMinsK"><span id="rfMinsK" class="wf-k">About how long</span>
+            <div class="seg wf-seg" data-rf="mins">
+              <button type="button" data-v="15" aria-pressed="false">15 min</button>
+              <button type="button" data-v="30" aria-pressed="false">30 min</button>
+              <button type="button" data-v="60" aria-pressed="false">1 h</button>
+              <button type="button" data-v="120" aria-pressed="false">2 h+</button>
+            </div>
+          </div>
+          <div class="wf-row" role="group" aria-labelledby="rfPlaceK"><span id="rfPlaceK" class="wf-k">Where</span>
+            <div class="seg wf-seg" data-rf="place">
+              <button type="button" data-v="inside" aria-pressed="false">Inside</button>
+              <button type="button" data-v="outside" aria-pressed="false">Outside</button>
+            </div>
+          </div>
+          <div class="wf-row" role="group" aria-labelledby="rfCostsK"><span id="rfCostsK" class="wf-k">Money</span>
+            <div class="seg wf-seg" data-rf="costs">
+              <button type="button" data-v="false" aria-pressed="false">Free</button>
+              <button type="button" data-v="true" aria-pressed="false">Costs money</button>
+            </div>
+          </div>
+          <p class="rf-hint">Only What is needed. Tap a chosen one again to leave it open.</p>
+          <p id="rfErr" class="wf-err" role="alert" hidden></p>
+          <div class="wf-acts">
+            <button type="submit" id="rfSend" class="pbtn pbtn-today">Add to the list</button>
+            <button type="button" class="pbtn pbtn-drop" data-rest="cancel">Cancel</button>
+          </div>
+        </form>
       </section>
 
       <!-- Time to decide (Archive, paul-hub src/archive.js): a task passed on 5 or more times, the first
@@ -272,11 +354,12 @@
            Rows only: answering and snoozing happen in To-do and on Sunday. Add opens the form below,
            which render() never rebuilds, so a draft survives every refresh. Hidden until the hub sends the block.
            Network (network/) is the map of the people Paul knows; Sent a message there lands here.
-           Skills (skills/) is the roles Paul tracks and the gaps across them. -->
+           Skills (skills/) is the roles Paul tracks and the gaps across them. Restless (restless/) is his
+           list of things to do with spare energy. -->
       <section id="waiting" class="card card-wait" aria-label="Waiting on" style="--i:4" hidden>
         <div class="card-head">
           <span class="num" role="heading" aria-level="2">Waiting on <span id="waitCount" class="sub-count"></span></span>
-          <span class="wait-side"><a id="waitNet" class="card-link wait-net" href="network/">Network <span aria-hidden="true">›</span></a><a id="waitSkills" class="card-link wait-net" href="skills/">Skills <span aria-hidden="true">›</span></a><button type="button" id="waitAdd" class="pbtn pbtn-done" aria-expanded="false" aria-controls="waitForm">Add</button></span>
+          <span class="wait-side"><a id="waitNet" class="card-link wait-net" href="network/">Network <span aria-hidden="true">›</span></a><a id="waitSkills" class="card-link wait-net" href="skills/">Skills <span aria-hidden="true">›</span></a><a id="waitRest" class="card-link wait-net" href="restless/">Restless <span aria-hidden="true">›</span></a><button type="button" id="waitAdd" class="pbtn pbtn-done" aria-expanded="false" aria-controls="waitForm">Add</button></span>
         </div>
         <form id="waitForm" class="wait-form" aria-label="Add something you are waiting on" novalidate hidden>
           <label class="wf-row"><span class="wf-k">Who</span><input id="wfWho" class="wf-in" name="who" maxlength="60" autocomplete="off" required></label>
