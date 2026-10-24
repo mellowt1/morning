@@ -17,7 +17,8 @@
     "sky-check": "node scripts/sky-check.mjs",
     "network-check": "node scripts/network-check.mjs",
     "skills-check": "node scripts/skills-check.mjs",
-    "soundtrack-check": "node scripts/soundtrack-check.mjs"
+    "soundtrack-check": "node scripts/soundtrack-check.mjs",
+    "restless-check": "node scripts/restless-check.mjs"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",

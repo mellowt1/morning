@@ -223,7 +223,7 @@ for (const [name, viewport, dark] of [['week-pc', { width: 1440, height: 1000 },
   check(await shown(page, '#weekView') && !(await shown(page, '.cols')), name + ': Sunday opens on the Week view');
   check(await page.textContent('#wkLabel') === 'Week 42 · 12 to 18 Oct', name + ': label ' + await page.textContent('#wkLabel'));
   check(await page.textContent('.js-say') === '7 done this week. 6 things have gone quiet. 2 flagged tasks are still open.', name + ': sentence ' + await page.textContent('.js-say'));
-  check((await texts(page, '#weekView .num')).join('|') === 'One question about Week 42|Your week|The mirror|Energy this week|Biggest lies this week|Let go this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': the Oracle\'s question, Your week, the mirror, energy, biggest lies, let go, waiting on, the lessons, then five cards in order');
+  check((await texts(page, '#weekView .num')).join('|') === 'One question about Week 42|Your week|The mirror|Energy this week|Spare energy this week|Biggest lies this week|Let go this week|Waiting on|What Claude learned|01 Done this week|02 Still this week|03 Gone quiet|04 New vacancies|05 Next week', name + ': the Oracle\'s question, Your week, the mirror, energy, spare energy, biggest lies, let go, waiting on, the lessons, then five cards in order');
   // 02 Still this week: the flagged tasks still open, Keep for next week or Unflag (with Undo).
   check((await texts(page, '#wkFlag .park-what')).join('|') === 'Book the flights|Call the plumber', name + ': still this week lists the flagged tasks, clean names');
   check(await page.textContent('#wkFlagNote') === '2 left', name + ': still this week says 2 left');
