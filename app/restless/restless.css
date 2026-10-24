@@ -1,0 +1,100 @@
+/* The Restless list: Morning's daylight bay (board RestList). White sheets, one per kind, To sort first;
+ * two columns on the PC, one on the phone. A row: the words, how it drifts on the right, Edit, and what
+ * is known under it. Edit and Add one are the same paper form as on Morning. Nothing moves. */
+:root {
+  --ground: #CBD1D8;
+  --card: #E7EAEE;
+  --inner: #DADFE5;
+  --ink: #15181C;
+  --muted: #545E6B;
+  --muted-ground: #454D57; /* muted on the bay itself: 5.4:1 (#545E6B there is only 4.3:1) */
+  --paper: #FFFFFF;
+  --paper-done: #EEF0F2;
+  --paper-ink: #16181B;
+  --paper-2: #5E5A50;
+  --paper-rule: #E1DCCF;
+  --rule: #CCD2D9;
+  --btn-rule: #B9C1CA;
+  --accent-text: #217A4B;
+  --accent-fill: #247F51;
+  --accent-fill-press: #1C6A42;
+  --amber-bg: #F6E7C8;
+  --amber-ink: #8A5300;
+  --red-ink: #9E2A2E;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--ink); }
+body { font-family: 'Barlow', system-ui, sans-serif; font-variant-numeric: tabular-nums; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+::selection { background: color-mix(in srgb, var(--accent-text) 32%, transparent); color: var(--ink); }
+a { color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.page { max-width: 1100px; margin: 0 auto; padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+.top { padding: 0 4px 14px; }
+.back { display: inline-flex; align-items: center; min-height: 44px; margin-left: -2px; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 17px; font-weight: 600; color: var(--muted-ground); text-decoration: none; }
+.top-row { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; }
+h1 { margin: 4px 0 0; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 44px; font-weight: 700; line-height: 1; }
+.sub { margin: 8px 0 0; font-size: 17px; font-weight: 500; color: var(--muted-ground); }
+.status { margin: 0 0 12px; padding: 8px 12px; border-radius: 3px; background: var(--inner); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.status:empty { display: none; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 1px solid var(--btn-rule); border-radius: 3px; background: var(--paper); color: var(--paper-ink); font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 17px; font-weight: 600; letter-spacing: .02em; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.btn:disabled { opacity: .6; cursor: progress; }
+.btn-go { border: 0; background: var(--accent-fill); color: #FFFFFF; }
+.btn-quiet { border: 0; background: none; color: var(--paper-2); }
+.btn-del { margin-left: auto; border: 0; background: none; color: var(--red-ink); }
+.btn-add { padding: 0 18px; }
+
+.sheet { background: var(--paper); color: var(--paper-ink); border-radius: 3px; box-shadow: 0 1px 0 rgba(30, 40, 55, .14), 0 6px 18px rgba(30, 40, 55, .10); }
+.groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.group { padding: 12px 18px 6px; }
+.group-h { margin: 0 0 2px; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 22px; font-weight: 700; }
+.group-n { font-size: 17px; font-weight: 600; color: var(--paper-2); }
+.rows { margin: 0; padding: 0; list-style: none; }
+.rr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 14px; align-items: center; padding: 6px 0 8px; border-top: 1px solid var(--paper-rule); }
+.rr-text { font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.rr-drift { font-size: 14px; font-weight: 500; color: var(--paper-2); white-space: nowrap; }
+.rr-edit-btn { min-height: 44px; margin-right: -8px; padding: 0 8px; border: 0; background: none; color: var(--accent-fill-press); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rr-meta { grid-column: 1 / -1; margin-top: -4px; font-size: 14px; color: var(--paper-2); }
+.rr-meta:empty { display: none; }
+.rr-edit { display: block; padding: 12px 0 14px; }
+.note { margin: 0; padding: 18px; font-size: 16px; color: var(--paper-2); }
+.note-retry { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+/* The form: Morning's paper form, labels over fields; chips in a recess, the chosen one ink. */
+.add-box { margin: 0 0 14px; padding: 16px 18px; }
+.rf { display: flex; flex-direction: column; gap: 10px; }
+.rf-row { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.rf-k { font-size: 14px; font-weight: 600; color: var(--paper-2); }
+.rf-in { width: 100%; min-width: 0; height: 44px; padding: 0 10px; border: 1px solid var(--btn-rule); border-radius: 3px; background: var(--paper); color: var(--paper-ink); font: inherit; font-size: 17px; }
+.rf-in[aria-invalid="true"] { border-color: var(--amber-ink); box-shadow: inset 0 0 0 1px var(--amber-ink); }
+.seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 4px; background: var(--paper-done); }
+.seg button { flex: 1 1 auto; min-height: 44px; padding: 0 10px; border: 0; border-radius: 3px; background: transparent; color: var(--paper-2); font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.rf-hint { margin: 0; font-size: 14px; color: var(--paper-2); }
+.rf-err { margin: 0; padding: 8px 10px; border-radius: 3px; background: var(--amber-bg); color: var(--amber-ink); font-size: 15px; font-weight: 600; }
+.rf-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 2px; }
+
+.back:focus-visible, .btn:focus-visible, .rr-edit-btn:focus-visible, .seg button:focus-visible, .rf-in:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+@media (hover: hover) {
+  .back:hover, .rr-edit-btn:hover, .btn-quiet:hover, .btn-del:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .btn-go:hover { background: var(--accent-fill-press); }
+}
+
+.nocode { max-width: 420px; margin: 0 auto; padding: 96px 24px; font-size: 16px; line-height: 1.5; color: var(--muted-ground); }
+
+@media (max-width: 559.98px) {
+  .seg[data-rf="kind"] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 720px) {
+  .page { padding: 40px 40px 40px; }
+  h1 { font-size: 56px; }
+  .sub { font-size: 19px; }
+  .add-box { max-width: 640px; }
+}
+@media (min-width: 960px) {
+  .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

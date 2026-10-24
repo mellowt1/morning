@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Restless list</title>
+<meta name="description" content="Things to do with spare energy.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#CBD1D8">
+<meta name="color-scheme" content="light">
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="restless.css">
+</head>
+<body>
+<main id="app" class="page">
+  <header class="top">
+    <a id="back" class="back" href="../">‹ Morning</a>
+    <div class="top-row">
+      <div>
+        <h1>Restless list</h1>
+        <p id="sub" class="sub">Things to do with spare energy.</p>
+      </div>
+      <button type="button" id="addBtn" class="btn btn-go btn-add" aria-expanded="false" aria-controls="addBox"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Add one</button>
+    </div>
+  </header>
+  <p id="status" class="status" role="status"></p>
+  <!-- Add one: the same fields as on Morning; only What is needed (POST /api/restless/:code/add). -->
+  <div id="addBox" class="sheet add-box" hidden></div>
+  <!-- The list by kind, To sort first (GET /api/restless/:code, paul-hub src/restless.js). Edit opens the
+       same fields in the row; Delete asks once more. -->
+  <section aria-labelledby="listH">
+    <h2 id="listH" class="sr">The list</h2>
+    <div id="list" class="groups"></div>
+  </section>
+</main>
+<p id="nocode" class="nocode" hidden>Open Morning from your private link first; this page uses the same one.</p>
+<script src="restless.js"></script>
+</body>
+</html>
