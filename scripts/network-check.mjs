@@ -983,14 +983,14 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     const a = document.getElementById('waitNet');
     if (!a) return null;
     const r = a.getBoundingClientRect(), add = document.getElementById('waitAdd').getBoundingClientRect();
-    return { href: a.getAttribute('href'), text: a.textContent.replace(/\s+/g, ' ').trim(), h: r.height, inHead: !!a.closest('#waiting .card-head'), cls: a.className, beforeAdd: r.right <= add.left, sameRow: Math.abs((r.top + r.bottom) / 2 - (add.top + add.bottom) / 2) < 4 };
+    return { href: a.getAttribute('href'), text: a.textContent.replace(/\s+/g, ' ').trim(), h: r.height, inRow: !!a.closest('#apps .apps-more'), cls: a.className, add: add.height > 0 };
   });
   const tag = vp.width < 700 ? 'Morning phone' : 'Morning';
-  check(link && link.href === 'network/?c=' + CODE && link.text === 'Network ›' && link.inHead && /card-link/.test(link.cls) && link.beforeAdd && link.sameRow, tag + ': Network › in the head of Waiting on, beside Add: ' + JSON.stringify(link));
+  check(link && link.href === 'network/?c=' + CODE && link.text === 'Network' && link.inRow && /apps-side/.test(link.cls), tag + ': Network at the end of the apps row (since the declutter, 2026-11-04): ' + JSON.stringify(link));
   if (vp.width < 700) check(link && link.h >= 44, tag + ': the link is 44 px tall: ' + (link && link.h));
   else {
     await page.waitForTimeout(1600);
-    await page.locator('#waiting').screenshot({ path: file('net-morning-link') });
+    await page.locator('#apps').screenshot({ path: file('net-morning-link') });
     await page.click('#waitNet');
     await page.waitForURL(/network\/\?c=/);
     await page.waitForTimeout(400);

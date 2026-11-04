@@ -187,7 +187,11 @@ const st = (page) => page.evaluate(() => {
   const m = document.getElementById('startMusic');
   const go = m.querySelector('a.music-go'), not = m.querySelector('[data-music="notnow"]');
   return {
-    pc: row('#readouts a.play'), phone: row('#startDial a.play'),
+    // The PC (Focus layout, 2026-11-04): Play is a "Music" chip in the tray, the playlist's name in its title.
+    pc: (() => { const a = document.querySelector('#tray a.tchip[data-play]'); if (!vis(a)) return null; const r = a.getBoundingClientRect(), t = document.getElementById('tray').getBoundingClientRect();
+      return { href: a.getAttribute('href'), tag: a.tagName, label: a.getAttribute('aria-label'), level: a.dataset.level, title: a.getAttribute('title'), text: a.textContent.trim(), h: Math.round(r.height),
+        inTray: r.top >= t.top && r.bottom <= t.bottom, disc: getComputedStyle(a.querySelector('.play-disc')).backgroundColor, tri: getComputedStyle(a.querySelector('.play-disc')).color, cText: on(a) }; })(),
+    phone: row('#startDial a.play'),
     plays: document.querySelectorAll('a.play').length,
     dial: [...document.querySelectorAll('#readouts .dial-btn, #startDial .dial-btn')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
     running: document.getElementById('start').classList.contains('is-running'),
@@ -219,23 +223,21 @@ const PHONE = { width: 390, height: 844 };
   check(s.dial.join() === 'Wired,Normal,Drained' && !s.pc && s.plays === 0, 'pc: no level, no Play row: ' + JSON.stringify({ dial: s.dial, plays: s.plays }));
 
   // 2. Normal has no playlist: still no row.
-  await tap(page, '#readouts [data-energy="normal"]');
+  await tap(page, '#startDial [data-energy="normal"]');
   s = await st(page);
   check(s.dial.join() === 'Wired,Normal*,Drained' && !s.pc && s.plays === 0, 'pc: a level with no playlist (play null), no Play row: ' + JSON.stringify({ dial: s.dial, plays: s.plays }));
 
   // 3. Drained has Low tide: the row under the dial, a real spotify: link with the name and "Spotify app".
-  await tap(page, '#readouts [data-energy="drained"]');
+  await tap(page, '#startDial [data-energy="drained"]');
   s = await st(page);
-  check(!!s.pc && s.pc.tag === 'A' && s.pc.href === URI('drained') && s.pc.title === 'Low tide' && s.pc.sub === 'Spotify app' && s.pc.label === 'Play Low tide in the Spotify app',
-    'pc: play set, the row links to spotify:playlist:…, with the name and Spotify app: ' + JSON.stringify(s.pc));
-  check(s.pc && s.pc.under && s.pc.inside && s.pc.h >= 44 && s.pc.disc === 'rgb(36, 127, 81)' && s.pc.tri === 'rgb(255, 255, 255)', 'pc: under the dial, inside the read-out, 44 px, the green disc with a white triangle: ' + JSON.stringify(s.pc));
-  check(s.pc && s.pc.cTitle >= 4.5 && s.pc.cSub >= 4.5, 'pc: the name and Spotify app read at 4.5:1 or more: ' + JSON.stringify({ title: s.pc && s.pc.cTitle, sub: s.pc && s.pc.cSub }));
-  check(s.roTop.length === 4 && s.roTop.every((y) => y === s.roTop[0]) && !s.overflow, 'pc: the four read-outs stay on one line, nothing sideways: ' + JSON.stringify({ tops: s.roTop, head: s.headH }));
-  await page.screenshot({ path: file('soundtrack-pc-head'), clip: { x: 0, y: 0, width: 1440, height: Math.min(900, s.headH + 60) } });
+  check(!!s.pc && s.pc.tag === 'A' && s.pc.href === URI('drained') && s.pc.title === 'Low tide' && s.pc.text === 'Music' && s.pc.label === 'Play Low tide in the Spotify app',
+    'pc: play set, the Music chip links to spotify:playlist:…, the name in its title: ' + JSON.stringify(s.pc));
+  check(s.pc && s.pc.inTray && s.pc.h >= 40 && s.pc.disc === 'rgb(36, 127, 81)' && s.pc.tri === 'rgb(255, 255, 255)' && s.pc.cText >= 4.5 && !s.overflow, 'pc: in the tray, 40 px, the green disc with a white triangle, 4.5:1, nothing sideways: ' + JSON.stringify(s.pc));
+  await page.screenshot({ path: file('soundtrack-pc-tray') });
 
   // 4. Click Play: the link is not blocked, and played goes once with from "dial", keepalive, no startedAt.
   w.hold = 1500; // a slow hub: nothing waits for it
-  await page.click('#readouts a.play');
+  await page.click('#tray a.tchip[data-play]');
   await page.waitForTimeout(250);
   let clicks = await page$(page, '__clicks');
   let sound = await page$(page, '__sound');
@@ -244,16 +246,16 @@ const PHONE = { width: 390, height: 844 };
     'pc: Play sends played with from dial and no startedAt: ' + JSON.stringify(w.posts));
   check(sound.length === 2 && sound.every((x) => x.keepalive) && sound.map((x) => x.path).sort().join() === 'play,played' && /^text\/plain/.test(w.posts[0].type),
     'pc: played and the hub\'s play go with keepalive, as plain text (no preflight): ' + JSON.stringify({ sound, type: w.posts[0] && w.posts[0].type }));
-  check(onePlay(w, 0, URI('drained'), 'computer') && (await page.getAttribute('#readouts a.play', 'href')) === URI('drained'),
+  check(onePlay(w, 0, URI('drained'), 'computer') && (await page.getAttribute('#tray a.tchip[data-play]', 'href')) === URI('drained'),
     'pc: the same tap asks the hub once to start Low tide on the computer; the link is unchanged: ' + JSON.stringify(w.spotify));
   w.hold = 0;
 
   // 5. The level changes on the dial: the row follows the new answer (a long name stays in its read-out).
-  await tap(page, '#readouts [data-energy="wired"]');
+  await tap(page, '#startDial [data-energy="wired"]');
   s = await st(page);
   check(s.dial.join() === 'Wired*,Normal,Drained' && s.pc && s.pc.href === URI('wired') && s.pc.title === LISTS.wired.title && s.pc.label === 'Play ' + LISTS.wired.title + ' in the Spotify app',
-    'pc: Wired on the dial, the row follows to its playlist: ' + JSON.stringify(s.pc));
-  check(s.pc && s.pc.inside && s.pc.cut && !s.overflow, 'pc: a long name ends in an ellipsis inside the read-out: ' + JSON.stringify(s.pc));
+    'pc: Wired on the dial, the chip follows to its playlist: ' + JSON.stringify(s.pc));
+  check(s.pc && s.pc.text === 'Music' && !s.overflow, 'pc: a long name stays in the title, the chip still says Music: ' + JSON.stringify(s.pc));
   // A level set elsewhere (To-do), read on return to the page: the row follows that answer too.
   w.level = 'drained';
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
@@ -261,19 +263,21 @@ const PHONE = { width: 390, height: 844 };
   s = await st(page);
   check(s.dial.join() === 'Wired,Normal,Drained*' && s.pc && s.pc.href === URI('drained'), 'pc: a level set in To-do shows its playlist on return: ' + JSON.stringify(s.pc));
   // Tapping the level that is on clears it: the row goes.
-  await tap(page, '#readouts [data-energy="drained"]');
+  await tap(page, '#startDial [data-energy="drained"]');
   s = await st(page);
   check(s.dial.join() === 'Wired,Normal,Drained' && !s.pc, 'pc: the level cleared, the row goes: ' + JSON.stringify(s.dial));
 
   // 6. The keyboard: the dial keeps its focus through the rebuild, then Tab reaches Play with a visible ring.
-  await page.focus('#readouts [data-energy="drained"]');
+  await page.focus('#startDial [data-energy="drained"]');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(400);
   s = await st(page);
   check(s.focus === 'drained' && s.pc && s.pc.href === URI('drained'), 'pc: Enter on Drained by keyboard keeps the focus on Drained and shows Play: ' + JSON.stringify({ focus: s.focus }));
+  await page.focus('#tray a.tchip[data-play]');
+  await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   s = await st(page);
-  check(s.focus === 'dial' && s.outline === 'solid 2px', 'pc: Tab goes from the dial to Play, the focus ring shows: ' + JSON.stringify({ focus: s.focus, outline: s.outline }));
+  check(s.focus === 'dial' && s.outline === 'solid 2px', 'pc: the keyboard reaches Play in the tray, the focus ring shows: ' + JSON.stringify({ focus: s.focus, outline: s.outline }));
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await page.waitForTimeout(400);
   s = await st(page);
@@ -336,12 +340,12 @@ const PHONE = { width: 390, height: 844 };
   await tap(page, '#startDread [data-dread="stop"]');
   w.nextStart = iso('13:10');
   await tap(page, '[data-dread="start"]');
-  await tap(page, '#readouts [data-energy="wired"]');
+  await tap(page, '#startDial [data-energy="wired"]');
   s = await st(page);
   check(s.offer && s.offer.href === URI('wired') && s.offer.text === 'Music for this? ' + LISTS.wired.title && s.offer.started === iso('13:10') && !s.overflow,
     'offer: Wired on the dial, the offer follows to its playlist: ' + JSON.stringify(s.offer));
   await page.locator('#start').screenshot({ path: file('soundtrack-pc-offer-long') });
-  await tap(page, '#readouts [data-energy="normal"]');
+  await tap(page, '#startDial [data-energy="normal"]');
   s = await st(page);
   check(!s.offer && !s.pc && s.running, 'offer: Normal has no playlist, the offer and Play go: ' + JSON.stringify({ offer: s.offer, pc: s.pc }));
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
@@ -349,11 +353,11 @@ const PHONE = { width: 390, height: 844 };
   s = await st(page);
   check(!s.offer && !s.pc, 'offer: the hub agrees on its next answer (null)');
   // Back to Drained, a dial Play while the offer shows: the hub drops the offer, so does the screen.
-  await tap(page, '#readouts [data-energy="drained"]');
+  await tap(page, '#startDial [data-energy="drained"]');
   s = await st(page);
   check(!!s.offer && s.offer.href === URI('drained'), 'offer: back on Drained the offer is back: ' + JSON.stringify(s.offer));
   const sp2 = w.spotify.length;
-  await page.click('#readouts a.play');
+  await page.click('#tray a.tchip[data-play]');
   await page.waitForTimeout(300);
   s = await st(page);
   check(!s.offer && w.posts.at(-1).body.from === 'dial' && !('startedAt' in w.posts.at(-1).body), 'offer: Play under the dial ends the offer too: ' + JSON.stringify({ offer: s.offer, post: w.posts.at(-1) }));
@@ -457,7 +461,7 @@ for (const [name, viewport, opts, kind, answer] of [
   const w = world({ level: 'drained' });
   w.spotifyAnswer = answer;
   const { ctx, page } = await open(w, viewport, opts);
-  const sel = viewport.width >= 1100 ? '#readouts a.play' : '#startDial a.play';
+  const sel = viewport.width >= 1100 ? '#tray a.tchip[data-play]' : '#startDial a.play';
   await page.click(sel);
   await page.waitForTimeout(300);
   const clicks = await page$(page, '__clicks');

@@ -13,7 +13,9 @@ const file = (n) => fileURLToPath(new URL(n + '.png', OUT));
 
 const pad = (n) => String(n).padStart(2, '0');
 const day = (plus) => { const d = new Date(Date.now() + plus * 864e5); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const at = (plus, hhmm) => `${day(plus)}T${hhmm}:00+02:00`;
+// The Hague's offset on that day (+02:00 in summer, +01:00 in winter), so the fixed clocks read the same all year.
+const offset = (d) => { const m = new Date(d + 'T12:00:00Z').toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', timeZoneName: 'shortOffset' }).match(/GMT([+-]\d+)/); const h = m ? Number(m[1]) : 1; return (h < 0 ? '-' : '+') + pad(Math.abs(h)) + ':00'; };
+const at = (plus, hhmm) => `${day(plus)}T${hhmm}:00${offset(day(plus))}`;
 
 function answer({ dark = false, ...over } = {}) {
   // Dark: sunset already passed today; light: sunset late tonight.
@@ -90,8 +92,16 @@ async function shoot(data, viewport, name, act, when = NOON) {
     days: [...document.querySelectorAll('#days .ev')].map((e) => e.innerText.replace(/\s+/g, ' ').trim()),
     start: document.getElementById('start').hidden ? '' : document.querySelector('.start-text').textContent,
     today: [...document.querySelectorAll('#todayList li')].map((li) => li.innerText.replace(/\s+/g, ' ').trim()),
-    tiles: [...document.querySelectorAll('#todayList .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+    tiles: [...document.querySelectorAll('#todayList .tile, #facts .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+    // The PC (Focus layout, 2026-11-04): the facts on the right, the next line, the tray, the skill bullets.
+    facts: [...document.querySelectorAll('#facts .tile')].map((t) => t.dataset.k),
+    next: document.getElementById('nextLine').hidden ? null : document.getElementById('nextLine').innerText.replace(/\s+/g, ' ').trim(),
+    tray: document.getElementById('tray').hidden ? null : [...document.querySelectorAll('#tray .tchip')].map((c) => c.innerText.replace(/\s+/g, ' ').trim()),
+    bullets: [...document.querySelectorAll('#todayList .task .tskill')].map((b) => b.title || 'dot'),
+    readouts: getComputedStyle(document.getElementById('readouts')).display !== 'none',
+    panels: ['projects', 'waiting', 'intake', 'feed', 'arsenal', 'lift', 'hiscores'].filter((id) => { const e = document.getElementById(id); return !e.hidden && e.getBoundingClientRect().height > 0; }),
     chips: document.querySelectorAll('#projList .chip').length,
+    live: (document.querySelector('#projList .live-line') || {}).textContent || '',
     turn: document.querySelectorAll('#projList .proj-turn').length,
     projects: document.getElementById('projects').hidden ? -1 : document.querySelectorAll('#projList .proj').length,
     parked: document.getElementById('parked').hidden ? '' : document.getElementById('parkHead').innerText.replace(/\s+/g, ' ').trim() || '',
@@ -104,7 +114,7 @@ async function shoot(data, viewport, name, act, when = NOON) {
     intake: document.getElementById('intake').hidden ? -1 : [...document.querySelectorAll('#intakeList .read-row')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
     feed: document.getElementById('feed').hidden ? -1 : [...document.querySelectorAll('#feedList .feed-row')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()),
     projNext: document.querySelectorAll('#projList .proj-next').length,
-    apps: document.getElementById('apps').hidden ? [] : [...document.querySelectorAll('#apps a')].map((a) => a.textContent + ' ' + a.getAttribute('href')),
+    apps: document.getElementById('apps').hidden ? [] : [...document.querySelectorAll('#appLinks a')].map((a) => a.textContent + ' ' + a.getAttribute('href')),
     repos: [...document.querySelectorAll('#projList .repo-line span')].map((d) => d.textContent + ' ' + d.title),
   }));
   if (name) await page.screenshot({ path: file(name), fullPage: true });
@@ -114,6 +124,8 @@ async function shoot(data, viewport, name, act, when = NOON) {
 
 const phone = { width: 390, height: 844 };
 const laptop = { width: 1440, height: 900 };
+// Up to 1099 px the cards stay in the page; the card checks below use this width (the PC keeps them behind the tray).
+const desk = { width: 1000, height: 900 };
 
 let r = await shoot(answer(), phone, 'cards-phone');
 console.log(r);
@@ -139,7 +151,8 @@ check(r.tiles.length === 6, 'tiles: dinner, bins, birthday, countdown, cleaning,
     check(out.length === 1 && out[0] === 'Dinner with a friend Tonight 19:30', name + ': ' + out);
     check(!a.tiles.some((t) => /^dinner /i.test(t)) && a.tiles.some((t) => /^dough mix the dough today/i.test(t)), name + ': no Dinner tile on a night out: ' + a.tiles);
   }
-  const place = await shoot(answer({ dinner: { away: [{ date: day(1), title: 'Harbour Cafe - Table 4', start: '20:00' }] } }), laptop, '');
+  // The phone: on the PC a night out later this week is only in the band (the declutter, 2026-11-04).
+  const place = await shoot(answer({ dinner: { away: [{ date: day(1), title: 'Harbour Cafe - Table 4', start: '20:00' }] } }), phone, '');
   check(place.tiles.some((t) => t === 'EATING OUT Harbour Cafe Tomorrow 20:00' || t === 'Eating out Harbour Cafe Tomorrow 20:00'), 'eating out shows the place only: ' + place.tiles);
   const none = await shoot(answer({ dinner: null }), phone, '');
   check(!none.tiles.some((t) => /^eating out/i.test(t)), 'no tile without dinner.away');
@@ -148,7 +161,7 @@ check(r.tiles.some((x) => /^Cleaning Alex (This weekend|\w+day)$/i.test(x)), 'cl
 check(r.tiles.some((x) => /^Dinner Pasta alla Norma Mix the dough today$/i.test(x)), 'dinner tile');
 check(r.tiles.some((x) => /^Bins Tomorrow GFT and Restafval out$/i.test(x)), 'bins tile');
 check(r.tiles.some((x) => /^Yesterday 2 done$/i.test(x)), 'wins tile');
-check(r.turn === 1 && r.projects === 3 && r.chips === 2, 'projects: your turn, building, up next, two live chips');
+check(r.turn === 1 && r.projects === 3 && r.chips === 0 && /^[0-9]+ live$/.test(r.live), 'projects: your turn, building, up next, live as one count: ' + r.live);
 check(/^Parked 3$/i.test(r.parked), 'parked card header: ' + r.parked);
 // One line each: kind, the gist, then its tasks (needs you) or when it was read.
 check(r.intake.length === 2 && /^letter Insurance letter.* 1 task$/i.test(r.intake[0]) && /^bill Energy bill/i.test(r.intake[1]), 'read for you: ' + r.intake);
@@ -166,36 +179,47 @@ check(r.theme === 'light', 'the same daylight board after sunset');
 check(/\bdown\b/.test(r.sun), 'sun down at 23:30');
 check(/^Nothing more today\. Lunch with a friend tomorrow at 13:00\.$/.test(r.say), 'evening sentence: ' + r.say);
 check(r.band === null, 'no week band on the phone');
-r = await shoot(answer(), laptop, 'cards-laptop');
+r = await shoot(answer({ todos: { ...answer().todos, items: answer().todos.items.map((x, i) => (i === 1 ? { ...x, skill: 'herblore' } : x)) } }), laptop, 'cards-laptop');
 check(!r.overflow, 'no sideways scroll on the laptop');
-// The PC's week band: seven days, today first, each fact on its own day.
-check(r.band && r.band.length === 7 && /^Today \d+ 23:00 Quiz night$/i.test(r.band[0]), 'band: today first: ' + (r.band && r.band[0]));
-check(/Bins GFT and Restafval out 13:00 Lunch with a friend Cafe$/i.test(r.band[1]), 'band: bins, then lunch, tomorrow: ' + r.band[1]);
-check(/\d\d:\d\d Arsenal v Fictional Rovers Premier League$/.test(r.band[3]), 'band: the match on its day: ' + r.band[3]);
-check(/All day Day off 20:00 Club: evening$/i.test(r.band[4]), 'band: all day first: ' + r.band[4]);
-check(/Birthday Sam turns 40 19:00 Film at Filmhuis$/i.test(r.band[5]), 'band: birthday on its day: ' + r.band[5]);
-check(/^\w+ \d+ Cleaning Alex/i.test(r.band[2]) && /^\w+ \d+ Cleaning Alex/i.test(r.band[3]), 'band: cleaning on both days of the turn: ' + r.band[2]);
-check(!r.tiles.some((x) => /^Cleaning/i.test(x)), 'Today leaves the cleaning to the band');
-check(r.agendaShown === 0 && r.week === 4 && !r.tiles.some((x) => /^Birthday/i.test(x)), 'Today leaves this week to the band');
-check(r.tiles.some((x) => /^Bins Tomorrow/i.test(x)) && r.tiles.some((x) => /^Countdown/i.test(x)), 'bins out tomorrow and a countdown 12 days off stay in Today');
+// The PC (Focus layout, 2026-11-04): Start with, the next thing, Today; the coming days and the facts on the right; the rest in the tray.
+check(r.band === null && !r.readouts, 'focus: no week band and no read-outs on the PC');
+check(r.next === '23:00 Quiz night · in 10 h 00', 'focus: the next thing under Start with: ' + r.next);
+check(r.week === 4 && r.agendaShown === 0, 'focus: the coming days on the right, no agenda rows in Today: ' + r.week);
+check(r.facts.includes('bins') && r.facts.includes('countdown') && r.facts.includes('cleaning') && r.facts.includes('birthday'), 'focus: the facts as cards on the right, each with its kind: ' + r.facts);
+check(r.bullets.length === r.tasks.length && r.bullets.includes('Herblore') && r.bullets.includes('dot'), 'focus: a skill bullet on a task with a skill, a dot on the rest: ' + r.bullets);
+check(r.panels.length === 0, 'focus: the cards behind the tray are out of the page: ' + r.panels);
+check(r.tray && r.tray.some((c) => /Your turn$/i.test(c)) && r.tray.some((c) => /^Read for you \d+$/.test(c)) && r.tray.some((c) => /^Arsenal/.test(c)), 'focus: the tray has Your turn, Read for you and Arsenal: ' + JSON.stringify(r.tray));
 await shoot(answer({ dark: true }), laptop, 'cards-laptop-dark', null, at(0, '23:30'));
 await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
 
-// The read-outs (PC): next thing, left today, then tonight or Arsenal; never the same thing twice.
+// A chip opens its card above the tray; the chip again, Escape or a click outside closes it.
 {
-  let ro = [];
-  let sayShown = true;
-  const grab = async (page) => {
-    ro = await page.evaluate(() => [...document.querySelectorAll('#readouts .ro')].map((d) => d.innerText.replace(/\s+/g, ' ').trim()));
-    sayShown = await page.evaluate(() => getComputedStyle(document.querySelector('.js-say')).display !== 'none');
-  };
-  await shoot(answer(), laptop, '', grab);
-  check(ro.length === 4 && ro[3] === 'Energy Wired Normal Drained' && ro[0] === 'Next at 23:00 Quiz night' && ro[1] === 'Left today 3 on the list' && /^Arsenal \w+ \d\d:\d\d Arsenal v Fictional Rovers$/.test(ro[2]) && !sayShown,
-    'read-outs: ' + JSON.stringify(ro) + ' say shown: ' + sayShown);
-  await shoot(answer({ dinner: { away: [{ date: day(0), title: 'Harbour Cafe - Table 4', start: '19:30' }] } }), laptop, '', grab, at(0, '22:40'));
-  check(ro[0] === 'Next, in 20 min 23:00 Quiz night' && /^Arsenal /.test(ro[2] || ''), 'read-outs at 22:40: the night out is past, so Arsenal: ' + JSON.stringify(ro));
-  await shoot(answer({ dinner: { away: [{ date: day(0), title: 'Harbour Cafe - Table 4', start: '19:30' }] } }), laptop, '', grab);
-  check(ro[2] === 'Tonight 19:30 Harbour Cafe', 'read-outs: a night out is Tonight: ' + JSON.stringify(ro));
+  const ctx = await browser.newContext({ viewport: laptop });
+  const page = await ctx.newPage();
+  await page.clock.setFixedTime(new Date(NOON));
+  await page.route('**/api/morning/**', (rt) => rt.fulfill({ json: answer(), headers: { 'Access-Control-Allow-Origin': '*' } }));
+  await page.route('**/site.**espn.com/**', (rt) => rt.abort());
+  await page.goto(BASE + '?c=' + CODE);
+  await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
+  await page.waitForTimeout(800);
+  const st = () => page.evaluate(() => { const c = document.getElementById('intake'), t = document.getElementById('tray'); const r = c.getBoundingClientRect();
+    return { open: document.getElementById('app').dataset.open || '', shown: r.height > 0, above: r.bottom <= t.getBoundingClientRect().top, fixed: getComputedStyle(c).position, exp: document.querySelector('#tray [data-panel="intake"]').getAttribute('aria-expanded'), focus: document.activeElement.dataset.panel || '' }; });
+  await page.click('#tray [data-panel="intake"]');
+  let p = await st();
+  check(p.open === 'intake' && p.shown && p.above && p.fixed === 'fixed' && p.exp === 'true', 'tray: Read for you opens above the row: ' + JSON.stringify(p));
+  await page.screenshot({ path: file('cards-laptop-panel') });
+  await page.keyboard.press('Escape');
+  p = await st();
+  check(!p.open && !p.shown && p.exp === 'false' && p.focus === 'intake', 'tray: Escape closes it, the focus back on its chip: ' + JSON.stringify(p));
+  await page.click('#tray [data-panel="intake"]');
+  await page.mouse.click(700, 150);
+  p = await st();
+  check(!p.open && !p.shown, 'tray: a click outside closes it');
+  await page.click('#tray [data-panel="intake"]');
+  await page.click('#tray [data-panel="intake"]');
+  p = await st();
+  check(!p.open, 'tray: the chip again closes it');
+  await ctx.close();
 }
 // Today: the next three to-dos, then "+N more" into the to-do app.
 {
@@ -206,7 +230,7 @@ await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
   });
   check(m.tasks.length === 3 && /^\+2 more \.\.\/todo\/\?c=/.test(more), 'three to-dos and +2 more: ' + m.tasks + ' / ' + more);
 }
-// Projects: Live leaves out what the apps row already has. Lately leaves out what the page shows.
+// Projects: Live is one count, no chips (the declutter, 2026-11-04). Lately leaves out what the page shows.
 {
   const p = answer().projects;
   const d = await shoot(answer({
@@ -217,7 +241,7 @@ await shoot(answer(), { width: 820, height: 1180 }, 'cards-tablet');
       { id: 'c', source: 'pc', kind: 'job', text: 'Projects list refreshed', at: new Date(Date.now() - 8e5).toISOString() },
     ] },
   }), laptop, '');
-  check(d.chips === 2, 'live chips leave out Kitchen (in the apps row): ' + d.chips);
+  check(d.chips === 0 && /^[0-9]+ live$/.test(d.live), 'live projects are one count, no chips: ' + d.live);
   check(d.feed.length === 1 && /^Nick checked in/.test(d.feed[0]), 'lately leaves out dinner and the projects refresh: ' + d.feed);
 }
 // No hub and nothing kept: Retry on the cards, Offline by the clock, no empty week band.
@@ -349,8 +373,8 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
     const t = (sel) => { const el = document.querySelector(sel); return vis(el) ? el.textContent.trim() : ''; };
     return {
       ro: [...document.querySelectorAll('#readouts .ro')].length,
-      dial: [...document.querySelectorAll('#readouts .dial-btn')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
-      dialH: [...document.querySelectorAll('#readouts .dial-btn')].map((b) => Math.round(b.getBoundingClientRect().height)),
+      dial: [...document.querySelectorAll('#readouts .dial-btn, #startDial .dial-btn')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
+      dialH: [...document.querySelectorAll('#startDial .dial-btn')].map((b) => Math.round(b.getBoundingClientRect().height)),
       phoneDial: [...document.querySelectorAll('#startDial .dial-btn')].filter(vis).map((b) => b.textContent.trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
       phoneDialH: [...document.querySelectorAll('#startDial .dial-btn')].map((b) => Math.round(b.getBoundingClientRect().height)),
       start: t('#start .start-text'), meta: t('#start .start-meta'), note: t('#start .start-note'), go: t('#start .start-go'),
@@ -365,12 +389,11 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   const w = world();
   const { ctx, page } = await openE(w, laptop);
   let s = await st(page);
-  check(s.ro === 4 && s.dial.join() === 'Wired,Normal,Drained' && s.dialH.every((h) => h >= 44), 'energy: the dial is the fourth read-out, three buttons of 44 px or more: ' + JSON.stringify(s));
+  check(s.dial.join() === 'Wired,Normal,Drained' && s.dialH.every((h) => h >= 34), 'energy: the dial sits in Start with on the PC too (Focus layout), three buttons of 34 px or more for a mouse: ' + JSON.stringify(s));
   check(s.start === 'Email the landlord about the heating' && !s.note && s.go === 'Open ›' && !s.acts.length && !s.meta, 'energy: no level, Start with as before: ' + JSON.stringify(s));
-  check(s.phoneDial.length === 0, 'energy: no dial in Start with on the PC');
   await page.screenshot({ path: file('energy-pc-unset'), clip: { x: 0, y: 0, width: 1440, height: 560 } });
   // Drained: one POST, the button pressed, the pick in Start with, Today keeps the first to-do.
-  await tap(page, '#readouts [data-energy="drained"]');
+  await tap(page, '#startDial [data-energy="drained"]');
   s = await st(page);
   check(w.sets.length === 1 && w.sets[0].level === 'drained' && w.sets[0].source === 'morning', 'energy: tapping Drained sends level drained: ' + JSON.stringify(w.sets));
   check(s.dial.join() === 'Wired,Normal,Drained*', 'energy: Drained is pressed: ' + s.dial);
@@ -413,12 +436,12 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await tap(page, '[data-pick="skip"]');
   check(w.picks[w.picks.length - 1].skip.join() === 'task00000001', 'energy: a new level starts a new skip list: ' + JSON.stringify(w.picks[w.picks.length - 1]));
   // Tapping the level that is on clears it: Start with goes back to the first Today task.
-  await tap(page, '#readouts [data-energy="wired"]');
+  await tap(page, '#startDial [data-energy="wired"]');
   s = await st(page);
   check(w.sets[w.sets.length - 1].level === null && s.dial.join() === 'Wired,Normal,Drained' && s.start === 'Email the landlord about the heating' && !s.acts.length,
     'energy: tapping the level that is on clears it: ' + JSON.stringify(w.sets) + JSON.stringify(s));
   // The hub away: the copy on this device paints first, and the page carries on.
-  await tap(page, '#readouts [data-energy="normal"]');
+  await tap(page, '#startDial [data-energy="normal"]');
   w.down = true;
   await page.reload();
   await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
@@ -431,7 +454,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   const pw = world('drained');
   const p = await openE(pw, phone);
   s = await st(p.page);
-  check(s.dial.length === 0 && s.phoneDial.join() === 'Wired,Normal,Drained*' && s.phoneDialH.every((h) => h >= 44), 'energy phone: the dial in Start with: ' + JSON.stringify(s));
+  check(s.phoneDial.join() === 'Wired,Normal,Drained*' && s.phoneDialH.every((h) => h >= 44), 'energy phone: the dial in Start with: ' + JSON.stringify(s));
   check(s.start === 'Return the lamp' && s.acts.join() === 'Start,Not this one,Surprise me' && !s.overflow, 'energy phone: the pick and its buttons, no sideways scroll: ' + JSON.stringify(s));
   await p.page.screenshot({ path: file('energy-phone'), fullPage: true });
   await tap(p.page, '#startDial [data-energy="normal"]');
@@ -585,7 +608,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await tap(page, '#startDread [data-dread="stop"]');
   s = await ds(page);
   check(w.posts[3].path === 'stop' && JSON.stringify(w.posts[3].body) === JSON.stringify({ source: 'morning' }), 'dread: Stop sends only the source: ' + JSON.stringify(w.posts[3]));
-  check(!s.running && s.acts.join() === 'Start,Not this one,Surprise me' && s.meta === 'Today' && !s.q && s.focus === 'start' && s.tilt !== 'none', 'dread: back to the pick: ' + JSON.stringify(s));
+  check(!s.running && s.acts.join() === 'Start,Not this one,Surprise me' && s.meta === 'Today' && !s.q && s.focus === 'start', 'dread: back to the pick: ' + JSON.stringify(s));
   // A rating the hub refuses (the timer was stopped elsewhere): Morning asks again and shows the pick.
   await tap(page, '[data-dread="start"]');
   w.running = null;
@@ -716,6 +739,8 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
     await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(300);
+    // The PC keeps Waiting on behind its tray chip (Focus layout, 2026-11-04): open it.
+    if (viewport.width >= 1100 && (await page.$('#tray [data-panel="waiting"]'))) { await page.click('#tray [data-panel="waiting"]'); await page.waitForTimeout(250); }
     return { ctx, page };
   };
   const ws = (page) => page.evaluate(() => {
@@ -734,7 +759,14 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
       vals: ['wfWho', 'wfWhat', 'wfFor'].map((id) => document.getElementById(id).value),
       invalid: ['wfWho', 'wfWhat'].filter((id) => document.getElementById(id).getAttribute('aria-invalid') === 'true'),
       focus: document.activeElement && document.activeElement.id,
-      tiles: [...document.querySelectorAll('#todayList .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+      tiles: [...document.querySelectorAll('#todayList .tile, #facts .tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+    // The PC (Focus layout, 2026-11-04): the facts on the right, the next line, the tray, the skill bullets.
+    facts: [...document.querySelectorAll('#facts .tile')].map((t) => t.dataset.k),
+    next: document.getElementById('nextLine').hidden ? null : document.getElementById('nextLine').innerText.replace(/\s+/g, ' ').trim(),
+    tray: document.getElementById('tray').hidden ? null : [...document.querySelectorAll('#tray .tchip')].map((c) => c.innerText.replace(/\s+/g, ' ').trim()),
+    bullets: [...document.querySelectorAll('#todayList .task .tskill')].map((b) => b.title || 'dot'),
+    readouts: getComputedStyle(document.getElementById('readouts')).display !== 'none',
+    panels: ['projects', 'waiting', 'intake', 'feed', 'arsenal', 'lift', 'hiscores'].filter((id) => { const e = document.getElementById(id); return !e.hidden && e.getBoundingClientRect().height > 0; }),
       band: Math.round(document.getElementById('weekBand').getBoundingClientRect().top),
       order: ['#start', '.card-today', '#waiting', '#projects'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)),
       overflow: document.documentElement.scrollWidth > innerWidth,
@@ -758,9 +790,10 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   const { ctx, page } = await openW(w, laptop);
   let s = await ws(page);
   check(s.card && s.head === 'Waiting on 4 open' && s.add && !s.form, 'waiting: the card, its header and Add: ' + JSON.stringify(s));
-  check(s.rows.length === 4 && s.rows[0] === 'The ministry about the policy officer application Chase due' && s.rows[1] === 'The agency about the application Chase due'
-    && s.rows[2] === `The accountant about the tax overview · for Nick since ${dm(day(-3))}` && s.rows[3] === 'The council about the parking permit since today',
-    'waiting: rows, oldest first, Chase due or since: ' + s.rows);
+  // Three rows shown (the declutter, 2026-11-04), the rest as "+N more".
+  check(s.rows.length === 3 && s.rows[0] === 'The ministry about the policy officer application Chase due' && s.rows[1] === 'The agency about the application Chase due'
+    && s.rows[2] === `The accountant about the tax overview · for Nick since ${dm(day(-3))}` && s.more === '+1 more',
+    'waiting: three rows, oldest first, Chase due or since, +1 more: ' + s.rows + ' ' + s.more);
   check(s.dueInk === 'rgb(138, 83, 0)', 'waiting: Chase due is amber ink: ' + s.dueInk);
   check((await page.$$('#waitList button')).length === 0, 'waiting: no buttons on the rows');
   await page.screenshot({ path: file('waiting-pc'), fullPage: true });
@@ -810,10 +843,10 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   s = await ws(page);
   check(w.posts.length === 1, 'waiting: a double tap sends once: ' + w.posts.length);
   check(JSON.stringify(w.posts[0]) === JSON.stringify({ who: 'The landlord', what: 'the heating repair', channel: 'phone', chaseDays: 14, source: 'morning', forWhom: 'Nick' }), 'waiting: the POST body: ' + JSON.stringify(w.posts[0]));
-  check(!s.form && s.add && s.focus === 'waitAdd' && s.head === 'Waiting on 5 open' && !s.more && s.rows.length === 5 && s.rows[4] === 'The landlord about the heating repair · for Nick since today', 'waiting: the new item shows, the form closes: ' + JSON.stringify(s.rows) + s.head);
+  check(!s.form && s.add && s.focus === 'waitAdd' && s.head === 'Waiting on 5 open' && s.more === '+2 more' && s.rows.length === 3, 'waiting: the new item counts, the form closes: ' + JSON.stringify(s.rows) + s.head);
   check(w.gets === gets + 1, 'waiting: Morning is asked again after an add: ' + (w.gets - gets));
   check(s.vals.join('|') === '||', 'waiting: the form is empty after an add');
-  // A second add with nothing picked: Email, 7 days, no forWhom; a sixth item makes "+1 more".
+  // A second add with nothing picked: Email, 7 days, no forWhom; a sixth item makes "+3 more".
   await page.click('#waitAdd');
   await page.fill('#wfWho', 'The dentist');
   await page.fill('#wfWhat', 'the new appointment');
@@ -821,7 +854,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await page.waitForTimeout(600);
   s = await ws(page);
   check(JSON.stringify(w.posts[1]) === JSON.stringify({ who: 'The dentist', what: 'the new appointment', channel: 'email', chaseDays: 7, source: 'morning' }), 'waiting: the defaults go out with Enter: ' + JSON.stringify(w.posts[1]));
-  check(s.rows.length === 5 && s.more === '+1 more' && s.head === 'Waiting on 6 open', 'waiting: five rows and +1 more: ' + s.more + ' ' + s.head);
+  check(s.rows.length === 3 && s.more === '+3 more' && s.head === 'Waiting on 6 open', 'waiting: three rows and +3 more: ' + s.more + ' ' + s.head);
   // Escape closes the form and keeps a draft.
   await page.click('#waitAdd');
   await page.fill('#wfWho', 'Half typed');
@@ -948,7 +981,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
 
   // The PC: rows, meta lines, the tick, above the letters, the count, the sort line.
   const w = mworld();
-  const { ctx, page } = await openM(w, laptop);
+  const { ctx, page } = await openM(w, desk);
   let s = await ms(page);
   check(s.card && s.kinds.join() === 'Mail,Mail,Mail,Mail', 'mail: four rows labelled Mail: ' + s.kinds);
   check(s.ids.join() === 'mail0000000000a1,mail0000000000b2,mail0000000000c3,mail0000000000d4', 'mail: newest first as sent: ' + s.ids);
@@ -1010,17 +1043,17 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   await ctx.close();
 
   // Nothing new without the block, or with an empty one; one mail to sort reads singular.
-  const base = await shoot(answer(), laptop, '');
+  const base = await shoot(answer(), desk, '');
   for (const [mail, what] of [[null, 'null'], [{ later: [], triage: 0 }, 'empty']]) {
-    const a = await shoot(answer({ mail }), laptop, '', async (p) => { s = await ms(p); });
+    const a = await shoot(answer({ mail }), desk, '', async (p) => { s = await ms(p); });
     check(s.card && s.kinds.length === 0 && s.mailListHidden && !s.sort && !s.toast && s.note === '2 this week'
       && JSON.stringify(a.intake) === JSON.stringify(base.intake), `mail ${what}: the card as before: ` + JSON.stringify({ kinds: s.kinds, sort: s.sort, note: s.note, intake: a.intake }));
   }
-  await shoot(answer({ mail: { later: [], triage: 1 } }), laptop, '', async (p) => { s = await ms(p); });
+  await shoot(answer({ mail: { later: [], triage: 1 } }), desk, '', async (p) => { s = await ms(p); });
   check(s.kinds.length === 0 && s.sort === '1 mail to sort in Day', 'mail: one to sort, singular, no rows: ' + s.sort);
-  await shoot(answer({ intake: null, mail: { later: mails().slice(0, 1), triage: 0 } }), laptop, '', async (p) => { s = await ms(p); });
+  await shoot(answer({ intake: null, mail: { later: mails().slice(0, 1), triage: 0 } }), desk, '', async (p) => { s = await ms(p); });
   check(s.card && s.kinds.length === 1 && !s.empty && s.letters.length === 0 && s.note === '1 this week', 'mail: shows the card before the first letter, no empty line: ' + JSON.stringify({ card: s.card, kinds: s.kinds, empty: s.empty, note: s.note }));
-  await shoot(answer({ intake: null, mail: null }), laptop, '', async (p) => { s = await ms(p); });
+  await shoot(answer({ intake: null, mail: null }), desk, '', async (p) => { s = await ms(p); });
   check(!s.card, 'mail: no letters and no mail, no card');
 
   // The phone: the card keeps its order, buttons get their own line at 44 px, nothing scrolls sideways.
@@ -1158,7 +1191,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
 
   // The PC: the first due task, its count, the strip, the buttons; the poll reads it on opening.
   const w = aworld(DUE);
-  const { ctx, page } = await openA(w, laptop);
+  const { ctx, page } = await openA(w, desk);
   let s = await as(page);
   check(s.shown && s.head === 'Time to decide' && s.passed === 'Passed on 7 times' && s.name === 'Call the bank about the old account' && s.meta === 'Soon',
     'decide: the first due task, Passed on 7 times, Soon: ' + JSON.stringify(s));
@@ -1254,7 +1287,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   // Do it now: the Dread meter's Start; Start with holds the task, running; the card moves on.
   {
     const dw = aworld(DUE.slice(0, 2));
-    const { ctx, page } = await openA(dw, laptop);
+    const { ctx, page } = await openA(dw, desk);
     await tap(page, '[data-decide="now"]', 500);
     const s = await as(page);
     check(dw.posts.length === 1 && dw.posts[0].path === 'dread/start' && JSON.stringify(dw.posts[0].body) === JSON.stringify({ source: 'morning', task: 'task00000021' }),
@@ -1268,7 +1301,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   {
     const ew = aworld([]);
     ew.ledger = [];
-    const { ctx, page } = await openA(ew, laptop);
+    const { ctx, page } = await openA(ew, desk);
     const s = await as(page);
     check(!s.shown && !s.todayLink && ew.gets >= 1, 'decide: nothing due, no card, no Archived link: ' + JSON.stringify(s));
     await ctx.close();
@@ -1387,7 +1420,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
 
   // The PC: the line under the header, read on opening.
   const w = oworld();
-  const { ctx, page } = await openO(w, laptop);
+  const { ctx, page } = await openO(w, desk);
   let s = await ol(page);
   check(s.shown && s.bg === 'rgb(255, 255, 255)' && s.k === 'This week\'s question' && s.level === '2' && s.q === OQ && s.answer === 'Answer' && s.expanded === 'false' && w.gets >= 1,
     'oracle line: the label, the question, Answer, read on opening: ' + JSON.stringify({ k: s.k, q: s.q, answer: s.answer, gets: w.gets }));
@@ -1447,7 +1480,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   // Not this week: the aside POST, then the line goes.
   {
     const aw = oworld();
-    const { ctx, page } = await openO(aw, laptop);
+    const { ctx, page } = await openO(aw, desk);
     await tap(page, '#olOpen', 100);
     await tap(page, '#olForm [data-ol="aside"]', 500);
     const s = await ol(page);
@@ -1459,7 +1492,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   for (const [what, set] of [['nothing open', (x) => { x.current = null; }], ['the hub away', (x) => { x.down = true; }]]) {
     const nw = oworld();
     set(nw);
-    const { ctx, page } = await openO(nw, laptop);
+    const { ctx, page } = await openO(nw, desk);
     const s = await ol(page);
     check(!s.shown && await page.evaluate(() => !document.getElementById('start').hidden), 'oracle line: ' + what + ', no line: ' + JSON.stringify({ shown: s.shown }));
     await ctx.close();
@@ -1467,7 +1500,7 @@ check(r.projects === 0 && /can't load/.test(r.arsenal) && r.today.some((x) => /c
   // The minute poll: a question asked meanwhile shows within a minute.
   {
     const mw = oworld(null);
-    const { ctx, page } = await openO(mw, laptop, 'install');
+    const { ctx, page } = await openO(mw, desk, 'install');
     check(!(await ol(page)).shown, 'oracle line: nothing open at first');
     const before = mw.gets;
     mw.current = structuredClone(OROW);

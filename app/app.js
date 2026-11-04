@@ -1438,7 +1438,9 @@
     const ep = energyPick();
     const first = ok(t) && t.items.length ? taskName(t.items[0].text).name : '';
     link.href = '../todo/?c=' + encodeURIComponent(code);
-    setKeep($('startDial'), WIDE.matches ? '' : dialHTML(energyLevel()) + playHTML(playNow()));
+    // The dial lives in Start with on every width (the PC's header read-outs went with the Focus layout).
+    // On the PC, Play sits in the tray instead.
+    setKeep($('startDial'), dialHTML(energyLevel()) + (WIDE.matches ? '' : playHTML(playNow())));
     const note = box.querySelector('.start-note');
     const meta = box.querySelector('.start-meta');
     const text = box.querySelector('.start-text');
@@ -1522,8 +1524,23 @@
   /* One fact tile: a small label, the value, and an optional line under it. Each is one line;
    * the whole text is on hover when a line is cut. */
   const plain = (html) => String(html).replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+  // Each kind of fact has its own icon and colour on the PC (data-k); the phone keeps the plain tiles.
+  const svg = (d) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${d}</svg>`;
+  const FACT_ICON = {
+    dinner: '<img src="icons/apps/kitchen.png" alt="" width="22" height="22">',
+    dough: '<img src="icons/apps/kitchen.png" alt="" width="22" height="22">',
+    'eating-out': svg('<path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-2 1.5-3 4-3 7h3v11"/>'),
+    bins: svg('<path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>'),
+    cleaning: svg('<path d="M14 3l-4 8M6 13h10l1 8H5zM9 17v4M13 17v4M19 4l.5 1.5L21 6l-1.5.5L19 8l-.5-1.5L17 6l1.5-.5z"/>'),
+    birthday: svg('<path d="M4 21h16v-8H4zM4 16c2 1 4 1 6 0s4-1 6 0 3 1 4 0M12 13V9M12 6.5c.8-.8.8-1.7 0-2.5-.8.8-.8 1.7 0 2.5z"/>'),
+    countdown: svg('<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9"/>'),
+    'chases-due': svg('<path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/>'),
+    yesterday: svg('<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.5 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>'),
+  };
+  const factKey = (label) => String(label).toLowerCase().trim().replace(/\s+/g, '-');
   const tile = (label, value, sub = '', title = '') =>
-    `<div class="tile" title="${esc(title || [plain(value), plain(sub)].filter(Boolean).join(' · '))}"><span class="tile-label">${esc(label)}</span>` +
+    `<div class="tile" data-k="${esc(factKey(label))}" title="${esc(title || [plain(value), plain(sub)].filter(Boolean).join(' · '))}">` +
+    `<span class="tile-ico" aria-hidden="true">${FACT_ICON[factKey(label)] || svg('<circle cx="12" cy="12" r="3"/>')}</span><span class="tile-label">${esc(label)}</span>` +
     `<span class="tile-value">${value}</span>${sub ? `<span class="tile-sub">${sub}</span>` : ''}</div>`;
 
   const subHead = (label, count) =>
@@ -1651,10 +1668,10 @@
   function renderToday(data, now) {
     $('todoLink').href = '../todo/?c=' + encodeURIComponent(code);
     const t = data && data.todos;
-    // On the PC the week band holds anything dated this week, so Today keeps only what needs
-    // doing now: bins going out today or tonight, and facts further off than the band reaches.
+    // The PC's week band is gone (the Focus layout, 2026-11-04): the facts stay here on every
+    // width, and the PC shows them as one quiet line under the list.
     const wide = WIDE.matches;
-    const inBand = (date) => wide && daysFrom(ymd(now), date) <= 6;
+    const inBand = () => false;
     let tiles = '';
     if (data) {
       tiles += chaseTile(data.waiting);
@@ -1662,13 +1679,19 @@
       tiles += dinnerTile(data.kitchen, !!away && away.date === ymd(now));
       tiles += awayTiles(data.dinner, now);
       const bin = binLine(data.bins, now);
-      if (bin && (bin.soon || !wide)) tiles += tile('Bins', bin.soon ? `<span class="soon-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
+      if (bin) tiles += tile('Bins', bin.soon ? `<span class="soon-text">${esc(bin.when)}</span>` : esc(bin.when), esc(bin.what));
       tiles += birthdayTiles(data.birthdays, now, inBand);
       tiles += countdownTiles(data.fixed, now, inBand);
       tiles += rotaTiles(data.rotas, now, inBand);
-      tiles += winsTile(ok(t) ? t.yesterday : null);
+      // Yesterday's wins only on the phone: the PC counts today beside the heading.
+      if (!wide) tiles += winsTile(ok(t) ? t.yesterday : null);
     }
-    let html = tiles ? `<div class="tiles">${tiles}</div>` : '';
+    // The phone shows the facts as tiles on top; the PC as small cards on the right (#facts).
+    const facts = tiles ? `<div class="tiles">${tiles}</div>` : '';
+    let html = wide ? '' : facts;
+    const done = ok(t) && t.doneToday && Number.isFinite(t.doneToday.count) ? t.doneToday.count : null;
+    const count = wide && ok(t) ? `${t.items.length} left${done !== null ? `, ${done} done` : ''}` : '';
+    if ($('todayCount').textContent !== count) $('todayCount').textContent = count;
     const agenda = data && !wide ? agendaRows(data, now) : '';
     if (agenda) html += subHead('On today') + `<ul class="rows">${agenda}</ul>`;
     if (!t) html += failed ? retryRow() : `<ul class="rows">${row('Loading…', '', 'empty')}</ul>`;
@@ -1687,21 +1710,26 @@
         if (i >= 0) rest.splice(i, 1);
       }
       const shown = rest.slice(0, TODO_SHOWN);
-      html += todoProgress(t);
+      // The PC has "4 left, 9 done" beside the heading, so the count and the ticks are the phone's.
+      if (!wide) html += todoProgress(t);
       html += `<ul class="rows">${rest.length
-        ? shown.map((i) => todoRow(i.text, now)).join('')
+        ? shown.map((i) => todoRow(i.text, now, i.skill)).join('')
         : row(t.items.length ? 'Nothing else on the list.' : 'Nothing for today.', '', 'empty')}</ul>`;
       if (rest.length > shown.length) html += `<a class="more-link" href="../todo/?c=${encodeURIComponent(code)}">+${rest.length - shown.length} more</a>`;
       // "This week" in To-do (2026-10-21): one line, how many flagged tasks are still open.
       const left = t.week && Number.isInteger(t.week.left) ? t.week.left : 0;
       if (left) html += `<a class="more-link week-left" href="../todo/?c=${encodeURIComponent(code)}">This week: ${left} left</a>`;
       // What was ticked off today stays in sight, struck through, so the card moves through the day.
-      const won = t.doneToday && Array.isArray(t.doneToday.items) ? t.doneToday.items.slice(0, 3) : [];
+      // Phone only: on the PC the count beside the heading says it.
+      const won = !wide && t.doneToday && Array.isArray(t.doneToday.items) ? t.doneToday.items.slice(0, 3) : [];
       if (won.length) html += `<ul class="rows rows-done">${won.map((x) => `<li class="row task task-done"><span class="tick" aria-hidden="true"></span><span>${esc(taskName(x).name)}</span></li>`).join('')}</ul>`;
       // The ledger's way in when Time to decide is not showing (the card has its own).
       const n = archivedCount();
       if (n && $('decide').hidden) html += `<button type="button" class="more-link arch-more" data-ledger>Archived (${n})</button>`;
     }
+    // The PC shows the facts under the coming days, on the right.
+    $('facts').hidden = !(wide && facts);
+    setHTML($('facts'), wide ? facts : '');
     setHTML($('todayList'), html);
   }
 
@@ -1721,12 +1749,17 @@
       `${'<i class="on"></i>'.repeat(on)}${'<i></i>'.repeat(cells - on)}</div></div>`;
   }
   /* One open task: a strip with the name, and on the right its date (warm from two days before) or a letter mark. */
-  function todoRow(text, now) {
+  /* The bullet (PC): the skill the task trains (To-do's Tidy picks it) as a green silhouette, else a dot. */
+  const SKILL_ID = /^[a-z]{3,20}$/;
+  const skillBullet = (skill) => (skill && SKILL_ID.test(skill)
+    ? `<span class="tskill" title="${esc(cap(skill))}" style="--sk:url('hiscores/assets/${skill}.png')"></span>`
+    : '<span class="tskill tskill-none" aria-hidden="true"></span>');
+  function todoRow(text, now, skill) {
     const n = taskName(text);
     const close = n.dueOn && daysFrom(ymd(now), n.dueOn) <= 2;
     const meta = (n.letter ? '<span class="tmeta tmeta-letter">Letter</span>' : '') +
       (n.due ? `<span class="tmeta${close ? ' tmeta-near' : ''}">${esc(n.due)}</span>` : '');
-    return `<li class="row task${isNew(todoKey(text))}"><span class="task-name">${esc(n.name)}</span>${meta}</li>`;
+    return `<li class="row task${isNew(todoKey(text))}">${skillBullet(skill)}<span class="task-name">${esc(n.name)}</span>${meta}</li>`;
   }
 
   /* ---------- 03 Projects: kept up to date from Claude Code; only Parked has buttons ---------- */
@@ -1774,14 +1807,10 @@
         <div class="proj-top"><span class="proj-name">${appIcon(x.name, 'app-ico')}${esc(x.name)}</span><span class="pill${pops(x) ? ' pop' : ''}">Your turn</span></div></div>`).join('');
     if (of('active').length) html += subHead('Building', of('active').length) + rows(of('active'));
     if (of('next').length) html += subHead('Up next', of('next').length) + rows(of('next'));
-    // Apps with an icon first, the rest after, so the grid reads as one block.
-    // Live: apps with an icon first. The ones already in the apps row up top are left out.
-    const inRow = new Set((links && ok(links) && Array.isArray(links.links) ? links.links : []).map((l) => String(l.name).toLowerCase()));
-    const live = of('live').filter((x) => !inRow.has(chipName(x.name).toLowerCase())).sort((a, b) => !appIcon(a.name) - !appIcon(b.name));
-    if (live.length) {
-      html += subHead('Live', live.length) + `<div class="chips">${live.map((x) =>
-        `<span class="chip${isNew(projKey(x))}"${x.next ? ` title="${esc(x.next)}"` : ''}>${appIcon(x.name, 'chip-ico') || noIcon}<span class="chip-name">${esc(chipName(x.name))}</span></span>`).join('')}</div>`;
-    }
+    // Live projects are no longer listed (2026-11-04, the declutter): they change rarely and
+    // need nothing from Paul. One quiet count, the names on hover.
+    const live = of('live');
+    if (live.length) html += `<p class="repo-line live-line" title="${esc(live.map((x) => chipName(x.name)).join(', '))}">${live.length} live</p>`;
     // Work that only lives on the PC (the daily run scans the repos). Hidden when everything is pushed.
     const unpushed = repos && ok(repos) && Array.isArray(repos.repos) ? repos.repos : [];
     if (unpushed.length) {
@@ -1929,13 +1958,13 @@
   // Feed sources that are part of another app show that app's icon.
   const SOURCE_ICON = { intake: 'todo', 'arsenal-watch': 'arsenal', 'defence-digest': 'defence' };
   const FEED_SHOWN = 4;
-  // Already on the page: a night out is the Eating out tile and the band; Projects says "Updated today".
-  const onPage = (e) => e.kind === 'dinner' || /^projects list refreshed/i.test(e.text);
+  // Already on the page: a night out is the Eating out tile and the band; Projects says "Updated today";
+  // a workout is the Gym card.
+  const onPage = (e) => e.kind === 'dinner' || /^projects list refreshed/i.test(e.text) || e.source === 'lift';
   function renderFeed(b, now) {
     const box = $('feed');
     if (!b) { box.hidden = true; return; }
     box.hidden = false;
-    $('feedSky').href = 'constellation/?c=' + encodeURIComponent(code);
     const list = $('feedList');
     if (!ok(b)) {
       setHTML(list, `<div class="row empty"><span>The feed can't load right now.</span></div>`);
@@ -1959,9 +1988,13 @@
   /* ---------- Apps: one-tap links from the Worker's LINKS secret (they carry codes) ---------- */
   function renderApps(l) {
     const links = l && ok(l) && Array.isArray(l.links) ? l.links.filter((x) => /^https:\/\//.test(x.url) && !offMorning(x.name)) : [];
-    const nav = $('apps');
-    nav.hidden = !links.length;
-    setHTML(nav, links.map((x) => `<a class="app-link" href="${esc(x.url)}" rel="noreferrer">${appIcon(x.name, 'chip-ico') || noIcon}<span class="chip-name">${esc(x.name)}</span></a>`).join(''));
+    // The side pages sit at the end of the row, so no card head has to carry them.
+    const c = encodeURIComponent(code);
+    $('waitNet').href = 'network/?c=' + c;
+    $('waitSkills').href = 'skills/?c=' + c;
+    $('waitRest').href = 'restless/?c=' + c;
+    $('feedSky').href = 'constellation/?c=' + c;
+    setHTML($('appLinks'), links.map((x) => `<a class="app-link" href="${esc(x.url)}" rel="noreferrer" title="${esc(x.name)}">${appIcon(x.name, 'chip-ico') || noIcon}<span class="chip-name">${esc(x.name)}</span></a>`).join(''));
   }
 
   /* ---------- Parked: its own card under Projects, stares back until something is done ----------
@@ -2071,7 +2104,7 @@
    * /api/waiting/:code; the answer's item goes straight in, then the page asks the hub again.
    * The form is plain DOM that render() never touches, so a draft survives refreshes and failures. */
   const CHANNEL_NAME = { email: 'Email', phone: 'Phone', letter: 'Letter', 'in-person': 'In person' };
-  const WAIT_SHOWN = 5;
+  const WAIT_SHOWN = 3;
   const waitOf = (data) => (data && ok(data.waiting) && Array.isArray(data.waiting.items) ? data.waiting : null);
   const waitItems = (list) => (Array.isArray(list) ? list : []).filter((x) => x && x.id && x.who && x.what);
   /* "<b>Defensie</b> about the application · for Nick" */
@@ -2086,15 +2119,13 @@
     const open = Math.max(Number(wt.open) || 0, items.length);
     const count = open ? `${open} open` : '';
     if ($('waitCount').textContent !== count) $('waitCount').textContent = count;
-    $('waitNet').href = 'network/?c=' + encodeURIComponent(code);
-    $('waitSkills').href = 'skills/?c=' + encodeURIComponent(code);
-    $('waitRest').href = 'restless/?c=' + encodeURIComponent(code);
     const today = ymd(now);
     const shown = items.slice(0, WAIT_SHOWN);
     const rows = shown.map((x) => {
       const side = x.chaseDue ? '<span class="tmeta tmeta-near">Chase due</span>'
         : isDate(x.since) ? `<span class="tmeta">since ${esc(x.since === today ? 'today' : dm(x.since))}</span>` : '';
-      return `<li class="row task wait-row${x.chaseDue ? ' due' : ''}"><span class="task-name">${waitWhat(x)}</span>${side}</li>`;
+      // One line each; the whole of it on hover.
+      return `<li class="row task wait-row${x.chaseDue ? ' due' : ''}" title="${esc(`${x.who} about ${x.what}`)}"><span class="task-name">${waitWhat(x)}</span>${side}</li>`;
     }).join('');
     let html = rows ? `<ul class="rows wait-rows">${rows}</ul>` : '';
     if (open > shown.length) html += `<a class="more-link" href="../todo/?c=${encodeURIComponent(code)}">+${open - shown.length} more</a>`;
@@ -3009,7 +3040,8 @@
     const awayOn = away && away.date === today && !(away.start && hm(now) >= away.start) && (away.start || '') !== nextAt;
     if (awayOn) tiles.push(readout('Tonight', away.start || 'Out', placeOf(away.title)));
     else if (evening) tiles.push(readout('Tonight', hm(evening.s), evening.title));
-    else if (n && ymd(k) <= addDays(today, 6)) {
+    // The match already shown as Next (the calendar has it too) is not said twice.
+    else if (n && ymd(k) <= addDays(today, 6) && !(ymd(k) === today && hm(k) === nextAt)) {
       const live = n.live || (k <= t && t - k < 150 * MIN);
       const kd = ymd(k);
       tiles.push(readout('Arsenal', live ? 'Live' : kd === today ? hm(k) : kd === addDays(today, 1) ? 'Tomorrow' : DAYS[weekday(kd)],
@@ -3018,6 +3050,7 @@
     // Energy: the dial, and Play under it while the level has a playlist (the phone has both in Start with instead)
     tiles.push(`<div class="ro ro-energy"><span class="ro-k">Energy</span>${dialHTML(energyLevel())}${playHTML(playNow())}</div>`);
     box.hidden = !tiles.length;
+    box.style.setProperty('--ro', tiles.length - 1);
     setKeep(box, tiles.join(''));
   }
 
@@ -3083,8 +3116,104 @@
     renderArsenal(arsenal, now);
     renderLift(data && data.lift, now);
     renderHiscores(data && data.hiscores);
+    renderNext(data, now);
+    renderTray(data);
     renderAsOf(now);
   }
+
+  /* ---------- Focus (PC, 1100 px and up): the next thing, and the tray ----------
+   * Picked 2026-11-04 ("A · Focus"): Start with, the rest of Today and the next event on the left,
+   * the coming days on the right, everything else as chips along the bottom. */
+
+  /* The one next thing under Today: what is on now, else the next timed event today and how long
+   * until it, else the first thing on a later day. Arsenal's matches carry the crest. */
+  function renderNext(data, now) {
+    const box = $('nextLine');
+    if (!data || !WIDE.matches) { box.hidden = true; return; }
+    const t = now.valueOf();
+    const today = ymd(now);
+    const days = calendarDays(data, now);
+    const timed = ((days.find((d) => d.date === today) || { list: [] }).list).filter((e) => !e.allDay);
+    const cur = timed.find((e) => e.s <= t && e.en > t);
+    const nxt = timed.find((e) => e.s > t);
+    let when = '', title = '', side = '', near = false;
+    if (cur) { when = 'Now'; title = cur.title; side = 'until ' + timeOf(cur.end); }
+    else if (nxt) { when = hm(nxt.s); title = nxt.title; side = 'in ' + dur(nxt.s - t); near = nxt.s - t <= 10 * MIN; }
+    else {
+      const later = days.find((d) => d.date > today);
+      const e = later && later.list[0];
+      if (e) { when = later.date === addDays(today, 1) ? 'Tomorrow' : DAYS[weekday(later.date)]; title = shortTitle(e.title); side = e.allDay ? 'all day' : hm(e.s); }
+    }
+    box.hidden = !title;
+    const crest = /arsenal/i.test(title) ? `<img class="crest" src="${CREST}" alt="" width="20" height="20" onerror="this.remove()">` : '';
+    setHTML(box, title ? `<b class="nl-when${near ? ' near-text' : ''}">${esc(when)}</b>${crest}<span class="nl-title">${esc(title)}</span><span class="nl-side">· ${esc(side)}</span>` : '');
+  }
+
+  /* The tray: one chip per card that is not about now, a count or a word each. A chip opens its
+   * card as a panel above the row, one at a time; the chip again, Escape or a click outside
+   * closes it. Gym and Hiscores are links to their own pages. Under 1100 px the cards stay in the page. */
+  let openPanel = '';
+  function renderTray(data) {
+    const nav = $('tray');
+    if (!WIDE.matches || !data) { nav.hidden = true; setPanel(''); return; }
+    const chips = [];
+    const shown = (id) => !$(id).hidden;
+    const panel = (id, inner, cls = '') => chips.push(`<button type="button" class="tchip${cls}" data-panel="${id}" aria-expanded="${openPanel === id}" aria-controls="${id}">${inner}</button>`);
+    const link = (href, inner) => chips.push(`<a class="tchip" href="${esc(href)}">${inner}</a>`);
+    const num = (n) => `<b>${esc(n)}</b>`;
+    // The nudges first: they are about now, but not the one thing.
+    if (shown('decide')) panel('decide', 'Time to decide', ' on');
+    if (shown('restless')) panel('restless', 'Restless?', ' on');
+    const pl = playNow();
+    if (pl) chips.push(`<a class="tchip" href="${esc(pl.uri)}" data-play="dial" data-level="${pl.level}" title="${esc(pl.title)}" aria-label="Play ${esc(pl.title)} in the Spotify app">${disc(11)}Music</a>`);
+    if (shown('projects')) {
+      const p = data.projects;
+      const turn = ok(p) && Array.isArray(p.projects) ? p.projects.filter((x) => x.status === 'waiting' && !offMorning(x.name)) : [];
+      panel('projects', turn.length ? `${esc(turn[0].name)}${turn.length > 1 ? ` +${turn.length - 1}` : ''} <span class="pill">Your turn</span>` : 'Projects', turn.length ? ' on' : '');
+    }
+    const wt = waitOf(data);
+    if (shown('waiting') && wt) {
+      const open = Math.max(Number(wt.open) || 0, waitItems(wt.items).length);
+      panel('waiting', `Waiting on ${num(open)}${wt.due > 0 ? ` <span class="near-text">${esc(wt.due)} to chase</span>` : ''}`);
+    }
+    if (shown('intake')) panel('intake', `Read for you ${num($('intake').querySelectorAll('.read-row').length)}`);
+    const l = data.lift;
+    if (shown('lift') && ok(l)) {
+      const what = l.doneToday ? (l.next ? `Next: ${l.next.name}` : `${l.doneToday.name} done`) : l.next.name;
+      link($('lift').getAttribute('href'), `<img class="chip-ico" src="icons/apps/lift.png" alt="">${esc(what)}`);
+    }
+    if (shown('hiscores')) link($('hiscores').getAttribute('href'), `<img class="chip-ico" src="icons/apps/hiscores.png" alt="">${esc($('hsNote').textContent.replace(/ waiting$/, ''))}`);
+    if (shown('feed')) panel('feed', `Lately${$('feedNote').textContent ? ` <span class="tchip-sub">${esc($('feedNote').textContent)}</span>` : ''}`);
+    if (shown('parked')) panel('parked', `Parked ${num($('parkList').querySelectorAll('.park').length)}`);
+    // Arsenal: not when the next line already shows the match.
+    const when = $('arsenalBody').querySelector('.fx-when');
+    if (!/arsenal/i.test($('nextLine').hidden ? '' : $('nextLine').textContent)) panel('arsenal', `<img class="chip-ico" src="${CREST}" alt="" onerror="this.remove()">Arsenal${when ? ` <span class="tchip-sub">${esc(when.textContent)}</span>` : ''}`);
+    nav.hidden = false;
+    setKeep(nav, chips.join(''));
+    // Panels open just above the row, however many lines it takes.
+    $('app').style.setProperty('--tray-h', nav.offsetHeight + 'px');
+    // A panel whose card went away closes.
+    if (openPanel && !shown(openPanel)) setPanel('');
+  }
+  function setPanel(id) {
+    openPanel = id;
+    if (id) $('app').dataset.open = id; else delete $('app').dataset.open;
+    for (const b of $('tray').querySelectorAll('[data-panel]')) b.setAttribute('aria-expanded', String(b.dataset.panel === id));
+  }
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('#tray [data-panel]');
+    if (chip) { setPanel(openPanel === chip.dataset.panel ? '' : chip.dataset.panel); return; }
+    // composedPath: a click inside the panel may rebuild (and detach) what was clicked.
+    if (openPanel && !e.composedPath().some((n) => n.id === openPanel)) setPanel('');
+  });
+  document.addEventListener('keydown', (e) => {
+    // Escape inside a form (Add one, Add in Waiting on) closes the form first, not the panel.
+    if (e.key !== 'Escape' || !openPanel || e.defaultPrevented || (e.target.closest && e.target.closest('form'))) return;
+    const id = openPanel;
+    setPanel('');
+    const b = $('tray').querySelector(`[data-panel="${id}"]`);
+    if (b) b.focus();
+  });
 
   /* ---------- Gym: the routine due next in Lift's rotation, or today's workout once done ----------
    * Lift sends paul-hub its plan and workouts (src/lift.js); the card opens Lift. */

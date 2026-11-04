@@ -565,11 +565,11 @@ for (const how of [503, 404, 400]) {
     const a = document.getElementById('feedSky');
     if (!a) return null;
     const r = a.getBoundingClientRect();
-    return { href: a.getAttribute('href'), text: a.textContent.replace(/\s+/g, ' ').trim(), h: r.height, inHead: !!a.closest('#feed .card-head'), cls: a.className };
+    return { href: a.getAttribute('href'), text: a.textContent.replace(/\s+/g, ' ').trim(), h: r.height, inRow: !!a.closest('#apps .apps-more'), cls: a.className };
   });
-  check(link && link.href === 'constellation/?c=' + CODE && link.text === 'Constellation ›' && link.inHead && /card-link/.test(link.cls), 'Morning: Constellation › in the head of Lately: ' + JSON.stringify(link));
+  check(link && link.href === 'constellation/?c=' + CODE && link.text === 'Constellation' && link.inRow && /apps-side/.test(link.cls), 'Morning: Constellation at the end of the apps row (since the declutter, 2026-11-04): ' + JSON.stringify(link));
   await page.waitForTimeout(1600); // the day's first open plays a one-second entrance
-  await page.locator('#feed').screenshot({ path: file('sky-lately-link') });
+  await page.locator('#apps').screenshot({ path: file('sky-lately-link') });
   await page.click('#feedSky');
   await page.waitForURL(/constellation\/\?c=/);
   await page.waitForTimeout(300);

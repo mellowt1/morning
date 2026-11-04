@@ -214,7 +214,21 @@ details.fold[open] > summary .tag::after { content: ''; }
 
 /* ---------- Apps: a row of one-tap links under the day's sentence ---------- */
 /* The apps row: the same even tiles as Projects' Live grid. */
-.apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; padding: 2px 10px 12px; }
+.apps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; padding: 2px 10px 12px; }
+.apps-main { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; flex: 1 1 100%; }
+.apps-main:empty { display: none; }
+/* The side pages: words, not tabs, so the row stays the apps. */
+.apps-more { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.apps-side { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.apps-side:hover { color: var(--ink); }
+.apps-side:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+@media (min-width: 1100px) {
+  .apps-main { flex: 1 1 auto; grid-template-columns: repeat(auto-fill, 150px); }
+  .apps-more { margin-left: auto; }
+  .apps-side { min-height: 38px; }
+}
+/* Live projects: one quiet count. */
+.live-line { padding-top: 14px; }
 .app-link { display: flex; align-items: center; gap: 9px; min-width: 0; height: 40px; padding: 0 10px; font-size: 13px; font-weight: 500; color: var(--ink); text-decoration: none; background: var(--card); border-radius: 10px; -webkit-tap-highlight-color: transparent; transition: background-color .18s ease, transform .18s ease; }
 .app-link:hover { background: var(--inner); }
 .app-link:active { transform: scale(.97); }
@@ -812,7 +826,7 @@ details.fold[open] > summary .tag::after { content: ''; }
  * its last ten minutes. On the PC they replace the sentence under the date, which says the same. */
 .readouts { display: none; }
 @media (min-width: 1100px) {
-  .readouts { flex: 1; min-width: 0; max-width: 900px; margin: 0 32px 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.3fr); gap: 12px; align-self: center; }
+  .readouts { flex: 1; min-width: 0; max-width: 900px; margin: 0 32px 0 auto; display: grid; grid-template-columns: repeat(var(--ro, 3), minmax(0, 1fr)) minmax(0, 1.3fr); gap: 12px; align-self: center; }
   .readouts[hidden] { display: none; }
   .page:has(#readouts:not([hidden])) .say { display: none; }
   .head { align-items: center; }
@@ -890,19 +904,14 @@ details.fold[open] > summary .tag::after { content: ''; }
 .card-wait .card-head { align-items: center; }
 .card-wait .card-head .num { padding-bottom: 0; }
 .card-wait .card-head .pbtn { flex: none; }
-/* Network › (morning/network/) beside Add, 44 px tall on touch like Constellation ›. */
+/* The head holds only the count and Add; Network, Skills and Restless live at the end of the apps row. */
 .wait-side { display: inline-flex; align-items: center; gap: 16px; min-width: 0; }
-/* With Restless › as a third link the side no longer fits beside the heading on a phone: it goes to
- * its own line under it, on the right, and the heading stays on one line. */
-.card-wait .card-head { flex-wrap: wrap; row-gap: 8px; }
 .card-wait .card-head .num { white-space: nowrap; }
 .card-wait .wait-side { margin-left: auto; }
-.wait-net { display: inline-flex; align-items: center; gap: .3em; min-height: 44px; margin: -12px 0; padding: 0; white-space: nowrap; }
-/* Skills › beside Network ›: under 400 px the head keeps "2 open" together and the links sit closer. */
 .card-wait .sub-count { white-space: nowrap; }
-@media (max-width: 399.98px) { .wait-side { gap: 12px; } }
 .wait-rows { padding: 6px 0 2px; }
-.wait-row .task-name { font-weight: 400; }
+/* One line each, the rest on hover. */
+.wait-row .task-name { font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wait-row b { font-weight: 600; }
 .wait-row.due::before { background: var(--h-fact); }
 .wait-for { color: var(--muted); }
@@ -1271,3 +1280,177 @@ button.mail-subj:focus-visible { outline: 2px solid var(--accent-text); outline-
 .rk-bar { height: 10px; border-radius: 2px; background: var(--inner); overflow: hidden; }
 .rk-bar i { display: block; height: 100%; background: var(--accent-fill); }
 .rk-n { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 18px; font-weight: 600; text-align: right; }
+
+/* ===================== Focus (PC, 1100 px and up), picked 2026-11-04 =====================
+ * One thing first, about four groups, space instead of boxes, the rest one tap away.
+ * Left: Start with, the rest of Today, the next thing. Right: the coming days (Coming up).
+ * Bottom: the tray, one chip per card that is not about now; a chip opens its card as a panel.
+ * The phone keeps the stacked cards. */
+.next-line, .tray, .facts { display: none; }
+.tile-ico, .tskill { display: none; }
+@media (min-width: 1100px) {
+  :root, :root[data-theme] { --ground: #EEF0F3; --card: #FFFFFF; --inner: #F1F3F5; --rule: #D9DEE4; }
+  .page { max-width: 1320px; padding: 36px 56px 120px; gap: 22px; }
+
+  /* The head: the date on the left, the clocks on the right, nothing between. */
+  .readouts { display: none !important; }
+  .page .say { display: none; }
+  .head { padding: 0; align-items: flex-start; }
+  .date { font-size: 52px; }
+  .clock-here { font-size: 64px; }
+
+  /* The apps: icons only (names on hover), the side pages as quiet words after them. */
+  .apps { padding: 0; margin-top: -6px; }
+  .apps-main { display: flex; gap: 12px; flex: 0 1 auto; }
+  .app-link { width: 46px; height: 46px; padding: 0; justify-content: center; background: transparent; box-shadow: none; border-radius: 8px; }
+  .app-link:hover { background: var(--card); }
+  .app-link .chip-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .app-link .chip-ico { width: 38px; height: 38px; border-radius: 9px; }
+  .apps-more { margin-left: 18px; }
+  .apps-side { font-size: 16px; font-weight: 500; min-height: 46px; }
+
+  /* Two columns: now on the left, the coming days on the right. */
+  .cols { display: grid; columns: auto; grid-template-columns: minmax(0, 1fr) 390px; grid-template-areas: "a c"; grid-template-rows: auto; gap: 96px; width: 100%; margin: 18px 0 0; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 30px; }
+  /* Start with, then the next thing (it has a clock on it), then the rest of Today. */
+  .col-a > * { order: 4; }
+  .col-a > .card-start { order: 1; }
+  .col-a > .next-line { order: 2; }
+  .col-a > .card-today { order: 3; }
+  .col-a { grid-area: a; }
+  .col-c { grid-area: c; align-self: start; }
+  .col-d, .col-e { display: contents; }
+  .cols > .col > .card, .cols > .card { margin-bottom: 0; }
+  .week-band { display: none !important; }
+  .cols:has(#intake[hidden]) { grid-template-areas: "a c"; grid-template-rows: auto; }
+  .cols:has(#intake[hidden]) > .col-c { display: flex; }
+
+  /* Start with: big words on the page, not a strip in a rack. The dial sits right of the buttons. */
+  .card-start { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "link link" "acts dial";
+    column-gap: 24px; row-gap: 18px; align-items: center; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; transform: none; }
+  .card-start:has(.start-link:hover), .card-start:has(.start-link:active) { background: none; transform: none; }
+  .card-start .start-link { grid-area: link; gap: 8px; }
+  .card-start .start-text { font-size: 56px; line-height: 1.02; text-wrap: balance; }
+  .card-start.is-out .start-text { font-size: 36px; }
+  .start-dial { grid-area: dial; display: flex; align-items: center; gap: 12px; }
+  .start-dial .dial { display: flex; gap: 2px; padding: 3px; background: var(--card); box-shadow: 0 1px 0 var(--rule); }
+  .start-dial .dial-btn { min-height: 34px; padding: 0 12px; flex-direction: row; gap: 6px; font-size: 15px; }
+  .start-dial .dial-btn svg { display: none; }
+  .start-acts { grid-area: acts; padding: 0; }
+  .start-acts .pbtn:not(.pbtn-today) { background: transparent; box-shadow: inset 0 0 0 1px var(--btn-rule); }
+  .start-dread, .start-music { grid-column: 1 / -1; }
+
+  /* Today: a plain list with rules, the count beside the heading, the facts as one quiet line. */
+  .card-today { padding: 0; background: none; box-shadow: none; border-radius: 0; }
+  .card-today .card-head { padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+  .today-count { margin-left: 10px; font-size: 16px; font-weight: 500; color: var(--muted); }
+  .today-count:empty { display: none; }
+  /* Bullets: the skill the task trains as a green silhouette (the icon is the mask), else a green dot. */
+  .card-today .rows { padding-top: 6px; }
+  .card-today .rows .task { gap: 14px; padding: 8px 0; font-size: 23px; border: 0; }
+  .card-today .rows .task::before { display: none; }
+  .card-today .task-name { font-weight: 400; }
+  .tskill { display: grid; place-items: center; flex: none; width: 24px; height: 24px; }
+  .tskill::after { content: ''; width: 22px; height: 22px; background: var(--accent-fill); -webkit-mask: var(--sk) center / contain no-repeat; mask: var(--sk) center / contain no-repeat; }
+  .tskill-none::after { width: 8px; height: 8px; border-radius: 50%; -webkit-mask: none; mask: none; opacity: .55; }
+
+  /* The day's facts: small cards, each with its own icon and colour. */
+  .facts { display: block; }
+  .facts[hidden] { display: none; }
+  .col-c > .facts { order: 0; }
+  .col-c > #coming { order: 1; }
+  .facts .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+  .facts .tile { display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-areas: "ico label" "ico value" "ico sub"; column-gap: 10px; row-gap: 1px; align-content: center;
+    padding: 11px 12px; background: var(--card); border: 0; border-radius: 10px; box-shadow: 0 1px 0 var(--rule); --tint: #EEF0F3; --tint-ink: var(--muted); }
+  .facts .tile-ico { grid-area: ico; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--tint); color: var(--tint-ink); align-self: center; }
+  .facts .tile-ico img { width: 24px; height: 24px; border-radius: 6px; }
+  .facts .tile-label { grid-area: label; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .facts .tile-value { grid-area: value; font-size: 17px; font-weight: 600; line-height: 1.2; -webkit-line-clamp: 2; }
+  .facts .tile-sub { grid-area: sub; font-size: 13px; color: var(--muted); }
+  .facts .tile[data-k="dinner"], .facts .tile[data-k="dough"] { --tint: #FDEBDD; --tint-ink: #B4541A; }
+  .facts .tile[data-k="eating-out"] { --tint: #FBE4E6; --tint-ink: #A3313A; }
+  .facts .tile[data-k="bins"] { --tint: #E0F1E5; --tint-ink: #2E7D4F; }
+  .facts .tile[data-k="cleaning"] { --tint: #ECE6F7; --tint-ink: #6A4BB0; }
+  .facts .tile[data-k="birthday"] { --tint: #FCEBD0; --tint-ink: #A0620A; }
+  .facts .tile[data-k="countdown"] { --tint: #E3EEF9; --tint-ink: #2F64A3; }
+  .facts .tile[data-k="chases-due"] { --tint: #F7EAD0; --tint-ink: #8A5300; }
+
+  /* The next thing. */
+  .next-line { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 12px; font-size: 22px; }
+  .next-line[hidden] { display: none; }
+  .nl-when { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 34px; font-weight: 600; line-height: 1; }
+  .next-line .crest { width: 20px; height: 20px; object-fit: contain; align-self: center; }
+  .nl-side { color: var(--muted); white-space: nowrap; }
+
+  /* The coming days: a rail of days, no box. */
+  #coming { display: flex; padding: 0; background: none; box-shadow: none; border-radius: 0; }
+  #coming > .num { padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  #days .ev { grid-template-columns: 52px 52px minmax(0, 1fr); padding: 11px 0; font-size: 18px; border-top: 1px solid var(--rule); }
+  #days .ev:first-child { border-top: 0; }
+  #days .ev.same { border-top: 0; padding-top: 0; }
+  #days .ev-day { grid-column: 1; grid-row: 1; font-family: 'Barlow Condensed', 'Barlow', sans-serif; color: var(--muted); }
+  #days .ev-time { grid-column: 2; grid-row: 1; text-align: left; font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 600; font-size: 17px; color: var(--muted); }
+  #days .ev-title { grid-column: 3; grid-row: 1; }
+
+  /* The cards behind the tray: out of the page until their chip opens one, then a panel above the row. */
+  #projects, #waiting, #intake, #feed, #parked, #arsenal, #lift, #hiscores, #restless, #decide { display: none !important; }
+  .page[data-open="restless"] #restless:not([hidden]), .page[data-open="decide"] #decide:not([hidden]),
+  .page[data-open="projects"] #projects:not([hidden]), .page[data-open="waiting"] #waiting:not([hidden]),
+  .page[data-open="intake"] #intake:not([hidden]), .page[data-open="feed"] #feed:not([hidden]),
+  .page[data-open="parked"] #parked:not([hidden]), .page[data-open="arsenal"] #arsenal:not([hidden]) {
+    display: flex !important; position: fixed; z-index: 30; left: 0; right: 0; bottom: calc(var(--tray-h, 72px) + 14px); width: min(680px, calc(100vw - 96px)); margin: 0 auto;
+    max-height: calc(100vh - var(--tray-h, 72px) - 80px); overflow: auto; padding: 22px 26px 14px; background: var(--card); border-radius: 10px;
+    box-shadow: 0 18px 48px rgba(21, 24, 28, .22), 0 0 0 1px var(--rule); animation: panel-in .18s ease-out both; }
+  .page[data-open="arsenal"] #arsenal:not([hidden]) { flex-direction: row; padding: 20px 26px; }
+
+  /* The tray: a still row along the bottom edge. */
+  .tray { display: flex; position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; justify-content: center; flex-wrap: wrap; gap: 4px 6px;
+    padding: 14px 56px 18px; background: var(--ground); border-top: 1px solid var(--rule); }
+  .tray[hidden] { display: none; }
+  /* Words, not tiles: only the open one and the ones asking for you stand out. */
+  .tchip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--ink); font: 500 17px/1 'Barlow', system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+  .tchip:hover { background: var(--card); }
+  .tchip:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+  .tchip b { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-size: 19px; font-weight: 700; }
+  .tchip .chip-ico { width: 20px; height: 20px; object-fit: contain; }
+  .tchip .disc { flex: none; }
+  .tchip-sub { color: var(--muted); }
+  .tchip.on { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--accent-fill); }
+  .tchip[aria-expanded="true"] { background: var(--ink); color: #fff; box-shadow: none; }
+  .tchip[aria-expanded="true"] .tchip-sub, .tchip[aria-expanded="true"] .near-text { color: #D5DAE0; }
+  .foot { display: none; }
+}
+@keyframes panel-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .page[data-open] .card { animation: none !important; } }
+
+/* Focus, the type pass (2026-11-04): one type scale (13 / 15 / 18 / 23 / 34 / 56, date 52), four text colours, one line per event, line height 1.45. */
+@media (min-width: 1100px) {
+  :root, :root[data-theme] { --paper-ink: var(--ink); --paper-2: var(--muted); --paper-green: var(--accent-text); }
+  /* 2. One loudest thing: the clock steps back. */
+  .clock-here { font-size: 48px; }
+  .clock-time { font-size: 23px; }
+  .clock-label, .eyebrow { font-size: 15px; }
+  /* 1. The scale. */
+  .num, .card-link, .today-count, .apps-side, .card-note, .start-note, .start-go, .start-meta { font-size: 15px; }
+  .start-meta { color: var(--muted); }
+  .pbtn, .dial-btn, .start-acts .pbtn { font-size: 15px; }
+  .card-today .rows .task, .next-line { font-size: 23px; }
+  .nl-when { font-size: 34px; }
+  .tchip, #days .ev, #days .ev-time, .facts .tile-value, .more-link { font-size: 18px; }
+  .tchip b { font-size: 18px; }
+  .facts .tile-label, .facts .tile-sub { font-size: 13px; }
+  /* 3. One line per event: the place is on hover in Day, not here. */
+  #days .place { display: none; }
+  /* 4. Four text colours: ink, grey, green, amber. */
+  .tile-sub, .nl-side, #days .ev-day, #days .ev-time, .card-today .num, #coming .num, .tchip-sub, .apps-side, .card-link { color: var(--muted); }
+  .card-today .num, #coming .num { color: var(--muted); }
+  /* 5. Room between lines that wrap. */
+  .card-today .rows .task, #days .ev, .facts .tile-value { line-height: 1.45; }
+}
+/* One line per event, and room for Sint Sebastiaen in the house cards. */
+@media (min-width: 1100px) {
+  #days .ev-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .facts .tile { grid-template-columns: 30px minmax(0, 1fr); column-gap: 9px; padding: 11px 10px; }
+  .facts .tile-ico { width: 30px; height: 30px; }
+}

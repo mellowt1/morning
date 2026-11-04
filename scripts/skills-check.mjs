@@ -1023,21 +1023,21 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { w
   const link = await page.evaluate(() => {
     const a = document.getElementById('waitSkills');
     if (!a) return null;
-    const r = a.getBoundingClientRect(), net = document.getElementById('waitNet').getBoundingClientRect(), add = document.getElementById('waitAdd').getBoundingClientRect(), head = a.closest('.card-head').getBoundingClientRect();
-    return { href: a.getAttribute('href'), text: a.textContent.replace(/\s+/g, ' ').trim(), h: r.height, inHead: !!a.closest('#waiting .card-head'), cls: a.className, afterNet: r.left >= net.right, beforeAdd: r.right <= add.left, sameRow: Math.abs((r.top + r.bottom) / 2 - (net.top + net.bottom) / 2) < 4 && Math.abs((r.top + r.bottom) / 2 - (add.top + add.bottom) / 2) < 4, inside: add.right <= head.right + 0.5, over: document.documentElement.scrollWidth > innerWidth };
+    const r = a.getBoundingClientRect(), net = document.getElementById('waitNet').getBoundingClientRect(), row = a.closest('#apps').getBoundingClientRect();
+    return { href: a.getAttribute('href'), text: a.textContent.replace(/\s+/g, ' ').trim(), h: r.height, inRow: !!a.closest('#apps .apps-more'), cls: a.className, afterNet: r.left >= net.right, sameRow: Math.abs((r.top + r.bottom) / 2 - (net.top + net.bottom) / 2) < 4, inside: r.right <= row.right + 0.5, over: document.documentElement.scrollWidth > innerWidth };
   });
   const tag = vp.width < 700 ? `Morning ${vp.width}` : 'Morning';
-  check(link && link.href === 'skills/?c=' + CODE && link.text === 'Skills ›' && link.inHead && /card-link/.test(link.cls) && link.afterNet && link.beforeAdd && link.sameRow && link.inside && !link.over, tag + ': Skills › beside Network › in the head of Waiting on: ' + JSON.stringify(link));
+  check(link && link.href === 'skills/?c=' + CODE && link.text === 'Skills' && link.inRow && /apps-side/.test(link.cls) && link.afterNet && link.sameRow && link.inside && !link.over, tag + ': Skills beside Network at the end of the apps row: ' + JSON.stringify(link));
   if (vp.width < 700) check(link && link.h >= 44, tag + ': the link is 44 px tall: ' + (link && link.h));
   else {
     await page.waitForTimeout(1600);
-    await page.locator('#waiting').screenshot({ path: file('skills-morning-link') });
+    await page.locator('#apps').screenshot({ path: file('skills-morning-link') });
     await page.click('#waitSkills');
     await page.waitForURL(/skills\/\?c=/);
     await page.waitForTimeout(400);
     check((await page.title()) === 'Skills' && (await page.locator('#rolesBody .rr').count()) === 5, 'Morning: the link opens Skills with the code');
   }
-  if (vp.width === 375) { await page.waitForTimeout(1600); await page.locator('#waiting').screenshot({ path: file('skills-morning-link-375') }); }
+  if (vp.width === 375) { await page.waitForTimeout(1600); await page.locator('#apps').screenshot({ path: file('skills-morning-link-375') }); }
   await ctx.close();
 }
 

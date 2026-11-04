@@ -136,7 +136,12 @@ for (const [name, viewport] of [['hiscores-pc', { width: 1440, height: 1000 }], 
 
 // Morning's card.
 {
-  const { page, ctx, errors } = await open('?c=' + CODE, { width: 1440, height: 1000 }, { seen: { ...all, magic: 0, slayer: 10 } });
+  // The card lives in the page up to 1099 px; the PC (Focus layout, 2026-11-04) has a chip in the tray.
+  const pc = await open('?c=' + CODE, { width: 1440, height: 1000 }, { seen: { ...all, magic: 0, slayer: 10 } });
+  const c = await pc.page.$eval('#tray a.tchip[href^="hiscores/"]', (a) => ({ t: a.textContent.trim(), h: a.getAttribute('href') })).catch(() => null);
+  check(!(await shown(pc.page, '#hiscores')) && c && c.t === 'Level up waiting: Slayer' && c.h === 'hiscores/?c=' + CODE, 'morning pc: no card, the tray chip says it and opens the page: ' + JSON.stringify(c));
+  await pc.ctx.close();
+  const { page, ctx, errors } = await open('?c=' + CODE, { width: 1000, height: 1000 }, { seen: { ...all, magic: 0, slayer: 10 } });
   check(await shown(page, '#hiscores'), 'morning: card shows');
   check((await page.$$('#hsGrid .hs-slot')).length === 18, 'morning: seventeen skills and the total');
   check(await page.textContent('#hsNote') === 'Level up waiting: Slayer', 'morning: ' + await page.textContent('#hsNote'));

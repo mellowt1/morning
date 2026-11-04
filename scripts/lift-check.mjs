@@ -55,7 +55,9 @@ async function open(lift, viewport) {
 const shown = (page, sel) => page.$eval(sel, (e) => !e.hidden && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().height > 0).catch(() => false);
 const text = (page, sel) => page.$eval(sel, (e) => [...e.querySelectorAll('.fx-next, .fx-sub, .fx-when')].map((x) => x.textContent).join(' | ') || e.textContent.trim());
 
-for (const [name, viewport] of [['lift-pc', { width: 1440, height: 1000 }], ['lift-phone', { width: 390, height: 844 }]]) {
+// The card lives in the page up to 1099 px; the PC (Focus layout, 2026-11-04) has a chip in the tray instead.
+const chip = (page) => page.$eval('#tray a.tchip[href^="https://mellowt1.github.io/lift/"]', (a) => a.textContent.trim()).catch(() => null);
+for (const [name, viewport] of [['lift-tablet', { width: 1000, height: 1000 }], ['lift-phone', { width: 390, height: 844 }]]) {
   const { page, ctx, errors } = await open(NEXT, viewport);
   check(await shown(page, '#lift'), name + ': card shows');
   check(await text(page, '#liftBody') === 'Back | 3 exercises · 2 going up | Today', name + ': next up ' + await text(page, '#liftBody'));
@@ -68,7 +70,19 @@ for (const [name, viewport] of [['lift-pc', { width: 1440, height: 1000 }], ['li
   await ctx.close();
 }
 {
-  const { page, ctx, errors } = await open(DONE, { width: 1440, height: 1000 });
+  const { page, ctx, errors } = await open(NEXT, { width: 1440, height: 1000 });
+  check(!(await shown(page, '#lift')) && await chip(page) === 'Back', 'lift-pc: no card, the tray chip says the next routine and opens Lift: ' + await chip(page));
+  await page.screenshot({ path: file('lift-pc') });
+  check(errors.length === 0, 'lift-pc: no page errors ' + errors.join('; '));
+  await ctx.close();
+}
+{
+  const { page, ctx } = await open(DONE, { width: 1440, height: 1000 });
+  check(await chip(page) === 'Next: Chest', 'lift-pc done today: the chip says what is next: ' + await chip(page));
+  await ctx.close();
+}
+{
+  const { page, ctx, errors } = await open(DONE, { width: 1000, height: 1000 });
   check(await text(page, '#liftBody') === 'Back done | 9,840 kg · 2 PRs | Next: Chest', 'done today: ' + await text(page, '#liftBody'));
   await page.$eval('#lift', (e) => e.scrollIntoView({ block: 'center' }));
   await page.screenshot({ path: file('lift-done') });
@@ -76,13 +90,13 @@ for (const [name, viewport] of [['lift-pc', { width: 1440, height: 1000 }], ['li
   await ctx.close();
 }
 {
-  const { page, ctx } = await open(LATER, { width: 1440, height: 1000 });
+  const { page, ctx } = await open(LATER, { width: 1000, height: 1000 });
   check((await text(page, '#liftBody')).endsWith('Wed'), 'a later gym day shows its weekday');
   await ctx.close();
 }
 {
   const { page, ctx } = await open(null, { width: 1440, height: 1000 });
-  check(!(await shown(page, '#lift')), 'hidden before Lift has sent');
+  check(!(await shown(page, '#lift')) && await chip(page) === null, 'hidden before Lift has sent, no chip either');
   await ctx.close();
 }
 await browser.close();

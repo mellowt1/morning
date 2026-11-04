@@ -112,6 +112,8 @@ async function open(w, viewport, { when = NOW, path = '', code = CODE, reduce = 
   if (!path) await page.waitForFunction(() => /As of/.test(document.getElementById('asOf').textContent));
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);
+  // The PC keeps Restless? behind its tray chip (Focus layout, 2026-11-04): open it when it is there.
+  if (!path && (await page.$('#tray [data-panel="restless"]'))) { await page.click('#tray [data-panel="restless"]'); await page.waitForTimeout(250); }
   return { ctx, page };
 }
 
@@ -159,12 +161,16 @@ const body = (w) => JSON.stringify(last(w).body);
   const { ctx, page } = await open(w, PC);
   let s = await st(page);
   check(!s.shown && w.gets === 0, 'pc: Normal, no Restless card, the list is not read: ' + JSON.stringify({ shown: s.shown, gets: w.gets }));
-  await tap(page, '#readouts [data-energy="normal"]'); // clears the level
+  await tap(page, '#startDial [data-energy="normal"]'); // clears the level
   s = await st(page);
   check(!s.shown, 'pc: no level, no card');
-  await tap(page, '#readouts [data-energy="wired"]');
+  await tap(page, '#startDial [data-energy="wired"]');
+  // The PC (Focus layout, 2026-11-04): Wired puts a Restless? chip in the tray; the chip opens the card above it.
+  const chipOn = await page.$eval('#tray [data-panel="restless"]', (b) => b.classList.contains('on') && b.textContent.trim() === 'Restless?').catch(() => false);
+  await tap(page, '#tray [data-panel="restless"]');
   s = await st(page);
-  check(s.shown && w.gets === 1 && s.sameCol && s.afterStart, 'pc: Wired shows the card under Start with in the left column, the list read once: ' + JSON.stringify({ gets: w.gets, after: s.afterStart }));
+  const panel = await page.evaluate(() => { const b = document.getElementById('restless'), t = document.getElementById('tray'); return getComputedStyle(b).position === 'fixed' && b.getBoundingClientRect().bottom <= t.getBoundingClientRect().top; });
+  check(chipOn && s.shown && w.gets === 1 && panel, 'pc: Wired puts Restless? in the tray, its chip opens the card above the row, the list read once: ' + JSON.stringify({ gets: w.gets, chipOn, panel }));
   check(s.free === 'You have 1 h 40 until Coffee with a friend' && s.chips.join() === '30 min,1 h,until 16:00*,All evening' && s.go && !s.name,
     'pc: the free time from the next event, its chip chosen, Go: ' + JSON.stringify({ free: s.free, chips: s.chips }));
   check(s.listHref === 'restless/?c=' + CODE && s.waitHref === 'restless/?c=' + CODE && s.waitShown, 'pc: The list › and Restless › (beside Network and Skills) open restless/ with the code');
@@ -230,7 +236,7 @@ const body = (w) => JSON.stringify(last(w).body);
   check(s.outline === 'solid 2px', 'pc: a chip reached by keyboard shows the focus ring: ' + s.outline);
 
   // 7. The level goes back to Normal: the card goes.
-  await tap(page, '#readouts [data-energy="normal"]');
+  await tap(page, '#startDial [data-energy="normal"]');
   s = await st(page);
   check(!s.shown, 'pc: Normal again, the card goes');
   await ctx.close();
