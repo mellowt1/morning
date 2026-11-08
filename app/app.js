@@ -1826,6 +1826,23 @@
   /* ---------- Read for you: what the paper-clip in the to-do app read lately ---------- */
   const READ_KIND = { letter: 'letter', bill: 'bill', contract: 'contract', 'credit-report': 'credit report', job: 'job posting', note: 'note', other: 'document' };
   const whoLabel = (w) => (!w || w === 'me' || w === 'other' ? '' : w.charAt(0).toUpperCase() + w.slice(1));
+  /* ---------- Claude this month (paul-hub src/spend.js, 2026-11-08) ----------
+   * What the hub's Claude calls cost so far this month, dearest feature first, in dollars as the
+   * Console bills them. The note: the pace once a few days are in, and last month. */
+  const usd = (v) => '$' + (v >= 10 ? String(Math.round(v)) : v.toFixed(2));
+  function renderSpend(b) {
+    const box = $('spend');
+    if (!b || !ok(b) || typeof b.usd !== 'number' || !Array.isArray(b.features)) { box.hidden = true; return; }
+    box.hidden = false;
+    const note = [b.pace != null && b.pace > b.usd ? `on pace for ${usd(b.pace)}` : '', b.last && b.last.usd ? `last month ${usd(b.last.usd)}` : ''].filter(Boolean).join(' · ');
+    if ($('spendNote').textContent !== note) $('spendNote').textContent = note;
+    const top = b.features.slice(0, 5);
+    const rest = b.features.slice(5).reduce((s, f) => s + (Number(f.usd) || 0), 0);
+    const row = (label, v, sub) => `<div class="read-row"><span class="read-text">${esc(label)}${sub ? ` <span class="spend-sub">${esc(sub)}</span>` : ''}</span><span class="read-when">${esc(usd(v))}</span></div>`;
+    setHTML($('spendList'), `<div class="read-row spend-total"><span class="read-text">This month</span><span class="read-when">${esc(usd(b.usd))}</span></div>` +
+      top.map((f) => row(f.label, Number(f.usd) || 0, `${f.calls}×`)).join('') + (rest > 0 ? row('Other', rest) : ''));
+  }
+
   function renderIntake(b, m, now) {
     const box = $('intake');
     const mails = mailRows(m);
@@ -3105,6 +3122,7 @@
     renderApps(data && data.links);
     renderProjects(data && data.projects, now, data && data.repos, data && data.links);
     renderIntake(data && data.intake, data && data.mail, now);
+    renderSpend(data && data.spend);
     renderFeed(data && data.events, now);
     renderParked(data && data.projects, now);
     renderWaiting(waitOf(data), now);
@@ -3177,6 +3195,7 @@
       panel('waiting', `Waiting on ${num(open)}${wt.due > 0 ? ` <span class="near-text">${esc(wt.due)} to chase</span>` : ''}`);
     }
     if (shown('intake')) panel('intake', `Read for you ${num($('intake').querySelectorAll('.read-row').length)}`);
+    if (shown('spend') && data.spend) panel('spend', `Claude ${num(usd(data.spend.usd))}`);
     const l = data.lift;
     if (shown('lift') && ok(l)) {
       const what = l.doneToday ? (l.next ? `Next: ${l.next.name}` : `${l.doneToday.name} done`) : l.next.name;

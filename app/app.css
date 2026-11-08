@@ -169,6 +169,9 @@ a:hover { opacity: .8; }
 .read-kind { flex: none; width: 58px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .read-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .read-when { flex: none; font-size: 13px; color: var(--muted); }
+.spend-total .read-text, .spend-total .read-when { font-weight: 600; color: inherit; }
+.spend-sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#spend .read-when { font-variant-numeric: tabular-nums; }
 .read-needs { margin: 2px 0; border-radius: 12px; background: var(--inner); }
 .rows > .read-needs, .rows > .read-needs + * { border-top: 0; }
 .read-needs .read-kind { color: var(--accent-text); }
